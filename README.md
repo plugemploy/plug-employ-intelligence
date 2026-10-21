@@ -65,9 +65,9 @@ To **stop** the app, click the Terminal window and press **Control + C**.
 ```bash
 python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/alembic upgrade head
 cp .env.example .env   # then edit .env with real values
 /Applications/Postgres.app/Contents/Versions/latest/bin/createdb -h localhost plug_employ_dev
+.venv/bin/alembic upgrade head
 ```
 
 ## Security rules
