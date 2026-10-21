@@ -4,7 +4,7 @@ A lead-generation web app for franchise owners. It finds local businesses, score
 advertising fit, and tracks them in each customer's own lead tracker.
 See [docs/PLAN.md](docs/PLAN.md) for the full plan and decisions.
 
-**Current stage:** Phase 1. Lead tracker with status, notes and follow-up dates (sample data only).
+**Current stage:** Phase 2. Lead tracker plus a "Find leads" page that searches Google Places.
 
 ## What you need on your Mac
 

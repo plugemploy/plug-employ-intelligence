@@ -2,7 +2,7 @@
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 STATUSES = ["New", "Contacted", "Interested", "Not interested", "Won"]
@@ -30,6 +30,9 @@ class Lead(Base):
     website: Mapped[str] = mapped_column(String(300), default="")
     industry: Mapped[str] = mapped_column(String(100), default="")
     status: Mapped[str] = mapped_column(String(30), default="New")
+    google_place_id: Mapped[str | None] = mapped_column(String(200), index=True)
+    rating: Mapped[float | None] = mapped_column(Float)
+    review_count: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -72,3 +75,15 @@ class FollowUp(Base):
     done: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     lead: Mapped[Lead] = relationship(back_populates="follow_ups")
+
+
+class ApiUsage(Base):
+    """One row per paid API request, so the monthly budget can be enforced."""
+
+    __tablename__ = "api_usage"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
+    service: Mapped[str] = mapped_column(String(50))
+    detail: Mapped[str] = mapped_column(String(300), default="")
+    est_cost_usd: Mapped[float] = mapped_column(Numeric(10, 4))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)

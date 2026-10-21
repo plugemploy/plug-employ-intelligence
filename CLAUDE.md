@@ -26,4 +26,5 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 ## Status
 - Phase 0 done (2026-10-21): hello-world page with database check.
 - Phase 1 done (2026-10-21): accounts (dropdown, no logins yet) and lead tracker. Alembic for DB changes. Sample data: `scripts/seed.py`. Tests: `.venv/bin/python -m pytest`.
-- Next: Phase 2, Google Places search.
+- Phase 2 done (2026-10-21): Google Places (New) Text Search on /search, filters, dedupe, budget guard (api_usage table, $0.035/request at full price). Real leads go in account "Plug Employ (real leads)".
+- Next: Phase 3, Claude scoring.

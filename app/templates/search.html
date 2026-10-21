@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Find leads{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Find leads</h1>
+<p class="text-sm text-slate-600 mb-4">Searches Google Places. Skips closed businesses, ones with fewer than
+  {{ min_reviews }} reviews, ones outside the ZIP, and ones already in your list.</p>
+<p class="text-sm mb-4">API spending this month (estimated, at full price): <b>${{ "%.2f"|format(spent) }}</b> of ${{ budget|int }}
+  · about ${{ cost_each }} per ZIP × industry search.</p>
+{% if not has_key %}<p class="mb-4 rounded bg-red-50 border border-red-300 p-3 text-red-800 text-sm">No Google key in .env yet.</p>{% endif %}
+{% if error %}<p class="mb-4 rounded bg-red-50 border border-red-300 p-3 text-red-800 text-sm">{{ error }}</p>{% endif %}
+{% if results %}
+<div class="bg-white rounded-xl shadow mb-6 overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-100 text-left text-slate-600"><tr>
+      <th class="p-3">Search</th><th class="p-3">Found</th><th class="p-3">Added</th><th class="p-3">Skipped</th></tr></thead>
+    <tbody>{% for r in results %}<tr class="border-t">
+      <td class="p-3">{{ r.industry }} in {{ r.zip }}</td><td class="p-3">{{ r.found }}</td>
+      <td class="p-3 font-semibold text-green-700">{{ r.added }}</td>
+      <td class="p-3 text-slate-500">{{ r.skipped_closed }} closed · {{ r.skipped_few_reviews }} few reviews ·
+        {{ r.skipped_other_zip }} other ZIP · {{ r.skipped_duplicate }} already had</td></tr>{% endfor %}</tbody>
+  </table>
+  <p class="p-3 text-sm"><a href="/leads?status=New" class="text-blue-700 hover:underline">See new leads →</a></p>
+</div>
+{% endif %}
+<form method="post" class="bg-white rounded-xl shadow p-6 grid gap-6 max-w-2xl"
+      onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Searching…'">
+  <fieldset><legend class="font-semibold mb-2">ZIP codes</legend>
+    <div class="flex flex-wrap gap-3 text-sm">{% for z in zips %}
+      <label class="flex items-center gap-1"><input type="checkbox" name="zips" value="{{ z }}"> {{ z }}</label>{% endfor %}</div>
+  </fieldset>
+  <fieldset><legend class="font-semibold mb-2">Industries</legend>
+    <div class="flex flex-wrap gap-3 text-sm">{% for i in industries %}
+      <label class="flex items-center gap-1"><input type="checkbox" name="industries" value="{{ i }}"> {{ i }}</label>{% endfor %}</div>
+  </fieldset>
+  <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Search Google</button>
+</form>
+{% endblock %}

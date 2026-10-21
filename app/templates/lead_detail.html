@@ -5,6 +5,7 @@
 <div class="mt-2 mb-6">
   <h1 class="text-2xl font-bold">{{ lead.business_name }}</h1>
   <p class="text-slate-600 text-sm">{{ lead.industry }} · {{ lead.address }} {{ lead.zip_code }}
+    {% if lead.rating %} · ★ {{ lead.rating }} ({{ lead.review_count }} reviews){% endif %}
     {% if lead.phone %} · {{ lead.phone }}{% endif %}
     {% if lead.website %} · <a href="{{ lead.website }}" target="_blank" rel="noopener" class="text-blue-700 hover:underline">website</a>{% endif %}</p>
 </div>

@@ -21,7 +21,7 @@
 <div class="bg-white rounded-xl shadow overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-100 text-left text-slate-600">
-      <tr><th class="p-3">Business</th><th class="p-3">Industry</th><th class="p-3">ZIP</th>
+      <tr><th class="p-3">Business</th><th class="p-3">Industry</th><th class="p-3">ZIP</th><th class="p-3">Rating</th>
           <th class="p-3">Status</th><th class="p-3">Next follow-up</th><th class="p-3">Last note</th></tr>
     </thead>
     <tbody>
@@ -31,13 +31,14 @@
         <td class="p-3"><a href="/leads/{{ l.id }}" class="font-medium text-blue-700 hover:underline">{{ l.business_name }}</a></td>
         <td class="p-3">{{ l.industry }}</td>
         <td class="p-3">{{ l.zip_code }}</td>
+        <td class="p-3 whitespace-nowrap">{% if l.rating %}★ {{ l.rating }} <span class="text-slate-400">({{ l.review_count }})</span>{% endif %}</td>
         <td class="p-3">{% with s = l.status %}{% include "_badge.html" %}{% endwith %}</td>
         <td class="p-3 {% if fu and fu.due_date <= today %}text-red-700 font-medium{% endif %}">
           {{ fu.due_date.strftime("%b %-d") if fu else "—" }}</td>
         <td class="p-3 text-slate-600 max-w-xs truncate">{{ l.last_note.text if l.last_note else "" }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="6" class="p-6 text-center text-slate-500">No leads match.</td></tr>
+      <tr><td colspan="7" class="p-6 text-center text-slate-500">No leads match.</td></tr>
     {% endfor %}
     </tbody>
   </table>

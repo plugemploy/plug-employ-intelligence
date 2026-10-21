@@ -10,7 +10,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import check_database, get_session
+import httpx
+
+from app import places
+from app.config import GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
 from app.models import STATUSES, Account, FollowUp, Lead, LeadNote
+
+TEST_ZIPS = ["37934", "37922", "37932", "37923", "37919", "37909"]
+INDUSTRIES = ["Restaurant", "Dentist", "Auto repair", "Fitness", "Salon", "HVAC", "Real estate", "Landscaping"]
 
 app = FastAPI(title="Plug Employ Intelligence")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -153,6 +160,39 @@ def follow_up_done(fu_id: int, request: Request, db: Session = Depends(get_sessi
     lead = fu.lead
     db.refresh(lead)
     return render(request, "_follow_ups.html", db, account, lead=lead)
+
+
+def search_ctx(db):
+    return dict(zips=TEST_ZIPS, industries=INDUSTRIES, spent=places.spent_this_month(db),
+                budget=MONTHLY_API_BUDGET_USD, cost_each=places.COST_PER_REQUEST_USD,
+                min_reviews=places.MIN_REVIEWS, has_key=bool(GOOGLE_PLACES_API_KEY))
+
+
+@app.get("/search")
+def search_form(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    return render(request, "search.html", db, account, results=None, error=None, **search_ctx(db))
+
+
+@app.post("/search")
+def run_search(request: Request, zips: list[str] = Form(default=[]), industries: list[str] = Form(default=[]),
+               db: Session = Depends(get_session), account=Depends(current_account)):
+    results, error = [], None
+    if account is None:
+        raise HTTPException(400, "Create an account first")
+    if not GOOGLE_PLACES_API_KEY:
+        error = "No Google key in .env yet."
+    elif not zips or not industries:
+        error = "Pick at least one ZIP and one industry."
+    else:
+        try:
+            for z in zips:
+                for ind in industries:
+                    results.append(places.search_and_save(db, account.id, z, ind))
+        except places.BudgetExceeded as exc:
+            error = str(exc) + " Search stopped."
+        except httpx.HTTPError as exc:
+            error = f"Google returned an error: {str(exc).splitlines()[0]}"
+    return render(request, "search.html", db, account, results=results, error=error, **search_ctx(db))
 
 
 @app.get("/status")
