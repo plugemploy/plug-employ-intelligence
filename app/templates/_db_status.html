@@ -1,0 +1,12 @@
+{% if db.ok %}
+<div class="rounded-lg border border-green-300 bg-green-50 p-4">
+  <p class="font-semibold text-green-800">✅ Database connected</p>
+  <p class="text-sm text-green-700">Database "{{ db.database }}" · PostgreSQL {{ db.version }}</p>
+</div>
+{% else %}
+<div class="rounded-lg border border-red-300 bg-red-50 p-4">
+  <p class="font-semibold text-red-800">❌ Can't reach the database</p>
+  <p class="text-sm text-red-700">{{ db.error }}</p>
+  <p class="text-sm text-red-700 mt-1">Is the Postgres elephant in your menu bar showing "Running"?</p>
+</div>
+{% endif %}

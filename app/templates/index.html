@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plug Employ Intelligence</title>
+  <!-- Prototype only: Tailwind and HTMX load from public CDNs. We'll bundle them before going to the cloud. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex items-center justify-center p-4">
+  <main class="bg-white shadow rounded-xl p-8 max-w-lg w-full space-y-6">
+    <div>
+      <p class="text-sm uppercase tracking-wide text-slate-500">Plug Employ</p>
+      <h1 class="text-3xl font-bold">Hello from Plug Employ Intelligence 👋</h1>
+      <p class="mt-2 text-slate-600">The web app is running on your Mac.</p>
+    </div>
+
+    <div id="db-status">
+      {% include "_db_status.html" %}
+    </div>
+
+    <button
+      class="rounded-lg bg-slate-800 text-white px-4 py-2 hover:bg-slate-700"
+      hx-get="/db-status" hx-target="#db-status" hx-swap="innerHTML">
+      Check database again
+    </button>
+  </main>
+</body>
+</html>
