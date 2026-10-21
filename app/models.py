@@ -33,6 +33,9 @@ class Lead(Base):
     google_place_id: Mapped[str | None] = mapped_column(String(200), index=True)
     rating: Mapped[float | None] = mapped_column(Float)
     review_count: Mapped[int | None] = mapped_column(Integer)
+    score: Mapped[int | None] = mapped_column(Integer, index=True)
+    score_reason: Mapped[str] = mapped_column(Text, default="")
+    scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

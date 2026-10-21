@@ -13,21 +13,31 @@
     </select>
     <select name="sort" class="border rounded px-2 py-1">
       <option value="follow_up" {% if sort == "follow_up" %}selected{% endif %}>Sort: next follow-up</option>
+      <option value="score" {% if sort == "score" %}selected{% endif %}>Sort: best score</option>
       <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: name</option>
     </select>
     <button class="rounded bg-slate-800 text-white px-3 py-1">Apply</button>
   </form>
 </div>
+{% if message %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">{{ message }}</p>{% endif %}
+{% if unscored and has_claude_key %}
+<form method="post" action="/leads/score" class="mb-4"
+      onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Scoring…'">
+  <button class="rounded bg-blue-700 text-white px-3 py-1 text-sm">Score {{ unscored }} unscored lead{{ "s" if unscored != 1 }} with Claude</button>
+</form>
+{% endif %}
 <div class="bg-white rounded-xl shadow overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-100 text-left text-slate-600">
-      <tr><th class="p-3">Business</th><th class="p-3">Industry</th><th class="p-3">ZIP</th><th class="p-3">Rating</th>
+      <tr><th class="p-3">Score</th><th class="p-3">Business</th><th class="p-3">Industry</th><th class="p-3">ZIP</th><th class="p-3">Rating</th>
           <th class="p-3">Status</th><th class="p-3">Next follow-up</th><th class="p-3">Last note</th></tr>
     </thead>
     <tbody>
     {% for l in leads %}
       {% set fu = l.next_follow_up %}
       <tr class="border-t hover:bg-slate-50">
+        <td class="p-3" title="{{ l.score_reason }}">{% if l.score %}<span class="inline-block w-8 text-center rounded font-bold
+          {{ 'bg-green-100 text-green-800' if l.score >= 8 else 'bg-amber-100 text-amber-800' if l.score >= 5 else 'bg-slate-100 text-slate-600' }}">{{ l.score }}</span>{% endif %}</td>
         <td class="p-3"><a href="/leads/{{ l.id }}" class="font-medium text-blue-700 hover:underline">{{ l.business_name }}</a></td>
         <td class="p-3">{{ l.industry }}</td>
         <td class="p-3">{{ l.zip_code }}</td>
@@ -38,7 +48,7 @@
         <td class="p-3 text-slate-600 max-w-xs truncate">{{ l.last_note.text if l.last_note else "" }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="7" class="p-6 text-center text-slate-500">No leads match.</td></tr>
+      <tr><td colspan="8" class="p-6 text-center text-slate-500">No leads match.</td></tr>
     {% endfor %}
     </tbody>
   </table>

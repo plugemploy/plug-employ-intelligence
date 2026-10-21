@@ -10,10 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import check_database, get_session
+import anthropic
 import httpx
 
-from app import places
-from app.config import GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
+from app import places, scoring
+from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
 from app.models import STATUSES, Account, FollowUp, Lead, LeadNote
 
 TEST_ZIPS = ["37934", "37922", "37932", "37923", "37919", "37909"]
@@ -73,11 +74,33 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
         if zip_code:
             q = q.where(Lead.zip_code == zip_code)
         leads = list(db.scalars(q.order_by(Lead.business_name)))
-        if sort == "follow_up":
+        if sort == "score":
+            leads.sort(key=lambda l: -(l.score or 0))
+        elif sort == "follow_up":
             leads.sort(key=lambda l: l.next_follow_up.due_date if l.next_follow_up else date.max)
     zips = sorted({z for z in db.scalars(select(Lead.zip_code).where(Lead.account_id == (account.id if account else 0)))})
+    unscored = sum(1 for l in leads if l.score is None)
     return render(request, "leads.html", db, account, leads=leads, zips=zips,
-                  f_status=status, f_zip=zip_code, sort=sort)
+                  f_status=status, f_zip=zip_code, sort=sort, unscored=unscored,
+                  has_claude_key=bool(ANTHROPIC_API_KEY), message=request.query_params.get("msg", ""))
+
+
+@app.post("/leads/score")
+def score_leads(db: Session = Depends(get_session), account=Depends(current_account)):
+    if account is None:
+        raise HTTPException(400, "Create an account first")
+    if not ANTHROPIC_API_KEY:
+        msg = "No Claude key in .env yet."
+    else:
+        try:
+            s = scoring.score_unscored(db, account.id)
+            msg = f"Scored {s['scored']} leads for about ${s['cost']:.3f}."
+            if s["failed"]:
+                msg += f" {s['failed']} couldn't be scored; try again later."
+        except places.BudgetExceeded as exc:
+            msg = str(exc) + " Scoring stopped."
+    from urllib.parse import quote
+    return RedirectResponse(f"/leads?sort=score&msg={quote(msg)}", status_code=303)
 
 
 @app.get("/due")
@@ -188,8 +211,12 @@ def run_search(request: Request, zips: list[str] = Form(default=[]), industries:
             for z in zips:
                 for ind in industries:
                     results.append(places.search_and_save(db, account.id, z, ind))
+            if ANTHROPIC_API_KEY:
+                scoring.score_unscored(db, account.id)
         except places.BudgetExceeded as exc:
             error = str(exc) + " Search stopped."
+        except anthropic.APIError as exc:
+            error = f"Claude returned an error: {exc}"
         except httpx.HTTPError as exc:
             error = f"Google returned an error: {str(exc).splitlines()[0]}"
     return render(request, "search.html", db, account, results=results, error=error, **search_ctx(db))
