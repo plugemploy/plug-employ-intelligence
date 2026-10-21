@@ -1,0 +1,6 @@
+<form hx-post="/leads/{{ lead.id }}/status" hx-target="#status" hx-trigger="change" class="flex items-center gap-2">
+  <select name="status" class="border rounded px-2 py-1 text-sm">
+    {% for s in statuses %}<option {% if s == lead.status %}selected{% endif %}>{{ s }}</option>{% endfor %}
+  </select>
+  {% if saved %}<span class="text-xs text-green-700">Saved ✓</span>{% endif %}
+</form>

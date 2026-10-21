@@ -1,0 +1,10 @@
+<ul class="space-y-2 text-sm">
+  {% for f in lead.follow_ups %}
+  <li class="flex items-center justify-between gap-2 {% if f.done %}text-slate-400 line-through{% endif %}">
+    <span><span class="{% if not f.done and f.due_date <= today %}text-red-700 font-medium{% endif %}">{{ f.due_date.strftime("%b %-d") }}</span>
+      {{ f.task }}</span>
+    {% if not f.done %}<button hx-post="/follow-ups/{{ f.id }}/done" hx-target="#follow-ups"
+      class="text-xs rounded border px-2 py-0.5 hover:bg-slate-100">Done</button>{% endif %}
+  </li>
+  {% else %}<li class="text-slate-500">No follow-ups.</li>{% endfor %}
+</ul>

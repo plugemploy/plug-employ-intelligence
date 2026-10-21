@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Leads{% endblock %} · Plug Employ</title>
+  <!-- Prototype only: Tailwind and HTMX load from public CDNs. We'll bundle them before going to the cloud. -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <header class="bg-white border-b">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-4">
+      <a href="/leads" class="font-bold text-lg">Plug Employ</a>
+      <nav class="flex gap-4 text-sm">
+        <a href="/leads" class="hover:underline">Leads</a>
+        <a href="/due" class="hover:underline">Due today</a>
+        <a href="/leads/new" class="hover:underline">Add lead</a>
+      </nav>
+      <form method="post" action="/switch-account" class="ml-auto flex items-center gap-2 text-sm">
+        <label for="acct" class="text-slate-500">Account</label>
+        <select id="acct" name="account_id" onchange="this.form.submit()" class="border rounded px-2 py-1">
+          {% for a in accounts %}
+          <option value="{{ a.id }}" {% if account and a.id == account.id %}selected{% endif %}>{{ a.name }}</option>
+          {% endfor %}
+        </select>
+      </form>
+    </div>
+  </header>
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    {% if not account %}
+      <p class="text-slate-600">No accounts yet. Load the sample data: <code>.venv/bin/python scripts/seed.py</code></p>
+    {% else %}
+      {% block content %}{% endblock %}
+    {% endif %}
+  </main>
+</body>
+</html>

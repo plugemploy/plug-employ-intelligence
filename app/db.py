@@ -19,3 +19,11 @@ def check_database() -> dict:
         return {"ok": True, "database": row[0], "version": row[1]}
     except Exception as exc:  # show any connection problem on the page
         return {"ok": False, "error": str(exc).splitlines()[0]}
+
+
+def get_session():
+    """One database session per page request."""
+    from sqlalchemy.orm import Session
+
+    with Session(engine) as session:
+        yield session

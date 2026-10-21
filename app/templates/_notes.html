@@ -1,0 +1,6 @@
+<ul class="space-y-3 text-sm">
+  {% for n in lead.notes %}
+  <li><p class="whitespace-pre-line">{{ n.text }}</p>
+      <p class="text-xs text-slate-400">{{ n.created_at.strftime("%b %-d, %Y %-I:%M %p") }}</p></li>
+  {% else %}<li class="text-slate-500">No notes yet.</li>{% endfor %}
+</ul>

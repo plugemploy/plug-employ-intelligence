@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Add lead{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Add a lead</h1>
+<form method="post" class="bg-white rounded-xl shadow p-6 grid gap-4 max-w-lg">
+  {% for name, label in [("business_name","Business name *"),("industry","Industry"),("address","Address"),
+                         ("zip_code","ZIP"),("phone","Phone"),("website","Website")] %}
+  <label class="grid gap-1 text-sm">{{ label }}
+    <input name="{{ name }}" class="border rounded px-3 py-2" {% if name == "business_name" %}required{% endif %}>
+  </label>
+  {% endfor %}
+  <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save lead</button>
+</form>
+{% endblock %}

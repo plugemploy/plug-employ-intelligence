@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}{{ lead.business_name }}{% endblock %}
+{% block content %}
+<a href="/leads" class="text-sm text-blue-700 hover:underline">← All leads</a>
+<div class="mt-2 mb-6">
+  <h1 class="text-2xl font-bold">{{ lead.business_name }}</h1>
+  <p class="text-slate-600 text-sm">{{ lead.industry }} · {{ lead.address }} {{ lead.zip_code }}
+    {% if lead.phone %} · {{ lead.phone }}{% endif %}
+    {% if lead.website %} · <a href="{{ lead.website }}" target="_blank" rel="noopener" class="text-blue-700 hover:underline">website</a>{% endif %}</p>
+</div>
+<div class="grid md:grid-cols-3 gap-6">
+  <section class="bg-white rounded-xl shadow p-4"><h2 class="font-semibold mb-2">Status</h2>
+    <div id="status">{% include "_status.html" %}</div></section>
+  <section class="bg-white rounded-xl shadow p-4"><h2 class="font-semibold mb-2">Follow-ups</h2>
+    <form hx-post="/leads/{{ lead.id }}/follow-ups" hx-target="#follow-ups" hx-on::after-request="this.reset()" class="grid gap-2 mb-3 text-sm">
+      <input type="date" name="due_date" required class="border rounded px-2 py-1">
+      <input name="task" placeholder="What to do" class="border rounded px-2 py-1">
+      <button class="rounded bg-slate-800 text-white px-3 py-1 justify-self-start">Add follow-up</button>
+    </form>
+    <div id="follow-ups">{% include "_follow_ups.html" %}</div></section>
+  <section class="bg-white rounded-xl shadow p-4"><h2 class="font-semibold mb-2">Notes</h2>
+    <form hx-post="/leads/{{ lead.id }}/notes" hx-target="#notes" hx-on::after-request="this.reset()" class="grid gap-2 mb-3 text-sm">
+      <textarea name="text" rows="3" required placeholder="Add a note" class="border rounded px-2 py-1"></textarea>
+      <button class="rounded bg-slate-800 text-white px-3 py-1 justify-self-start">Save note</button>
+    </form>
+    <div id="notes">{% include "_notes.html" %}</div></section>
+</div>
+{% endblock %}

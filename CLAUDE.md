@@ -25,4 +25,5 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 
 ## Status
 - Phase 0 done (2026-10-21): hello-world page with database check.
-- Next: Phase 1, accounts and the lead tracker.
+- Phase 1 done (2026-10-21): accounts (dropdown, no logins yet) and lead tracker. Alembic for DB changes. Sample data: `scripts/seed.py`. Tests: `.venv/bin/python -m pytest`.
+- Next: Phase 2, Google Places search.
