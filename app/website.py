@@ -51,7 +51,7 @@ def looks_garbled(text: str) -> bool:
     if not text:
         return False
     bad = sum(1 for ch in text[:5000] if ch == "\ufffd" or (ord(ch) < 32 and ch not in "\t\n\r"))
-    return bad > len(text[:5000]) * 0.02
+    return bad >= 20 and bad > len(text[:5000]) * 0.02
 
 
 def html_to_text(html: str) -> str:
