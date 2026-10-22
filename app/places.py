@@ -24,6 +24,16 @@ FIELDS = ",".join([
 ])
 MIN_REVIEWS = 5
 
+# Fox Den (37934) and Sequoyah Hills (37919) first: they matter most.
+TEST_ZIPS = ["37934", "37919", "37922", "37932", "37923", "37909"]
+INDUSTRIES = [
+    "Dentist", "Orthodontist", "Med spa", "Dermatology", "Chiropractor", "Physical therapy",
+    "Salon", "Fitness", "Restaurant", "Wine shop", "Boutique", "Jeweler", "Golf", "Event venue",
+    "HVAC", "Roofing", "Remodeling", "Pool", "Interior design", "Pest control", "Landscaping", "Auto repair",
+    "Real estate", "Financial advisor", "Insurance agent", "Law firm", "Mortgage lender",
+    "Private school", "Tutoring", "Kids activities", "Veterinarian", "Pet grooming",
+]
+
 
 class BudgetExceeded(Exception):
     pass

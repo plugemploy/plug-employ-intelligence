@@ -90,3 +90,30 @@ class ApiUsage(Base):
     detail: Mapped[str] = mapped_column(String(300), default="")
     est_cost_usd: Mapped[float] = mapped_column(Numeric(10, 4))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class NightlySettings(Base):
+    """One row per account: how the overnight lead search runs."""
+
+    __tablename__ = "nightly_settings"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), unique=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    run_hour: Mapped[int] = mapped_column(Integer, default=2)
+    searches_per_night: Mapped[int] = mapped_column(Integer, default=20)
+    zips: Mapped[str] = mapped_column(Text, default="")  # comma-separated
+    industries: Mapped[str] = mapped_column(Text, default="")  # comma-separated
+
+
+class NightlyRun(Base):
+    """Log of each overnight search, shown as the morning summary."""
+
+    __tablename__ = "nightly_runs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    searches: Mapped[int] = mapped_column(Integer, default=0)
+    added: Mapped[int] = mapped_column(Integer, default=0)
+    high_scores: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str] = mapped_column(Text, default="")

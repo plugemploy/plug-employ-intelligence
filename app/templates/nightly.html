@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Nightly search{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Nightly search</h1>
+<p class="text-sm text-slate-600 mb-4">Each night the app runs the next batch of Google searches, then Claude scores the new leads.
+  ZIP + industry pairs searched in the last 30 days are skipped. Your Mac must be awake with the app running;
+  if it was asleep at the set time, the search runs the next time the app is open.</p>
+{% if saved %}<p class="mb-4 rounded bg-green-50 border border-green-200 p-3 text-sm text-green-900">Saved ✓</p>{% endif %}
+<form method="post" class="bg-white rounded-xl shadow p-6 grid gap-5 max-w-3xl mb-6">
+  <label class="flex items-center gap-2 font-semibold"><input type="checkbox" name="enabled" value="1" {% if st.enabled %}checked{% endif %}> Run every night</label>
+  <div class="flex flex-wrap gap-6 text-sm">
+    <label class="grid gap-1">Time
+      <select name="run_hour" class="border rounded px-2 py-1">{% for h in range(24) %}
+        <option value="{{ h }}" {% if h == st.run_hour %}selected{% endif %}>{{ (h % 12) or 12 }}:00 {{ "am" if h < 12 else "pm" }}</option>{% endfor %}
+      </select></label>
+    <label class="grid gap-1">Searches per night
+      <input type="number" name="searches_per_night" min="1" max="100" value="{{ st.searches_per_night }}" class="border rounded px-2 py-1 w-24"></label>
+    <p class="self-end text-slate-600">≈ ${{ "%.2f"|format(st.searches_per_night * cost_each) }} a night,
+      ${{ "%.0f"|format(st.searches_per_night * cost_each * 30) }} a month (Google), plus a few cents for Claude.</p>
+  </div>
+  <fieldset><legend class="font-semibold mb-2 text-sm">ZIP codes</legend>
+    <div class="flex flex-wrap gap-3 text-sm">{% for z in all_zips %}
+      <label class="flex items-center gap-1"><input type="checkbox" name="zips" value="{{ z }}" {% if z in on_zips %}checked{% endif %}> {{ z }}</label>{% endfor %}</div></fieldset>
+  <fieldset><legend class="font-semibold mb-2 text-sm">Industries</legend>
+    <div class="flex flex-wrap gap-3 text-sm">{% for i in all_inds %}
+      <label class="flex items-center gap-1"><input type="checkbox" name="industries" value="{{ i }}" {% if i in on_inds %}checked{% endif %}> {{ i }}</label>{% endfor %}</div></fieldset>
+  <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save</button>
+</form>
+<div class="grid md:grid-cols-2 gap-6">
+  <section class="bg-white rounded-xl shadow p-4"><h2 class="font-semibold mb-2">Next batch ({{ upcoming|length }})</h2>
+    <ul class="text-sm text-slate-700 columns-2">{% for z, i in upcoming %}<li>{{ i }} in {{ z }}</li>{% else %}<li class="text-slate-500">Everything was searched in the last 30 days.</li>{% endfor %}</ul></section>
+  <section class="bg-white rounded-xl shadow p-4"><h2 class="font-semibold mb-2">Recent runs</h2>
+    <ul class="text-sm divide-y">{% for r in runs %}
+      <li class="py-1">{{ r.started_at.astimezone().strftime("%b %-d, %-I:%M %p") }} · {{ r.searches }} searches · {{ r.added }} new · {{ r.high_scores }} scored 8+
+        {% if not r.finished_at %}<span class="text-amber-700">running…</span>{% endif %}
+        {% if r.error %}<span class="text-red-700">· {{ r.error }}</span>{% endif %}</li>
+    {% else %}<li class="text-slate-500">No runs yet.</li>{% endfor %}</ul></section>
+</div>
+{% endblock %}

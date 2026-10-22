@@ -1,5 +1,6 @@
 """Plug Employ Intelligence: accounts and lead tracker."""
 
+from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
@@ -13,20 +14,20 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import places, scoring
+from app import nightly, places, scoring
 from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
-from app.models import STATUSES, Account, FollowUp, Lead, LeadNote
+from app.models import STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun
 
-TEST_ZIPS = ["37934", "37922", "37932", "37923", "37919", "37909"]
-INDUSTRIES = [
-    "Dentist", "Orthodontist", "Med spa", "Dermatology", "Chiropractor", "Physical therapy",
-    "Salon", "Fitness", "Restaurant", "Wine shop", "Boutique", "Jeweler", "Golf", "Event venue",
-    "HVAC", "Roofing", "Remodeling", "Pool", "Interior design", "Pest control", "Landscaping", "Auto repair",
-    "Real estate", "Financial advisor", "Insurance agent", "Law firm", "Mortgage lender",
-    "Private school", "Tutoring", "Kids activities", "Veterinarian", "Pet grooming",
-]
+TEST_ZIPS, INDUSTRIES = places.TEST_ZIPS, places.INDUSTRIES
 
-app = FastAPI(title="Plug Employ Intelligence")
+@asynccontextmanager
+async def lifespan(app):
+    sched = nightly.start_scheduler()  # overnight lead search
+    yield
+    sched.shutdown(wait=False)
+
+
+app = FastAPI(title="Plug Employ Intelligence", lifespan=lifespan)
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
 # Prototype: the account is picked from a dropdown and kept in a cookie.
@@ -69,16 +70,20 @@ def switch_account(account_id: int = Form(...)):
 
 
 @app.get("/leads")
-def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str = "follow_up",
+def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str = "follow_up", new: str = "",
                db: Session = Depends(get_session), account=Depends(current_account)):
-    leads = []
+    leads, last_run = [], None
     if account:
+        last_run = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
+                              .order_by(NightlyRun.started_at.desc())).first()
         q = (select(Lead).where(Lead.account_id == account.id)
              .options(selectinload(Lead.notes), selectinload(Lead.follow_ups)))
         if status:
             q = q.where(Lead.status == status)
         if zip_code:
             q = q.where(Lead.zip_code == zip_code)
+        if new and last_run:
+            q = q.where(Lead.created_at >= last_run.started_at)
         leads = list(db.scalars(q.order_by(Lead.business_name)))
         if sort == "score":
             leads.sort(key=lambda l: -(l.score or 0))
@@ -87,7 +92,7 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
     zips = sorted({z for z in db.scalars(select(Lead.zip_code).where(Lead.account_id == (account.id if account else 0)))})
     unscored = sum(1 for l in leads if l.score is None)
     return render(request, "leads.html", db, account, leads=leads, zips=zips,
-                  f_status=status, f_zip=zip_code, sort=sort, unscored=unscored,
+                  f_status=status, f_zip=zip_code, sort=sort, unscored=unscored, f_new=new, last_run=last_run,
                   has_claude_key=bool(ANTHROPIC_API_KEY), message=request.query_params.get("msg", ""))
 
 
@@ -226,6 +231,35 @@ def run_search(request: Request, zips: list[str] = Form(default=[]), industries:
         except httpx.HTTPError as exc:
             error = f"Google returned an error: {str(exc).splitlines()[0]}"
     return render(request, "search.html", db, account, results=results, error=error, **search_ctx(db))
+
+
+@app.get("/nightly")
+def nightly_page(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    ctx = {}
+    if account:
+        st = nightly.get_settings(db, account.id)
+        runs = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
+                          .order_by(NightlyRun.started_at.desc()).limit(10)).all()
+        ctx = dict(st=st, runs=runs, on_zips=st.zips.split(","), on_inds=st.industries.split(","),
+                   upcoming=nightly.next_pairs(db, st), all_zips=TEST_ZIPS, all_inds=INDUSTRIES,
+                   cost_each=places.COST_PER_REQUEST_USD, saved=request.query_params.get("saved"))
+    return render(request, "nightly.html", db, account, **ctx)
+
+
+@app.post("/nightly")
+def save_nightly(enabled: str = Form(""), run_hour: int = Form(2), searches_per_night: int = Form(20),
+                 zips: list[str] = Form(default=[]), industries: list[str] = Form(default=[]),
+                 db: Session = Depends(get_session), account=Depends(current_account)):
+    if account is None:
+        raise HTTPException(400, "Create an account first")
+    st = nightly.get_settings(db, account.id)
+    st.enabled = bool(enabled)
+    st.run_hour = max(0, min(23, run_hour))
+    st.searches_per_night = max(1, min(100, searches_per_night))
+    st.zips = ",".join(z for z in TEST_ZIPS if z in zips)
+    st.industries = ",".join(i for i in INDUSTRIES if i in industries)
+    db.commit()
+    return RedirectResponse("/nightly?saved=1", status_code=303)
 
 
 @app.get("/status")
