@@ -32,6 +32,7 @@
     <div class="flex flex-wrap gap-3 text-sm">{% for i in industries %}
       <label class="flex items-center gap-1"><input type="checkbox" name="industries" value="{{ i }}"> {{ i }}</label>{% endfor %}</div>
   </fieldset>
+  <p class="text-sm text-slate-500">Change your ZIP codes and industries on <a href="/business" class="text-blue-700 hover:underline">My business</a>.</p>
   <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Search Google</button>
 </form>
 {% endblock %}

@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.db import engine
 from app.models import STATUSES, Account, FollowUp, Lead, LeadNote
+from app.places import INDUSTRIES as ALL_INDUSTRIES
 
 ZIPS = ["37934", "37922", "37932", "37923", "37919", "37909"]
 INDUSTRIES = ["Restaurant", "Dentist", "Auto repair", "Fitness", "Salon", "HVAC", "Real estate", "Landscaping"]
@@ -28,7 +29,7 @@ def run():
     with Session(engine) as db:
         db.execute(delete(Account).where(Account.name.like("Sample:%")))
         for acct_name in ["Sample: Farragut Franchise", "Sample: West Knox Franchise"]:
-            acct = Account(name=acct_name)
+            acct = Account(name=acct_name, target_zips=",".join(ZIPS), industries=",".join(ALL_INDUSTRIES))
             db.add(acct)
             db.flush()
             for i in range(15):

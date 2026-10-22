@@ -30,4 +30,5 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Phase 3 built (2026-10-21): Claude Haiku 5.5 scores leads 1-10 (app/scoring.py), Score button on leads list, auto-score after search. Not yet run for real.
 - Nightly search built (2026-10-21): app/nightly.py, APScheduler checks every 15 min and catches up if the Mac slept. /nightly page. Real account on at 2am, 20 searches.
 - Usage page + per-account limits + website check built (2026-10-21). See PLAN.md Business model.
-- Next: per-account business description for scoring, export CSV, Close CRM, logins + cloud.
+- My business page (description, ZIPs, industries per account) + Gmail contacts upload (Already contacted tag) built (2026-10-21). Full re-score of real leads is saved for the final test run.
+- Next: export CSV, logins + cloud, Gmail API (needs Google security review before selling).

@@ -12,10 +12,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import places, scoring, website
+from app import contacts, places, scoring, website
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
-from app.models import ApiUsage, Lead, NightlyRun, NightlySettings
+from app.models import Account, ApiUsage, Lead, NightlyRun, NightlySettings
 
 log = logging.getLogger("nightly")
 _lock = threading.Lock()
@@ -25,8 +25,7 @@ RESEARCH_AFTER_DAYS = 30  # don't repeat a ZIP + industry search within this man
 def get_settings(db: Session, account_id: int) -> NightlySettings:
     s = db.scalars(select(NightlySettings).where(NightlySettings.account_id == account_id)).first()
     if s is None:
-        s = NightlySettings(account_id=account_id, enabled=False, run_hour=2, searches_per_night=20,
-                            zips=",".join(places.TEST_ZIPS), industries=",".join(places.INDUSTRIES))
+        s = NightlySettings(account_id=account_id, enabled=False, run_hour=2, searches_per_night=20)
         db.add(s)
         db.commit()
     return s
@@ -38,8 +37,8 @@ def next_pairs(db: Session, s: NightlySettings) -> list[tuple[str, str]]:
     done = set(db.scalars(select(ApiUsage.detail).where(
         ApiUsage.account_id == s.account_id, ApiUsage.service == "google_places_text_search",
         ApiUsage.created_at >= since)))
-    zips = [z for z in s.zips.split(",") if z]
-    inds = [i for i in s.industries.split(",") if i]
+    account = db.get(Account, s.account_id)
+    zips, inds = account.zip_list, account.industry_list  # from the "My business" page
     pairs = [(z, i) for z in zips for i in inds if f"{i} in {z}" not in done]
     return pairs[: s.searches_per_night]
 
@@ -56,6 +55,7 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
                 stats = places.search_and_save(db, account_id, z, ind)
                 run.searches += 1
                 run.added += stats["added"]
+            contacts.match_leads(db, account_id)
             website.check_unchecked(db, account_id, limit=1000)
             if ANTHROPIC_API_KEY:
                 scoring.score_unscored(db, account_id, limit=1000)

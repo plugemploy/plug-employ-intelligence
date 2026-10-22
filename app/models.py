@@ -18,6 +18,18 @@ class Account(Base):
     name: Mapped[str] = mapped_column(String(200))
     # Per-customer monthly API limit (subscription plans will set this).
     monthly_budget_usd: Mapped[float] = mapped_column(Numeric(10, 2), default=50, server_default="50")
+    # "My business" page: what they sell and who they want, used to score leads.
+    business_description: Mapped[str] = mapped_column(Text, default="", server_default="")
+    target_zips: Mapped[str] = mapped_column(Text, default="", server_default="")  # comma-separated, first = most important
+    industries: Mapped[str] = mapped_column(Text, default="", server_default="")  # comma-separated
+
+    @property
+    def zip_list(self) -> list[str]:
+        return [z for z in self.target_zips.split(",") if z]
+
+    @property
+    def industry_list(self) -> list[str]:
+        return [i for i in self.industries.split(",") if i]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -42,6 +54,8 @@ class Lead(Base):
     website_status: Mapped[str | None] = mapped_column(String(20))
     website_text: Mapped[str] = mapped_column(Text, default="", server_default="")
     website_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Set when the business matches someone in the owner's uploaded Gmail contacts.
+    contacted_match: Mapped[str] = mapped_column(String(300), default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -107,8 +121,6 @@ class NightlySettings(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     run_hour: Mapped[int] = mapped_column(Integer, default=2)
     searches_per_night: Mapped[int] = mapped_column(Integer, default=20)
-    zips: Mapped[str] = mapped_column(Text, default="")  # comma-separated
-    industries: Mapped[str] = mapped_column(Text, default="")  # comma-separated
 
 
 class NightlyRun(Base):
@@ -123,3 +135,15 @@ class NightlyRun(Base):
     added: Mapped[int] = mapped_column(Integer, default=0)
     high_scores: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str] = mapped_column(Text, default="")
+
+
+class Contact(Base):
+    """People from the owner's Google Contacts export, used to spot businesses already contacted."""
+
+    __tablename__ = "contacts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(300), default="")
+    organization: Mapped[str] = mapped_column(String(300), default="")
+    email: Mapped[str] = mapped_column(String(300), default="")
+    email_domain: Mapped[str] = mapped_column(String(200), default="", index=True)

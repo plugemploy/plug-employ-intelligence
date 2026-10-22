@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}My business{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">My business</h1>
+<p class="text-sm text-slate-600 mb-4">Claude scores leads against this, and Find leads and the nightly search use these ZIP codes and industries.</p>
+{% if message %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">{{ message }}</p>{% endif %}
+<form method="post" class="bg-white rounded-xl shadow p-6 grid gap-6 max-w-3xl mb-6">
+  <label class="grid gap-1"><span class="font-semibold">What you sell and who your ideal customer is</span>
+    <span class="text-xs text-slate-500">A few plain sentences. Mention what makes a business a great fit, and what makes it a poor one.</span>
+    <textarea name="description" rows="5" class="border rounded px-3 py-2 text-sm" placeholder="{{ default_desc }}">{{ account.business_description }}</textarea></label>
+  <label class="grid gap-1"><span class="font-semibold">Your ZIP codes</span>
+    <span class="text-xs text-slate-500">Separate with commas. List the most important first: they're searched first and count most.</span>
+    <input name="zips" value="{{ account.zip_list|join(', ') }}" class="border rounded px-3 py-2 text-sm"></label>
+  <fieldset><legend class="font-semibold mb-2">Industries to search</legend>
+    <div class="flex flex-wrap gap-3 text-sm">{% for i in all_inds %}
+      <label class="flex items-center gap-1"><input type="checkbox" name="industries" value="{{ i }}" {% if i in account.industry_list %}checked{% endif %}> {{ i }}</label>{% endfor %}</div>
+    <label class="grid gap-1 mt-3 text-sm">Add your own (separate with commas)
+      <input name="extra_industries" value="{{ extra_inds }}" placeholder="e.g. Wedding planner, Florist" class="border rounded px-3 py-2"></label>
+  </fieldset>
+  <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save</button>
+</form>
+<section class="bg-white rounded-xl shadow p-6 max-w-3xl">
+  <h2 class="font-semibold mb-1">Already contacted? (Gmail)</h2>
+  <p class="text-sm text-slate-600 mb-3">Gmail saves everyone you've emailed in Google Contacts. Upload them, and leads that match get an
+    <span class="rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs">Already contacted</span> tag.</p>
+  <ol class="text-sm text-slate-700 list-decimal ml-5 mb-4 space-y-1">
+    <li>Open <b>contacts.google.com</b> (signed in with your Gmail).</li>
+    <li>On the left, click <b>Other contacts</b>, then the <b>Export</b> button (or ⋮ → Export). Choose <b>Google CSV</b>.</li>
+    <li>Upload that file here. You can also upload your main contacts. Uploads add up; repeats are skipped.</li>
+  </ol>
+  <form method="post" action="/business/contacts" enctype="multipart/form-data" class="flex flex-wrap gap-2 items-center text-sm">
+    <input type="file" name="file" accept=".csv,text/csv" required class="text-sm">
+    <button class="rounded bg-purple-700 text-white px-3 py-1">Upload contacts</button>
+  </form>
+  <p class="text-xs text-slate-500 mt-3">Now loaded: {{ n_contacts }} contacts · {{ n_contacted }} leads marked Already contacted.
+    Only names, organizations and email addresses are kept, and only for this account.</p>
+</section>
+{% endblock %}

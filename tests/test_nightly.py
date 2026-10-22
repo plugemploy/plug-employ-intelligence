@@ -27,7 +27,8 @@ def account_id():
 def test_next_pairs_skips_recent_and_limits(account_id):
     with Session(engine) as db:
         st = nightly.get_settings(db, account_id)
-        st.zips, st.industries, st.searches_per_night = "37934,37919", "Dentist,Salon", 3
+        acct = db.get(Account, account_id)
+        acct.target_zips, acct.industries, st.searches_per_night = "37934,37919", "Dentist,Salon", 3
         db.add(ApiUsage(account_id=account_id, service="google_places_text_search",
                         detail="Dentist in 37934", est_cost_usd=0.035))
         db.commit()
@@ -55,7 +56,8 @@ def test_run_records_results(account_id, monkeypatch):
     monkeypatch.setattr(scoring, "score_unscored", lambda db, aid, limit: {})
     with Session(engine) as db:
         st = nightly.get_settings(db, account_id)
-        st.zips, st.industries, st.searches_per_night = "37934", "Dentist,Salon,Golf", 2
+        acct = db.get(Account, account_id)
+        acct.target_zips, acct.industries, st.searches_per_night = "37934", "Dentist,Salon,Golf", 2
         db.commit()
     run = nightly.run_for_account(account_id)
     assert calls == [("37934", "Dentist"), ("37934", "Salon")]
@@ -66,6 +68,10 @@ def test_run_keeps_error(account_id, monkeypatch):
     def boom(*a):
         raise places.BudgetExceeded("Monthly API budget of $50 reached.")
     monkeypatch.setattr(places, "search_and_save", boom)
+    with Session(engine) as db:
+        acct = db.get(Account, account_id)
+        acct.target_zips, acct.industries = "37934", "Dentist"
+        db.commit()
     run = nightly.run_for_account(account_id, max_searches=1)
     assert "budget" in run.error
 

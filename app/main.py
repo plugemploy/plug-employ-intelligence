@@ -4,22 +4,22 @@ from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import nightly, places, scoring
+from app import contacts, nightly, places, scoring
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
 from app.models import STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun
 
-TEST_ZIPS, INDUSTRIES = places.TEST_ZIPS, places.INDUSTRIES
+INDUSTRIES = places.INDUSTRIES
 
 @asynccontextmanager
 async def lifespan(app):
@@ -72,6 +72,7 @@ def switch_account(account_id: int = Form(...)):
 
 @app.get("/leads")
 def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str = "follow_up", new: str = "",
+               hide_contacted: str = "",
                db: Session = Depends(get_session), account=Depends(current_account)):
     leads, last_run = [], None
     if account:
@@ -83,6 +84,8 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
             q = q.where(Lead.status == status)
         if zip_code:
             q = q.where(Lead.zip_code == zip_code)
+        if hide_contacted:
+            q = q.where(Lead.contacted_match == "")
         if new and last_run:
             q = q.where(Lead.created_at >= last_run.started_at)
         leads = list(db.scalars(q.order_by(Lead.business_name)))
@@ -93,7 +96,7 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
     zips = sorted({z for z in db.scalars(select(Lead.zip_code).where(Lead.account_id == (account.id if account else 0)))})
     unscored = sum(1 for l in leads if l.score is None)
     return render(request, "leads.html", db, account, leads=leads, zips=zips,
-                  f_status=status, f_zip=zip_code, sort=sort, unscored=unscored, f_new=new, last_run=last_run,
+                  f_status=status, f_zip=zip_code, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   has_claude_key=bool(ANTHROPIC_API_KEY), message=request.query_params.get("msg", ""))
 
 
@@ -197,15 +200,15 @@ def follow_up_done(fu_id: int, request: Request, db: Session = Depends(get_sessi
     return render(request, "_follow_ups.html", db, account, lead=lead)
 
 
-def search_ctx(db):
-    return dict(zips=TEST_ZIPS, industries=INDUSTRIES, spent=places.spent_this_month(db),
+def search_ctx(db, account):
+    return dict(zips=account.zip_list if account else [], industries=account.industry_list if account else [], spent=places.spent_this_month(db),
                 budget=MONTHLY_API_BUDGET_USD, cost_each=places.COST_PER_REQUEST_USD,
                 min_reviews=places.MIN_REVIEWS, has_key=bool(GOOGLE_PLACES_API_KEY))
 
 
 @app.get("/search")
 def search_form(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
-    return render(request, "search.html", db, account, results=None, error=None, **search_ctx(db))
+    return render(request, "search.html", db, account, results=None, error=None, **search_ctx(db, account))
 
 
 @app.post("/search")
@@ -223,6 +226,7 @@ def run_search(request: Request, zips: list[str] = Form(default=[]), industries:
             for z in zips:
                 for ind in industries:
                     results.append(places.search_and_save(db, account.id, z, ind))
+            contacts.match_leads(db, account.id)
             site_check.check_unchecked(db, account.id)
             if ANTHROPIC_API_KEY:
                 scoring.score_unscored(db, account.id)
@@ -232,7 +236,7 @@ def run_search(request: Request, zips: list[str] = Form(default=[]), industries:
             error = f"Claude returned an error: {exc}"
         except httpx.HTTPError as exc:
             error = f"Google returned an error: {str(exc).splitlines()[0]}"
-    return render(request, "search.html", db, account, results=results, error=error, **search_ctx(db))
+    return render(request, "search.html", db, account, results=results, error=error, **search_ctx(db, account))
 
 
 @app.get("/nightly")
@@ -242,15 +246,13 @@ def nightly_page(request: Request, db: Session = Depends(get_session), account=D
         st = nightly.get_settings(db, account.id)
         runs = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
                           .order_by(NightlyRun.started_at.desc()).limit(10)).all()
-        ctx = dict(st=st, runs=runs, on_zips=st.zips.split(","), on_inds=st.industries.split(","),
-                   upcoming=nightly.next_pairs(db, st), all_zips=TEST_ZIPS, all_inds=INDUSTRIES,
+        ctx = dict(st=st, runs=runs, upcoming=nightly.next_pairs(db, st),
                    cost_each=places.COST_PER_REQUEST_USD, saved=request.query_params.get("saved"))
     return render(request, "nightly.html", db, account, **ctx)
 
 
 @app.post("/nightly")
 def save_nightly(enabled: str = Form(""), run_hour: int = Form(2), searches_per_night: int = Form(20),
-                 zips: list[str] = Form(default=[]), industries: list[str] = Form(default=[]),
                  db: Session = Depends(get_session), account=Depends(current_account)):
     if account is None:
         raise HTTPException(400, "Create an account first")
@@ -258,10 +260,57 @@ def save_nightly(enabled: str = Form(""), run_hour: int = Form(2), searches_per_
     st.enabled = bool(enabled)
     st.run_hour = max(0, min(23, run_hour))
     st.searches_per_night = max(1, min(100, searches_per_night))
-    st.zips = ",".join(z for z in TEST_ZIPS if z in zips)
-    st.industries = ",".join(i for i in INDUSTRIES if i in industries)
     db.commit()
     return RedirectResponse("/nightly?saved=1", status_code=303)
+
+
+def clean_list(raw: str) -> list[str]:
+    """Split text on commas/new lines, trim, drop blanks and repeats, keep order."""
+    out = []
+    for part in raw.replace("\n", ",").split(","):
+        part = " ".join(part.split()).replace(",", "")
+        if part and part not in out:
+            out.append(part)
+    return out
+
+
+@app.get("/business")
+def business_page(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    from app.models import Contact
+    n_contacts = db.scalar(select(func.count()).select_from(Contact).where(Contact.account_id == account.id)) if account else 0
+    n_contacted = db.scalar(select(func.count()).select_from(Lead).where(
+        Lead.account_id == account.id, Lead.contacted_match != "")) if account else 0
+    extra = [i for i in (account.industry_list if account else []) if i not in INDUSTRIES]
+    return render(request, "business.html", db, account, all_inds=INDUSTRIES, extra_inds=", ".join(extra),
+                  default_desc=scoring.DEFAULT_DESCRIPTION, n_contacts=n_contacts, n_contacted=n_contacted,
+                  message=request.query_params.get("msg", ""))
+
+
+@app.post("/business")
+def save_business(description: str = Form(""), zips: str = Form(""), industries: list[str] = Form(default=[]),
+                  extra_industries: str = Form(""), db: Session = Depends(get_session), account=Depends(current_account)):
+    if account is None:
+        raise HTTPException(400, "Create an account first")
+    account.business_description = description.strip()[:3000]
+    account.target_zips = ",".join(z for z in clean_list(zips) if z.isdigit() and len(z) == 5)
+    account.industries = ",".join(clean_list(",".join([i for i in INDUSTRIES if i in industries]) + "," + extra_industries))
+    db.commit()
+    return RedirectResponse("/business?msg=Saved%20%E2%9C%93", status_code=303)
+
+
+@app.post("/business/contacts")
+async def upload_contacts(file: UploadFile, db: Session = Depends(get_session), account=Depends(current_account)):
+    from urllib.parse import quote
+    if account is None:
+        raise HTTPException(400, "Create an account first")
+    raw = (await file.read())[:10_000_000]
+    try:
+        n = contacts.add_contacts(db, account.id, raw.decode("utf-8-sig", errors="replace"))
+        m = contacts.match_leads(db, account.id)
+        msg = f"Added {n} new contacts. {m} of your leads are marked Already contacted."
+    except ValueError as exc:
+        msg = str(exc)
+    return RedirectResponse(f"/business?msg={quote(msg)}", status_code=303)
 
 
 @app.get("/usage")

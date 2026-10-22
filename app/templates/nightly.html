@@ -18,12 +18,7 @@
     <p class="self-end text-slate-600">≈ ${{ "%.2f"|format(st.searches_per_night * cost_each) }} a night,
       ${{ "%.0f"|format(st.searches_per_night * cost_each * 30) }} a month (Google), plus a few cents for Claude.</p>
   </div>
-  <fieldset><legend class="font-semibold mb-2 text-sm">ZIP codes</legend>
-    <div class="flex flex-wrap gap-3 text-sm">{% for z in all_zips %}
-      <label class="flex items-center gap-1"><input type="checkbox" name="zips" value="{{ z }}" {% if z in on_zips %}checked{% endif %}> {{ z }}</label>{% endfor %}</div></fieldset>
-  <fieldset><legend class="font-semibold mb-2 text-sm">Industries</legend>
-    <div class="flex flex-wrap gap-3 text-sm">{% for i in all_inds %}
-      <label class="flex items-center gap-1"><input type="checkbox" name="industries" value="{{ i }}" {% if i in on_inds %}checked{% endif %}> {{ i }}</label>{% endfor %}</div></fieldset>
+  <p class="text-sm text-slate-600">ZIP codes and industries come from <a href="/business" class="text-blue-700 hover:underline">My business</a>.</p>
   <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save</button>
 </form>
 <div class="grid md:grid-cols-2 gap-6">

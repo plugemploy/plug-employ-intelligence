@@ -28,7 +28,7 @@ def account_id():
 def test_scores_only_unscored_and_logs_cost(account_id, monkeypatch):
     seen = []
     monkeypatch.setattr(scoring, "ask_claude",
-                        lambda lead: seen.append(lead.business_name) or (scoring.LeadScore(score=9, reason="Great fit."), 0.0001))
+                        lambda lead, system: seen.append(lead.business_name) or (scoring.LeadScore(score=9, reason="Great fit."), 0.0001))
     with Session(engine) as db:
         s = scoring.score_unscored(db, account_id)
         assert s["scored"] == 1 and seen == ["Unscored Biz"]
@@ -38,7 +38,7 @@ def test_scores_only_unscored_and_logs_cost(account_id, monkeypatch):
 
 
 def test_budget_stops_scoring(account_id, monkeypatch):
-    monkeypatch.setattr(scoring, "ask_claude", lambda lead: pytest.fail("should not call Claude"))
+    monkeypatch.setattr(scoring, "ask_claude", lambda lead, system: pytest.fail("should not call Claude"))
     monkeypatch.setattr(places, "MONTHLY_API_BUDGET_USD", 0)
     with Session(engine) as db, pytest.raises(places.BudgetExceeded):
         scoring.score_unscored(db, account_id)
@@ -47,3 +47,13 @@ def test_budget_stops_scoring(account_id, monkeypatch):
 def test_describe_has_key_facts():
     text = scoring.describe(Lead(business_name="X", zip_code="37919", rating=4.5, review_count=12, website="https://x"))
     assert "37919" in text and "4.5" in text and "12 reviews" in text and "Website: yes" in text
+
+
+def test_system_uses_account_description(account_id):
+    with Session(engine) as db:
+        a = db.get(Account, account_id)
+        a.business_description, a.target_zips = "We sell billboards to car dealers.", "37919,37934"
+        system = scoring.build_system(a)
+        assert "billboards to car dealers" in system and "37919, 37934" in system
+        a.business_description = ""
+        assert scoring.DEFAULT_DESCRIPTION in scoring.build_system(a)

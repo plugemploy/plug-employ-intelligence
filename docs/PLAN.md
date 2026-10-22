@@ -47,8 +47,10 @@ The prototype runs locally on a Mac and must later move to cloud hosting.
 - Sold to franchise owners as a **monthly subscription** (priced above $50/month).
 - Each account has its own monthly API cost limit (`accounts.monthly_budget_usd`), set per plan,
   to protect margins. The `.env` `MONTHLY_API_BUDGET_USD` is an overall safety cap for the prototype.
-- Before selling: real logins, per-account business description for scoring (today's prompt is
-  Plug Employ's own), per-account target ZIPs, billing, and cloud hosting.
+- Each account sets its own business description, ZIP codes and industries on "My business".
+- "Already contacted": owners upload their Google Contacts export (Gmail only). A direct Gmail
+  connection comes after the cloud move; selling it needs Google's paid security review.
+- Before selling: real logins, billing, and cloud hosting.
 
 ### Website reading
 - Only each business's own homepage, only when its robots.txt allows, one request per site,

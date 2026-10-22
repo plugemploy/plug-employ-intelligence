@@ -16,6 +16,7 @@
       <option value="score" {% if sort == "score" %}selected{% endif %}>Sort: best score</option>
       <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: name</option>
     </select>
+    <label class="flex items-center gap-1"><input type="checkbox" name="hide_contacted" value="1" {% if f_hide %}checked{% endif %}> Hide already contacted</label>
     {% if f_new %}<input type="hidden" name="new" value="1">{% endif %}
     <button class="rounded bg-slate-800 text-white px-3 py-1">Apply</button>
   </form>
@@ -48,7 +49,8 @@
       <tr class="border-t hover:bg-slate-50">
         <td class="p-3" title="{{ l.score_reason }}">{% if l.score %}<span class="inline-block w-8 text-center rounded font-bold
           {{ 'bg-green-100 text-green-800' if l.score >= 8 else 'bg-amber-100 text-amber-800' if l.score >= 5 else 'bg-slate-100 text-slate-600' }}">{{ l.score }}</span>{% endif %}</td>
-        <td class="p-3"><a href="/leads/{{ l.id }}" class="font-medium text-blue-700 hover:underline">{{ l.business_name }}</a></td>
+        <td class="p-3"><a href="/leads/{{ l.id }}" class="font-medium text-blue-700 hover:underline">{{ l.business_name }}</a>
+          {% if l.contacted_match %}<span class="ml-1 inline-block rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs" title="Matches {{ l.contacted_match }}">Already contacted</span>{% endif %}</td>
         <td class="p-3">{{ l.industry }}</td>
         <td class="p-3">{{ l.zip_code }}</td>
         <td class="p-3 whitespace-nowrap">{% if l.rating %}★ {{ l.rating }} <span class="text-slate-400">({{ l.review_count }})</span>{% endif %}</td>
