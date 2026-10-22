@@ -16,6 +16,8 @@ class Account(Base):
     __tablename__ = "accounts"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
+    # Per-customer monthly API limit (subscription plans will set this).
+    monthly_budget_usd: Mapped[float] = mapped_column(Numeric(10, 2), default=50, server_default="50")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -36,6 +38,10 @@ class Lead(Base):
     score: Mapped[int | None] = mapped_column(Integer, index=True)
     score_reason: Mapped[str] = mapped_column(Text, default="")
     scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Website check: "ok", "no_site", "blocked" (robots.txt says no) or "error".
+    website_status: Mapped[str | None] = mapped_column(String(20))
+    website_text: Mapped[str] = mapped_column(Text, default="", server_default="")
+    website_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

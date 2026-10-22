@@ -15,6 +15,7 @@ import anthropic
 import httpx
 
 from app import nightly, places, scoring
+from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
 from app.models import STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun
 
@@ -222,6 +223,7 @@ def run_search(request: Request, zips: list[str] = Form(default=[]), industries:
             for z in zips:
                 for ind in industries:
                     results.append(places.search_and_save(db, account.id, z, ind))
+            site_check.check_unchecked(db, account.id)
             if ANTHROPIC_API_KEY:
                 scoring.score_unscored(db, account.id)
         except places.BudgetExceeded as exc:
@@ -260,6 +262,30 @@ def save_nightly(enabled: str = Form(""), run_hour: int = Form(2), searches_per_
     st.industries = ",".join(i for i in INDUSTRIES if i in industries)
     db.commit()
     return RedirectResponse("/nightly?saved=1", status_code=303)
+
+
+@app.get("/usage")
+def usage_page(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    from sqlalchemy import func as f
+    from app.models import ApiUsage
+    ctx = {}
+    if account:
+        start = places.month_start()
+        base = select(ApiUsage).where(ApiUsage.account_id == account.id, ApiUsage.created_at >= start)
+        by_service = db.execute(
+            select(ApiUsage.service, f.count(), f.sum(ApiUsage.est_cost_usd))
+            .where(ApiUsage.account_id == account.id, ApiUsage.created_at >= start)
+            .group_by(ApiUsage.service)).all()
+        day = f.date(f.timezone("America/New_York", ApiUsage.created_at))
+        by_day = db.execute(
+            select(day, f.sum(ApiUsage.est_cost_usd))
+            .where(ApiUsage.account_id == account.id, ApiUsage.created_at >= start)
+            .group_by(day).order_by(day.desc())).all()
+        ctx = dict(by_service=by_service, by_day=by_day,
+                   spent=places.spent_this_month(db, account.id), limit=float(account.monthly_budget_usd),
+                   overall=places.spent_this_month(db), overall_cap=MONTHLY_API_BUDGET_USD,
+                   month=start.strftime("%B %Y"))
+    return render(request, "usage.html", db, account, **ctx)
 
 
 @app.get("/status")

@@ -43,6 +43,17 @@ The prototype runs locally on a Mac and must later move to cloud hosting.
 - Only official APIs and permitted website access. Respect `robots.txt`.
 - No scraping workarounds.
 
+### Business model
+- Sold to franchise owners as a **monthly subscription** (priced above $50/month).
+- Each account has its own monthly API cost limit (`accounts.monthly_budget_usd`), set per plan,
+  to protect margins. The `.env` `MONTHLY_API_BUDGET_USD` is an overall safety cap for the prototype.
+- Before selling: real logins, per-account business description for scoring (today's prompt is
+  Plug Employ's own), per-account target ZIPs, billing, and cloud hosting.
+
+### Website reading
+- Only each business's own homepage, only when its robots.txt allows, one request per site,
+  with our own user agent. Text is used to sharpen Claude's score (chain vs. local, events).
+
 ### Budget
 - **$50/month cap** for API usage during the prototype.
 

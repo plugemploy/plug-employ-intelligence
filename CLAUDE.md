@@ -29,4 +29,5 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Phase 2 done (2026-10-21): Google Places (New) Text Search on /search, filters, dedupe, budget guard (api_usage table, $0.035/request at full price). Real leads go in account "Plug Employ (real leads)".
 - Phase 3 built (2026-10-21): Claude Haiku 5.5 scores leads 1-10 (app/scoring.py), Score button on leads list, auto-score after search. Not yet run for real.
 - Nightly search built (2026-10-21): app/nightly.py, APScheduler checks every 15 min and catches up if the Mac slept. /nightly page. Real account on at 2am, 20 searches.
-- Next: usage page, website enrichment (robots.txt), Close CRM, cloud move.
+- Usage page + per-account limits + website check built (2026-10-21). See PLAN.md Business model.
+- Next: per-account business description for scoring, export CSV, Close CRM, logins + cloud.

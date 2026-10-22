@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
-from app.models import ApiUsage, Lead
+from app.models import Account, ApiUsage, Lead
 
 SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 # Asking for phone, website, rating and reviews makes this the "Enterprise" price tier.
@@ -39,11 +39,26 @@ class BudgetExceeded(Exception):
     pass
 
 
-def spent_this_month(db: Session) -> float:
-    """Estimated API spending this calendar month, across all accounts (the prototype has one budget)."""
-    start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    total = db.scalar(select(func.coalesce(func.sum(ApiUsage.est_cost_usd), 0)).where(ApiUsage.created_at >= start))
-    return float(total)
+def month_start() -> datetime:
+    return datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def spent_this_month(db: Session, account_id: int | None = None) -> float:
+    """Estimated API spending this calendar month: one account, or all accounts when account_id is None."""
+    q = select(func.coalesce(func.sum(ApiUsage.est_cost_usd), 0)).where(ApiUsage.created_at >= month_start())
+    if account_id is not None:
+        q = q.where(ApiUsage.account_id == account_id)
+    return float(db.scalar(q))
+
+
+def check_budget(db: Session, account_id: int, next_cost: float) -> None:
+    """Stop before going over the account's own monthly limit or the overall prototype cap."""
+    if spent_this_month(db) + next_cost > MONTHLY_API_BUDGET_USD:
+        raise BudgetExceeded(f"Overall monthly API budget of ${MONTHLY_API_BUDGET_USD:.0f} reached.")
+    account = db.get(Account, account_id)
+    limit = float(account.monthly_budget_usd) if account else 0
+    if spent_this_month(db, account_id) + next_cost > limit:
+        raise BudgetExceeded(f"This account's monthly limit of ${limit:.0f} reached.")
 
 
 def fetch_page(query: str, page_token: str | None = None) -> dict:
@@ -72,8 +87,7 @@ def search_and_save(db: Session, account_id: int, zip_code: str, industry: str, 
         Lead.account_id == account_id, Lead.google_place_id.is_not(None))))
     token = None
     for _ in range(max_pages):
-        if spent_this_month(db) + COST_PER_REQUEST_USD > MONTHLY_API_BUDGET_USD:
-            raise BudgetExceeded(f"Monthly API budget of ${MONTHLY_API_BUDGET_USD:.0f} reached.")
+        check_budget(db, account_id, COST_PER_REQUEST_USD)
         data = fetch_page(f"{industry} in {zip_code}", token)
         db.add(ApiUsage(account_id=account_id, service="google_places_text_search",
                         detail=f"{industry} in {zip_code}", est_cost_usd=COST_PER_REQUEST_USD))
