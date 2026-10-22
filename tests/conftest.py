@@ -18,6 +18,9 @@ def login_as(client, account_id: int, role: str = "owner") -> int:
             db.add(org)
             db.flush()
             account.org_id = org.id
+        if account.setup_done_at is None:
+            from datetime import datetime, timezone
+            account.setup_done_at = datetime.now(timezone.utc)
         email = f"test-{account_id}-{role}@example.com"
         user = db.scalars(select(User).where(User.email == email)).first()
         if user is None:

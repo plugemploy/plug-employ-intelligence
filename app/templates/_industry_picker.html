@@ -1,0 +1,68 @@
+{# Industry picker. Needs: categories (dict), selected (list), zip_count (int). Posts "industries" (many). #}
+{% set custom = selected | reject("in", all_catalog) | list %}
+<div id="ind-picker" class="grid gap-3">
+  {% if note %}<p class="text-sm text-purple-800 bg-purple-50 border border-purple-200 rounded p-2">{{ note }}</p>{% endif %}
+  <div class="flex flex-wrap gap-2 items-center">
+    <input id="ind-search" list="ind-options" placeholder="Search or type a business type, e.g. Florist"
+           class="border rounded px-3 py-2 text-sm w-72" autocomplete="off">
+    <datalist id="ind-options">{% for n in all_catalog %}<option value="{{ n }}">{% endfor %}</datalist>
+    <button type="button" id="ind-add" class="rounded border px-3 py-2 text-sm hover:bg-slate-50">Add</button>
+    <button type="button" data-all="1" class="ind-bulk text-sm text-blue-700 hover:underline">Select all</button>
+    <button type="button" data-all="0" class="ind-bulk text-sm text-slate-500 hover:underline">Clear</button>
+  </div>
+  <p class="text-xs text-slate-600"><b id="ind-count">0</b> selected · about <b id="ind-searches">0</b> searches across your ZIP codes
+    (the nightly search works through these over time).</p>
+  <div class="grid md:grid-cols-2 gap-3 max-h-96 overflow-y-auto border rounded p-3 bg-slate-50">
+    {% for group, names in categories.items() %}
+    <fieldset class="ind-group">
+      <legend class="flex items-center gap-2 text-sm font-semibold">{{ group }}
+        <button type="button" class="ind-group-all text-xs font-normal text-blue-700 hover:underline">select all</button></legend>
+      <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm mt-1">{% for n in names %}
+        <label class="ind-item flex items-center gap-1" data-name="{{ n|lower }}">
+          <input type="checkbox" name="industries" value="{{ n }}" {% if n in selected %}checked{% endif %}> {{ n }}</label>{% endfor %}</div>
+    </fieldset>
+    {% endfor %}
+    <fieldset class="ind-group md:col-span-2">
+      <legend class="text-sm font-semibold">Your own</legend>
+      <div id="ind-custom" class="flex flex-wrap gap-x-3 gap-y-1 text-sm mt-1">{% for n in custom %}
+        <label class="ind-item flex items-center gap-1" data-name="{{ n|lower }}">
+          <input type="checkbox" name="industries" value="{{ n }}" checked> {{ n }}</label>{% endfor %}</div>
+    </fieldset>
+  </div>
+</div>
+<script>
+(function () {
+  const root = document.getElementById("ind-picker"), zipCount = {{ zip_count or 1 }};
+  const boxes = () => [...root.querySelectorAll('input[name="industries"]')];
+  const update = () => {
+    const n = boxes().filter(b => b.checked).length;
+    document.getElementById("ind-count").textContent = n;
+    document.getElementById("ind-searches").textContent = n * zipCount;
+  };
+  const search = document.getElementById("ind-search");
+  search.addEventListener("input", () => {
+    const q = search.value.trim().toLowerCase();
+    root.querySelectorAll(".ind-item").forEach(l => l.style.display = !q || l.dataset.name.includes(q) ? "" : "none");
+  });
+  const add = () => {
+    const name = search.value.trim().replace(/\s+/g, " ").replace(/,/g, "");
+    if (!name) return;
+    let box = boxes().find(b => b.value.toLowerCase() === name.toLowerCase());
+    if (!box) {
+      const label = document.createElement("label");
+      label.className = "ind-item flex items-center gap-1"; label.dataset.name = name.toLowerCase();
+      box = document.createElement("input"); box.type = "checkbox"; box.name = "industries"; box.value = name;
+      label.append(box, " " + name); document.getElementById("ind-custom").append(label);
+    }
+    box.checked = true; search.value = ""; search.dispatchEvent(new Event("input")); update();
+  };
+  document.getElementById("ind-add").addEventListener("click", add);
+  search.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); add(); } });
+  root.querySelectorAll(".ind-bulk").forEach(b => b.addEventListener("click", () => {
+    boxes().forEach(x => x.checked = b.dataset.all === "1"); update(); }));
+  root.querySelectorAll(".ind-group-all").forEach(b => b.addEventListener("click", () => {
+    const inGroup = [...b.closest(".ind-group").querySelectorAll('input[name="industries"]')];
+    const on = !inGroup.every(x => x.checked); inGroup.forEach(x => x.checked = on); update(); }));
+  root.addEventListener("change", update); update();
+})();
+</script>

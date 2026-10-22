@@ -42,6 +42,7 @@ class Account(Base):
     gmail_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     digest_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     digest_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    setup_done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # finished the setup wizard
     close_auto_send: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # nightly 9+ leads
 
     @property

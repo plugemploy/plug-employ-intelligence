@@ -142,10 +142,8 @@ def sign_in(db: Session, email: str, name: str, signup_company: str = "") -> Use
 
 
 def new_account(db: Session, org_id: int, name: str, zips: str = "") -> Account:
-    """A fresh publisher workspace with sensible defaults."""
-    from app.places import INDUSTRIES
-    account = Account(org_id=org_id, name=name[:200], target_zips=zips, industries=",".join(INDUSTRIES),
-                      monthly_budget_usd=50)
+    """A fresh publisher workspace. Industries and description are chosen in the setup wizard."""
+    account = Account(org_id=org_id, name=name[:200], target_zips=zips, industries="", monthly_budget_usd=50)
     db.add(account)
     db.flush()
     return account

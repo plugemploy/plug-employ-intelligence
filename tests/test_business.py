@@ -73,7 +73,7 @@ def test_pages(ids, fake_gmail):
     c = TestClient(app)
     login_as(c, ids["a"])
     r = c.post("/business", data={"description": "We sell billboards.", "zips": "37919, 37934\n12, 37919",
-                                  "industries": ["Dentist", "Golf"], "extra_industries": "Florist, Dentist"})
+                                  "industries": ["Dentist", "Golf", "Florist", "Dentist"]})
     assert r.status_code == 200
     with Session(engine) as db:
         a = db.get(Account, ids["a"])

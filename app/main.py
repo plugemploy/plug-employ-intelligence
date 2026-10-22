@@ -14,8 +14,9 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import auth, close_crm, digest, gmail, nightly, outreach, places, scoring
+from app import auth, catalog, close_crm, digest, gmail, nightly, outreach, places, scoring
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
+from app import setup as setup_mod
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
 from app.models import OUTCOMES, STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun, Organization, User
@@ -98,7 +99,7 @@ def auth_callback(state: str = "", code: str = "", error: str = "", db: Session 
         user = auth.sign_in(db, identity["email"], identity["name"], company)
     except Exception as exc:
         return RedirectResponse(f"/login?msg={quote(str(exc).splitlines()[0])}", status_code=303)
-    resp = RedirectResponse("/admin" if company else "/leads", status_code=303)
+    resp = RedirectResponse("/setup" if company else "/leads", status_code=303)
     resp.set_cookie(auth.SESSION_COOKIE, auth.make_session(user.id), httponly=True, samesite="lax",
                     max_age=auth.SESSION_DAYS * 86400)
     resp.delete_cookie(ACCOUNT_COOKIE)
@@ -127,6 +128,8 @@ def switch_account(account_id: int = Form(...), db: Session = Depends(get_sessio
 def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str = "follow_up", new: str = "",
                hide_contacted: str = "",
                db: Session = Depends(get_session), account=Depends(current_account)):
+    if account and account.setup_done_at is None:
+        return RedirectResponse("/setup", status_code=303)
     leads, last_run = [], None
     if account:
         last_run = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
@@ -448,8 +451,7 @@ def clean_list(raw: str) -> list[str]:
 def business_page(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
     n_emailed = db.scalar(select(func.count()).select_from(Lead).where(
         Lead.account_id == account.id, Lead.last_emailed_at.is_not(None))) if account else 0
-    extra = [i for i in (account.industry_list if account else []) if i not in INDUSTRIES]
-    return render(request, "business.html", db, account, all_inds=INDUSTRIES, extra_inds=", ".join(extra),
+    return render(request, "business.html", db, account, categories=catalog.CATEGORIES, all_catalog=catalog.ALL,
                   default_desc=scoring.DEFAULT_DESCRIPTION, n_emailed=n_emailed,
                   gmail_ready=gmail.configured(), can_compose=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
 
@@ -461,7 +463,7 @@ def save_business(description: str = Form(""), zips: str = Form(""), industries:
         raise HTTPException(400, "Create an account first")
     account.business_description = description.strip()[:3000]
     account.target_zips = ",".join(z for z in clean_list(zips) if z.isdigit() and len(z) == 5)
-    account.industries = ",".join(clean_list(",".join([i for i in INDUSTRIES if i in industries]) + "," + extra_industries))
+    account.industries = ",".join(clean_list(",".join(industries) + "," + extra_industries))
     db.commit()
     return RedirectResponse("/business?msg=Saved%20%E2%9C%93", status_code=303)
 
@@ -526,6 +528,62 @@ def gmail_disconnect(db: Session = Depends(get_session), account=Depends(current
     if account:
         gmail.disconnect(db, account)
     return back_to_business("Gmail disconnected. Its stored access was deleted from this app.")
+
+
+# ---- Setup wizard --------------------------------------------------------------------------
+
+@app.get("/setup")
+def setup_page(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    if account is None:
+        return RedirectResponse("/admin", status_code=303)
+    return render(request, "setup.html", db, account, categories=catalog.CATEGORIES, all_catalog=catalog.ALL,
+                  selected=account.industry_list, zip_count=len(account.zip_list), default_desc=scoring.DEFAULT_DESCRIPTION)
+
+
+@app.post("/setup/suggest")
+def setup_suggest(request: Request, description: str = Form(""), zips: str = Form(""),
+                  db: Session = Depends(get_session), account=Depends(current_account)):
+    try:
+        selected = setup_mod.suggest_industries(db, account, description) or account.industry_list
+        note = "Claude picked these from your description. Change anything you like." if selected else ""
+    except Exception as exc:
+        selected, note = account.industry_list, f"Couldn't get suggestions ({str(exc).splitlines()[0]}). Pick below."
+    zip_count = len([z for z in clean_list(zips) if z.isdigit() and len(z) == 5]) or len(account.zip_list)
+    return templates.TemplateResponse(request, "_industry_picker.html", {
+        "categories": catalog.CATEGORIES, "all_catalog": catalog.ALL, "selected": selected,
+        "zip_count": zip_count, "note": note})
+
+
+@app.post("/setup")
+def setup_save(description: str = Form(""), zips: str = Form(""), industries: list[str] = Form(default=[]),
+               db: Session = Depends(get_session), account=Depends(current_account)):
+    from urllib.parse import quote
+    zip_list = [z for z in clean_list(zips) if z.isdigit() and len(z) == 5]
+    inds = clean_list(",".join(industries))
+    account.business_description = description.strip()[:3000]
+    account.target_zips, account.industries = ",".join(zip_list), ",".join(inds)
+    db.commit()
+    if not zip_list or not inds:
+        return RedirectResponse(f"/setup?msg={quote('Add at least one ZIP code and one industry.')}", status_code=303)
+    setup_mod.finish(db, account)
+    return RedirectResponse("/setup/first", status_code=303)
+
+
+@app.get("/setup/first")
+def setup_first(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    st = nightly.get_settings(db, account.id)
+    pairs = len(account.zip_list) * len(account.industry_list)
+    n = min(setup_mod.STARTER_SEARCHES, pairs)
+    return render(request, "setup_first.html", db, account, n=n, pairs=pairs, st=st,
+                  cost=n * places.COST_PER_REQUEST_USD, nights=-(-pairs // max(st.searches_per_night, 1)))
+
+
+@app.post("/setup/first")
+def setup_first_run(db: Session = Depends(get_session), account=Depends(current_account)):
+    s = setup_mod.starter_search(db, account)
+    msg = (f"Your first search found {s['added']} leads; {s['high']} scored 8+. More arrive every night."
+           if not s["error"] else f"First search stopped early: {s['error']}")
+    return back_to_leads(msg)
 
 
 # ---- Company admin -------------------------------------------------------------------------

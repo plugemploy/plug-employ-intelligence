@@ -11,12 +11,8 @@
   <label class="grid gap-1"><span class="font-semibold">Your ZIP codes</span>
     <span class="text-xs text-slate-500">Separate with commas. List the most important first: they're searched first and count most.</span>
     <input name="zips" value="{{ account.zip_list|join(', ') }}" class="border rounded px-3 py-2 text-sm"></label>
-  <fieldset><legend class="font-semibold mb-2">Industries to search</legend>
-    <div class="flex flex-wrap gap-3 text-sm">{% for i in all_inds %}
-      <label class="flex items-center gap-1"><input type="checkbox" name="industries" value="{{ i }}" {% if i in account.industry_list %}checked{% endif %}> {{ i }}</label>{% endfor %}</div>
-    <label class="grid gap-1 mt-3 text-sm">Add your own (separate with commas)
-      <input name="extra_industries" value="{{ extra_inds }}" placeholder="e.g. Wedding planner, Florist" class="border rounded px-3 py-2"></label>
-  </fieldset>
+  <div><p class="font-semibold mb-2">Industries to search</p>
+    {% with selected=account.industry_list, zip_count=account.zip_list|length %}{% include "_industry_picker.html" %}{% endwith %}</div>
   <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save</button>
 </form>
 <section class="bg-white rounded-xl shadow p-6 max-w-3xl">

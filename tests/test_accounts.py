@@ -22,6 +22,9 @@ def two_companies():
         b1 = auth.new_account(db, o2.id, "Test: Beta One")
         db.add_all([Lead(account_id=a1.id, business_name="North Lead"), Lead(account_id=a2.id, business_name="South Lead"),
                     Lead(account_id=b1.id, business_name="Beta Secret")])
+        from datetime import datetime, timezone
+        for a in (a1, a2, b1):
+            a.setup_done_at = datetime.now(timezone.utc)
         owner = User(org_id=o1.id, account_id=a1.id, email="owner@alpha.test", role="owner")
         pub = User(org_id=o1.id, account_id=a2.id, email="pub@alpha.test", role="publisher")
         db.add_all([owner, pub])
