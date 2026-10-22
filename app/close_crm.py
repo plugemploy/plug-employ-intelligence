@@ -104,8 +104,13 @@ def lead_body(lead: Lead, status_id: str) -> dict:
     if lead.address or lead.zip_code:
         body["addresses"] = [{"label": "business", "address_1": lead.address.split(",")[0] if lead.address else "",
                               "zipcode": lead.zip_code, "country": "US"}]
-    if lead.phone:
-        body["contacts"] = [{"name": lead.business_name, "phones": [{"phone": lead.phone, "type": "office"}]}]
+    if lead.phone or lead.contact_name:
+        contact = {"name": lead.contact_name or lead.business_name}
+        if lead.contact_title:
+            contact["title"] = lead.contact_title
+        if lead.phone:
+            contact["phones"] = [{"phone": lead.phone, "type": "office"}]
+        body["contacts"] = [contact]
     return body
 
 
@@ -113,6 +118,9 @@ def note_text(lead: Lead) -> str:
     lines = [f"From Plug Employ Intelligence. Score {lead.score}/10." if lead.score else "From Plug Employ Intelligence."]
     if lead.score_reason:
         lines.append(f"Why: {lead.score_reason}")
+    if lead.contact_name:
+        lines.append(f"Ask for: {lead.contact_name}" + (f", {lead.contact_title}" if lead.contact_title else "")
+                     + (f" (named on {lead.website_about_url or lead.website})" if lead.website else ""))
     if lead.rating:
         lines.append(f"Google: {lead.rating} stars, {lead.review_count} reviews. Industry: {lead.industry}.")
     if lead.last_emailed_at:

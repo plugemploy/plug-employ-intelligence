@@ -89,6 +89,10 @@ class Lead(Base):
     website_status: Mapped[str | None] = mapped_column(String(20))
     website_text: Mapped[str] = mapped_column(Text, default="", server_default="")
     website_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    website_about_url: Mapped[str] = mapped_column(String(500), default="", server_default="")  # About/Team page read
+    # Owner or manager, only when the business's own website names them.
+    contact_name: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    contact_title: Mapped[str] = mapped_column(String(100), default="", server_default="")
     # From the Gmail check: latest email to/from the business's website domain.
     last_emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     emailed_domain: Mapped[str] = mapped_column(String(200), default="", server_default="")

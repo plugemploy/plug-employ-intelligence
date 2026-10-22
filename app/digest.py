@@ -27,7 +27,8 @@ def build(db: Session, account: Account, now: datetime) -> tuple[str, str]:
                        .order_by(Lead.score.desc().nulls_last()).limit(10)).all()
     lines = [f"Your week in Plug Employ Intelligence ({now.astimezone():%b %-d})", ""]
     lines += [f"NEW LEADS SCORED 8+ THIS WEEK ({len(new_hot)})"]
-    lines += [f"  {l.score}/10  {l.business_name} ({l.industry}, {l.zip_code})" for l in new_hot] or ["  None this week."]
+    lines += [f"  {l.score}/10  {l.business_name} ({l.industry}, {l.zip_code})"
+              + (f" - {l.contact_name}, {l.contact_title}" if l.contact_name else "") for l in new_hot] or ["  None this week."]
     lines += ["", f"FOLLOW-UPS DUE THIS WEEK ({len(due)})"]
     lines += [f"  {f.due_date:%a %b %-d}  {f.lead.business_name}: {f.task}" for f in due] or ["  Nothing due."]
     lines += ["", f"GONE QUIET: EMAILED {QUIET_DAYS}+ DAYS AGO, STILL OPEN ({len(quiet)})"]

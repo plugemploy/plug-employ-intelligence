@@ -43,7 +43,7 @@ def test_robots_blocks(monkeypatch):
 
 def test_check_marks_leads_and_rescore(account_id, monkeypatch):
     monkeypatch.setattr(website, "fetch_site",
-                        lambda url: ("ok", "Locally owned since 1990") if url else ("no_site", ""))
+                        lambda url: ("ok", "Locally owned since 1990", "") if url else ("no_site", "", ""))
     with Session(engine) as db:
         stats = website.check_unchecked(db, account_id)
         assert stats["ok"] == 1 and stats["no_site"] == 1
@@ -59,3 +59,10 @@ def test_account_limit_stops_before_overall_cap(account_id):
         db.commit()
         with pytest.raises(places.BudgetExceeded, match="allowance"):
             places.check_budget(db, account_id, 0.035)
+
+
+def test_about_link_same_site_only():
+    html = ('<a href="/about-us">About</a><a href="https://facebook.com/about">FB</a>'
+            '<a href="/services">Services</a>')
+    assert website.find_about_link(html, "https://www.glowspa.com/") == "https://www.glowspa.com/about-us"
+    assert website.find_about_link('<a href="https://other.com/team">x</a>', "https://glowspa.com/") == ""

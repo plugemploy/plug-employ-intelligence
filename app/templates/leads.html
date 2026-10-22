@@ -85,6 +85,7 @@
         <td class="p-3" title="{{ l.score_reason }}">{% if l.score %}<span class="inline-block w-8 text-center rounded font-bold
           {{ 'bg-green-100 text-green-800' if l.score >= 8 else 'bg-amber-100 text-amber-800' if l.score >= 5 else 'bg-slate-100 text-slate-600' }}">{{ l.score }}</span>{% endif %}</td>
         <td class="p-3"><a href="/leads/{{ l.id }}" class="font-medium text-blue-700 hover:underline">{{ l.business_name }}</a>
+          {% if l.contact_name %}<span class="block text-xs text-slate-500">👤 {{ l.contact_name }}{% if l.contact_title %}, {{ l.contact_title }}{% endif %}</span>{% endif %}
           {% if l.last_emailed_at %}<span class="ml-1 inline-block rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs" title="Latest email to/from {{ l.emailed_domain }}">Emailed · {{ l.last_emailed_at.astimezone().strftime("%b %-d") }}</span>{% endif %}</td>
         <td class="p-3">{{ l.industry }}</td>
         <td class="p-3">{{ l.zip_code }}</td>

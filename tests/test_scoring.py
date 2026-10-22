@@ -28,12 +28,14 @@ def account_id():
 def test_scores_only_unscored_and_logs_cost(account_id, monkeypatch):
     seen = []
     monkeypatch.setattr(scoring, "ask_claude",
-                        lambda lead, system: seen.append(lead.business_name) or (scoring.LeadScore(score=9, reason="Great fit."), 0.0001))
+                        lambda lead, system: seen.append(lead.business_name) or (scoring.LeadScore(score=9, reason="Great fit.", contact_name="Dr. Sarah Lee", contact_title="Owner"), 0.0001))
     with Session(engine) as db:
         s = scoring.score_unscored(db, account_id)
         assert s["scored"] == 1 and seen == ["Unscored Biz"]
         lead = db.scalars(select(Lead).where(Lead.business_name == "Unscored Biz", Lead.account_id == account_id)).one()
         assert (lead.score, lead.score_reason) == (9, "Great fit.") and lead.scored_at
+        # no website text read, so a name can't have come from their website: not saved
+        assert lead.contact_name == ""
         assert db.scalars(select(ApiUsage).where(ApiUsage.account_id == account_id)).one().service == "claude_scoring"
 
 
@@ -57,3 +59,20 @@ def test_system_uses_account_description(account_id):
         assert "billboards to car dealers" in system and "37919, 37934" in system
         a.business_description = ""
         assert scoring.DEFAULT_DESCRIPTION in scoring.build_system(a)
+
+
+def test_contact_saved_from_website_and_used(account_id, monkeypatch):
+    with Session(engine) as db:
+        lead = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.business_name == "Unscored Biz")).one()
+        lead.website_text = "Meet Dr. Sarah Lee, owner of Unscored Biz."
+        db.commit()
+    monkeypatch.setattr(scoring, "ask_claude", lambda lead, system: (
+        scoring.LeadScore(score=8, reason="Fit.", contact_name=" Dr. Sarah Lee ", contact_title="Owner"), 0.0001))
+    with Session(engine) as db:
+        scoring.score_unscored(db, account_id)
+        lead = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.business_name == "Unscored Biz")).one()
+        assert (lead.contact_name, lead.contact_title) == ("Dr. Sarah Lee", "Owner")
+        assert "Contact: Dr. Sarah Lee (Owner)" in scoring.describe(lead)
+        from app import close_crm
+        body = close_crm.lead_body(lead, "stat")
+        assert body["contacts"][0]["name"] == "Dr. Sarah Lee" and body["contacts"][0]["title"] == "Owner"
