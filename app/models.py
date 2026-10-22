@@ -27,6 +27,8 @@ class Account(Base):
     gmail_address: Mapped[str] = mapped_column(String(300), default="", server_default="")
     gmail_token_enc: Mapped[str] = mapped_column(Text, default="", server_default="")
     gmail_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    digest_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    digest_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     @property
     def zip_list(self) -> list[str]:
@@ -52,6 +54,8 @@ class Lead(Base):
     # Why it was Won or Not interested; past results teach the scoring.
     outcome_reason: Mapped[str] = mapped_column(Text, default="", server_default="")
     outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    contract_end: Mapped[date | None] = mapped_column(Date)  # for Won leads: renewal reminder 30 days before
+    draft_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Gmail draft made
     google_place_id: Mapped[str | None] = mapped_column(String(200), index=True)
     rating: Mapped[float | None] = mapped_column(Float)
     review_count: Mapped[int | None] = mapped_column(Integer)

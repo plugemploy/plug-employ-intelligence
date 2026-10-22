@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import gmail, places, scoring, website
+from app import digest, gmail, places, scoring, website
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
 from app.models import Account, ApiUsage, Lead, NightlyRun, NightlySettings
@@ -99,6 +99,13 @@ def check_and_run():
                 ids = due_accounts(db, datetime.now().astimezone())
             for account_id in ids:
                 run_for_account(account_id)
+            with Session(engine) as db:
+                for account_id in digest.due_accounts(db, datetime.now().astimezone()):
+                    try:
+                        digest.send(db, account_id)
+                    except Exception:
+                        log.exception("Monday digest failed")
+                        db.rollback()
         finally:
             conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": NIGHTLY_LOCK_ID})
 

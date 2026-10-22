@@ -49,6 +49,13 @@
   <button class="rounded bg-blue-700 text-white px-3 py-1 text-sm">Score {{ unscored }} unscored lead{{ "s" if unscored != 1 }} with Claude</button>
 </form>
 {% endif %}
+{% if can_draft %}
+<form method="post" action="/leads/draft-top" class="mb-4"
+      onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Writing drafts…'">
+  <button class="rounded bg-purple-700 text-white px-3 py-1 text-sm">✉️ Draft emails for my top 10</button>
+  <span class="text-xs text-slate-500 ml-2">Saved as Gmail drafts for you to review. Nothing is sent.</span>
+</form>
+{% endif %}
 <div class="bg-white rounded-xl shadow overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-100 text-left text-slate-600">

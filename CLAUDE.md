@@ -32,4 +32,5 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Usage page + per-account limits + website check built (2026-10-21). See PLAN.md Business model.
 - My business page (description, ZIPs, industries per account) built (2026-10-21). Gmail connect (gmail.readonly, token encrypted with APP_SECRET_KEY) replaces the contacts upload: Emailed tag + follow-up after 14 quiet days. Setup: docs/GMAIL_SETUP.md. Connect only via http://127.0.0.1:8000. Full re-score of real leads is saved for the final test run.
 - Learning from results built (2026-10-21): Won/Not interested + reason feed past_results into scoring; What's working panel.
-- Next: #3 Gmail drafts + Monday digest + renewal reminders (needs gmail.compose scope), then cloud/logins/Stripe/territory lock.
+- #3 built (2026-10-21): Gmail drafts (app/outreach.py, never sends to leads), Monday 8am digest to self (app/digest.py), renewal follow-up 30 days before contract_end. Needs gmail.compose scope + reconnect.
+- Next: cloud hosting, domain, logins, Stripe, territory lock, Google verification.

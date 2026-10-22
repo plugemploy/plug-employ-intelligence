@@ -1,7 +1,7 @@
 """Plug Employ Intelligence: accounts and lead tracker."""
 
 from contextlib import asynccontextmanager
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
@@ -14,7 +14,7 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import gmail, nightly, places, scoring
+from app import digest, gmail, nightly, outreach, places, scoring
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
 from app.models import OUTCOMES, STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun
@@ -98,7 +98,7 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
     return render(request, "leads.html", db, account, leads=leads, zips=zips,
                   f_status=status, f_zip=zip_code, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   working=scoring.whats_working(db, account.id) if account else {},
-                  has_claude_key=bool(ANTHROPIC_API_KEY), message=request.query_params.get("msg", ""))
+                  has_claude_key=bool(ANTHROPIC_API_KEY), can_draft=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
 
 
 @app.post("/leads/score")
@@ -153,12 +153,13 @@ def create_lead(business_name: str = Form(...), address: str = Form(""), zip_cod
 @app.get("/leads/{lead_id}")
 def lead_detail(lead_id: int, request: Request, db: Session = Depends(get_session),
                 account=Depends(current_account)):
-    return render(request, "lead_detail.html", db, account, lead=get_lead(db, account, lead_id))
+    return render(request, "lead_detail.html", db, account, lead=get_lead(db, account, lead_id),
+                  can_draft=bool(account and gmail.can_compose(account)))
 
 
 @app.post("/leads/{lead_id}/status")
 def set_status(lead_id: int, request: Request, status: str = Form(...), reason: str = Form(""),
-               db: Session = Depends(get_session), account=Depends(current_account)):
+               contract_end: str = Form(""), db: Session = Depends(get_session), account=Depends(current_account)):
     lead = get_lead(db, account, lead_id)
     if status not in STATUSES:
         raise HTTPException(400, "Unknown status")
@@ -169,8 +170,60 @@ def set_status(lead_id: int, request: Request, status: str = Form(...), reason: 
     else:
         lead.outcome_reason, lead.outcome_at = "", None
     lead.status = status
+    if status == "Won":
+        set_renewal(db, lead, date.fromisoformat(contract_end) if contract_end else None)
     db.commit()
     return render(request, "_status.html", db, account, lead=lead, saved=True)
+
+
+@app.post("/leads/{lead_id}/draft")
+def draft_email(lead_id: int, db: Session = Depends(get_session), account=Depends(current_account)):
+    from fastapi.responses import HTMLResponse
+    from html import escape
+    lead = get_lead(db, account, lead_id)
+    try:
+        email = outreach.draft_for_lead(db, account, lead)
+    except Exception as exc:
+        return HTMLResponse(f'<p class="text-sm text-red-700">{escape(str(exc).splitlines()[0])}</p>')
+    return HTMLResponse(f'<p class="text-sm text-green-700 mb-1">Saved in your Gmail Drafts ✓ Review it there, then send.</p>'
+                        f'<p class="text-sm font-semibold">{escape(email.subject)}</p>'
+                        f'<p class="text-sm whitespace-pre-line text-slate-700">{escape(email.body)}</p>')
+
+
+@app.post("/leads/draft-top")
+def draft_top(db: Session = Depends(get_session), account=Depends(current_account)):
+    from urllib.parse import quote
+    if account is None:
+        raise HTTPException(400, "Create an account first")
+    if not gmail.can_compose(account):
+        msg = "Reconnect Gmail on My business to allow drafts."
+    else:
+        try:
+            s = outreach.draft_top(db, account)
+            msg = f"Saved {s['drafted']} email drafts in your Gmail. Review and send them from Gmail."
+            if s["failed"]:
+                msg += f" {s['failed']} couldn't be drafted."
+        except places.BudgetExceeded as exc:
+            msg = str(exc)
+    return RedirectResponse(f"/leads?sort=score&msg={quote(msg)}", status_code=303)
+
+
+RENEWAL_PREFIX = "Renewal coming up"
+RENEWAL_DAYS_BEFORE = 30
+
+
+def set_renewal(db: Session, lead: Lead, contract_end: date | None) -> None:
+    """Keep one open renewal follow-up, 30 days before the contract ends."""
+    if contract_end == lead.contract_end:
+        return
+    lead.contract_end = contract_end
+    for f in lead.follow_ups:
+        if not f.done and f.task.startswith(RENEWAL_PREFIX):
+            db.delete(f)
+    if contract_end:
+        due = max(date.today(), contract_end - timedelta(days=RENEWAL_DAYS_BEFORE))
+        db.add(FollowUp(account_id=lead.account_id, lead_id=lead.id, due_date=due,
+                        task=f"{RENEWAL_PREFIX}: contract ends {contract_end:%b %-d, %Y}"))
 
 
 @app.post("/leads/{lead_id}/notes")
@@ -192,6 +245,11 @@ def add_follow_up(lead_id: int, request: Request, due_date: date = Form(...), ta
     db.commit()
     db.refresh(lead)
     return render(request, "_follow_ups.html", db, account, lead=lead)
+
+
+@app.get("/leads/{lead_id}/follow-ups")
+def follow_ups_part(lead_id: int, request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    return render(request, "_follow_ups.html", db, account, lead=get_lead(db, account, lead_id))
 
 
 @app.post("/follow-ups/{fu_id}/done")
@@ -289,7 +347,7 @@ def business_page(request: Request, db: Session = Depends(get_session), account=
     extra = [i for i in (account.industry_list if account else []) if i not in INDUSTRIES]
     return render(request, "business.html", db, account, all_inds=INDUSTRIES, extra_inds=", ".join(extra),
                   default_desc=scoring.DEFAULT_DESCRIPTION, n_emailed=n_emailed,
-                  gmail_ready=gmail.configured(), message=request.query_params.get("msg", ""))
+                  gmail_ready=gmail.configured(), can_compose=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
 
 
 @app.post("/business")
@@ -340,6 +398,22 @@ def gmail_check(db: Session = Depends(get_session), account=Depends(current_acco
         return back_to_business(f"Gmail check failed: {str(exc).splitlines()[0]}")
     return back_to_business(f"Checked {s['checked']} business websites: you've emailed {s['emailed']} leads. "
                             f"Added {s['follow_ups']} follow-ups (see Due today).")
+
+
+@app.post("/digest")
+def digest_settings(action: str = Form("save"), digest_enabled: str = Form(""),
+                    db: Session = Depends(get_session), account=Depends(current_account)):
+    if account is None:
+        raise HTTPException(400, "Create an account first")
+    if action == "send":
+        try:
+            subject = digest.send(db, account.id)
+            return back_to_business(f"Digest sent to {account.gmail_address}: \"{subject}\"")
+        except Exception as exc:
+            return back_to_business(f"Digest not sent: {str(exc).splitlines()[0]}")
+    account.digest_enabled = bool(digest_enabled)
+    db.commit()
+    return back_to_business("Saved ✓")
 
 
 @app.post("/gmail/disconnect")

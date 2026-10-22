@@ -18,9 +18,18 @@
     {% if lead.website_status %}<p class="text-xs text-slate-400 mt-1">{{ ws.get(lead.website_status, "") }}</p>{% endif %}</div>
 </div>
 {% endif %}
+{% if can_draft %}
+<div class="mb-6 rounded-xl bg-white shadow p-4">
+  <button hx-post="/leads/{{ lead.id }}/draft" hx-target="#draft" hx-disabled-elt="this"
+          class="rounded bg-purple-700 text-white px-3 py-1 text-sm">✉️ {{ "Draft another email" if lead.draft_created_at else "Draft an email" }}</button>
+  <span class="text-xs text-slate-500 ml-2">Claude writes it; it's saved in your Gmail Drafts. Nothing is sent.
+    {% if lead.draft_created_at %}Last draft {{ lead.draft_created_at.astimezone().strftime("%b %-d") }}.{% endif %}</span>
+  <div id="draft" class="mt-3"></div>
+</div>
+{% endif %}
 <div class="grid md:grid-cols-3 gap-6">
   <section class="bg-white rounded-xl shadow p-4"><h2 class="font-semibold mb-2">Status</h2>
-    <div id="status">{% include "_status.html" %}</div></section>
+    <div id="status" hx-on::after-swap="htmx.ajax('GET', '/leads/{{ lead.id }}/follow-ups', '#follow-ups')">{% include "_status.html" %}</div></section>
   <section class="bg-white rounded-xl shadow p-4"><h2 class="font-semibold mb-2">Follow-ups</h2>
     <form hx-post="/leads/{{ lead.id }}/follow-ups" hx-target="#follow-ups" hx-on::after-request="this.reset()" class="grid gap-2 mb-3 text-sm">
       <input type="date" name="due_date" required class="border rounded px-2 py-1">

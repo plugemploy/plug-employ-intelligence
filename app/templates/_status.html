@@ -11,4 +11,8 @@
            placeholder="{{ 'e.g. Loved the event sponsorship idea' if lead.status == 'Won' else 'e.g. No budget until spring' }}"
            class="border rounded px-2 py-1 text-sm"></label>
   {% endif %}
+  {% if lead.status == "Won" %}
+  <label class="grid gap-1 text-xs text-slate-600">Contract ends (we'll remind you 30 days before)
+    <input type="date" name="contract_end" value="{{ lead.contract_end or '' }}" class="border rounded px-2 py-1 text-sm"></label>
+  {% endif %}
 </form>

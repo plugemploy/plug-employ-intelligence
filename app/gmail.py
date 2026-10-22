@@ -6,6 +6,7 @@ Only the date of the latest match is used; message text is never read or stored.
 
 import json
 import os
+import re
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
@@ -20,7 +21,9 @@ from sqlalchemy.orm import Session
 from app.config import APP_BASE_URL, APP_SECRET_KEY, GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET
 from app.models import Account, FollowUp, Lead
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+READ = "https://www.googleapis.com/auth/gmail.readonly"
+COMPOSE = "https://www.googleapis.com/auth/gmail.compose"  # create drafts, send the digest to yourself
+SCOPES = [READ, COMPOSE]
 REDIRECT_URI = f"{APP_BASE_URL}/gmail/callback"
 FOLLOW_UP_AFTER_DAYS = 14
 FREE_MAIL = {"gmail.com", "googlemail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com", "msn.com",
@@ -72,6 +75,17 @@ def finish_connect(db: Session, state: str, code: str) -> Account:
     return account
 
 
+def can_compose(account: Account) -> bool:
+    """True if this Gmail connection allows drafts (connected after the compose permission was added)."""
+    if not (account.gmail_token_enc and APP_SECRET_KEY):
+        return False
+    try:
+        info = json.loads(_fernet().decrypt(account.gmail_token_enc.encode()))
+    except Exception:
+        return False
+    return COMPOSE in (info.get("scopes") or [])
+
+
 def disconnect(db: Session, account: Account) -> None:
     account.gmail_address, account.gmail_token_enc, account.gmail_checked_at = "", "", None
     db.commit()
@@ -80,7 +94,7 @@ def disconnect(db: Session, account: Account) -> None:
 def gmail_service(db: Session, account: Account):
     """Gmail API client for this account. Kept separate so tests can replace it."""
     info = json.loads(_fernet().decrypt(account.gmail_token_enc.encode()))
-    creds = Credentials.from_authorized_user_info(info, SCOPES)
+    creds = Credentials.from_authorized_user_info(info)  # keep the permissions that were actually granted
     if not creds.valid and creds.refresh_token:
         creds.refresh(GoogleRequest())
         account.gmail_token_enc = _fernet().encrypt(creds.to_json().encode()).decode()
@@ -96,6 +110,21 @@ def latest_email_time(service, domain: str) -> datetime | None:
         return None
     msg = service.users().messages().get(userId="me", id=msgs[0]["id"], format="minimal").execute()
     return datetime.fromtimestamp(int(msg["internalDate"]) / 1000, tz=timezone.utc)
+
+
+def last_address(service, domain: str) -> str:
+    """The email address at this domain from your most recent email with them, or ""."""
+    res = service.users().messages().list(userId="me", q=f"from:{domain} OR to:{domain}", maxResults=1).execute()
+    msgs = res.get("messages") or []
+    if not msgs:
+        return ""
+    msg = service.users().messages().get(userId="me", id=msgs[0]["id"], format="metadata",
+                                         metadataHeaders=["From", "To", "Cc"]).execute()
+    for h in msg.get("payload", {}).get("headers", []):
+        for addr in re.findall(r"[\w.+-]+@[\w.-]+", h.get("value", "")):
+            if addr.lower().endswith("@" + domain):
+                return addr.lower()
+    return ""
 
 
 def site_domain(url: str) -> str:

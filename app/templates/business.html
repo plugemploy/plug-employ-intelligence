@@ -33,6 +33,18 @@
         <button class="rounded bg-purple-700 text-white px-3 py-1 text-sm">Check Gmail now</button></form>
       <form method="post" action="/gmail/disconnect"><button class="rounded border px-3 py-1 text-sm hover:bg-slate-50">Disconnect</button></form>
     </div>
+    {% if can_compose %}
+    <form method="post" action="/digest" class="mt-4 border-t pt-4 flex flex-wrap items-center gap-3 text-sm">
+      <label class="flex items-center gap-2"><input type="checkbox" name="digest_enabled" value="1" {% if account.digest_enabled %}checked{% endif %}>
+        Email me a Monday 8 a.m. digest (from my Gmail to myself)</label>
+      <button name="action" value="save" class="rounded border px-3 py-1 hover:bg-slate-50">Save</button>
+      <button name="action" value="send" class="rounded border px-3 py-1 hover:bg-slate-50">Send me one now</button>
+      {% if account.digest_sent_at %}<span class="text-xs text-slate-500">Last sent {{ account.digest_sent_at.astimezone().strftime("%b %-d") }}</span>{% endif %}
+    </form>
+    {% else %}
+    <p class="mt-4 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded p-3">To use email drafts and the Monday digest,
+      click <b>Disconnect</b>, then <b>Connect Gmail</b> again and allow the new permission.</p>
+    {% endif %}
   {% elif gmail_ready %}
     <a href="/gmail/connect" class="inline-block rounded bg-purple-700 text-white px-3 py-1 text-sm">Connect Gmail</a>
   {% else %}
