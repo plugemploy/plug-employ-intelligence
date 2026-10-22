@@ -1,7 +1,7 @@
 """Plug Employ Intelligence: accounts and lead tracker."""
 
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
@@ -17,7 +17,7 @@ import httpx
 from app import gmail, nightly, places, scoring
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
-from app.models import STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun
+from app.models import OUTCOMES, STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun
 
 INDUSTRIES = places.INDUSTRIES
 
@@ -97,6 +97,7 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
     unscored = sum(1 for l in leads if l.score is None)
     return render(request, "leads.html", db, account, leads=leads, zips=zips,
                   f_status=status, f_zip=zip_code, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
+                  working=scoring.whats_working(db, account.id) if account else {},
                   has_claude_key=bool(ANTHROPIC_API_KEY), message=request.query_params.get("msg", ""))
 
 
@@ -156,11 +157,17 @@ def lead_detail(lead_id: int, request: Request, db: Session = Depends(get_sessio
 
 
 @app.post("/leads/{lead_id}/status")
-def set_status(lead_id: int, request: Request, status: str = Form(...),
+def set_status(lead_id: int, request: Request, status: str = Form(...), reason: str = Form(""),
                db: Session = Depends(get_session), account=Depends(current_account)):
     lead = get_lead(db, account, lead_id)
     if status not in STATUSES:
         raise HTTPException(400, "Unknown status")
+    if status in OUTCOMES:
+        if lead.status != status:
+            lead.outcome_at = datetime.now(timezone.utc)
+        lead.outcome_reason = reason.strip()[:500]
+    else:
+        lead.outcome_reason, lead.outcome_at = "", None
     lead.status = status
     db.commit()
     return render(request, "_status.html", db, account, lead=lead, saved=True)

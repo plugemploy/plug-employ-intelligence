@@ -31,4 +31,5 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Nightly search built (2026-10-21): app/nightly.py, APScheduler checks every 15 min and catches up if the Mac slept. /nightly page. Real account on at 2am, 20 searches.
 - Usage page + per-account limits + website check built (2026-10-21). See PLAN.md Business model.
 - My business page (description, ZIPs, industries per account) built (2026-10-21). Gmail connect (gmail.readonly, token encrypted with APP_SECRET_KEY) replaces the contacts upload: Emailed tag + follow-up after 14 quiet days. Setup: docs/GMAIL_SETUP.md. Connect only via http://127.0.0.1:8000. Full re-score of real leads is saved for the final test run.
-- Next: export CSV, logins + cloud, Gmail API (needs Google security review before selling).
+- Learning from results built (2026-10-21): Won/Not interested + reason feed past_results into scoring; What's working panel.
+- Next: #3 Gmail drafts + Monday digest + renewal reminders (needs gmail.compose scope), then cloud/logins/Stripe/territory lock.

@@ -6,6 +6,7 @@ from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, Nume
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 STATUSES = ["New", "Contacted", "Interested", "Not interested", "Won"]
+OUTCOMES = ("Won", "Not interested")
 
 
 class Base(DeclarativeBase):
@@ -48,6 +49,9 @@ class Lead(Base):
     website: Mapped[str] = mapped_column(String(300), default="")
     industry: Mapped[str] = mapped_column(String(100), default="")
     status: Mapped[str] = mapped_column(String(30), default="New")
+    # Why it was Won or Not interested; past results teach the scoring.
+    outcome_reason: Mapped[str] = mapped_column(Text, default="", server_default="")
+    outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     google_place_id: Mapped[str | None] = mapped_column(String(200), index=True)
     rating: Mapped[float | None] = mapped_column(Float)
     review_count: Mapped[int | None] = mapped_column(Integer)

@@ -30,6 +30,18 @@
   {% else %}<a href="/leads?new=1&sort=score" class="text-blue-700 hover:underline">Show only these →</a>{% endif %}
 </div>
 {% endif %}
+{% if working and working.industry %}
+<details class="mb-4 bg-white rounded-xl shadow p-4 text-sm">
+  <summary class="cursor-pointer font-semibold">📈 What's working <span class="font-normal text-slate-500">(from leads you marked Won or Not interested; scoring learns from these)</span></summary>
+  <div class="grid md:grid-cols-2 gap-6 mt-3">
+    {% for key, title in [("industry", "By industry"), ("zip", "By ZIP")] %}
+    <table class="w-full"><thead class="text-left text-slate-500"><tr><th>{{ title }}</th><th>Won</th><th>No</th><th>Win rate</th></tr></thead>
+      <tbody>{% for r in working[key] %}<tr class="border-t"><td class="py-1">{{ r.name }}</td><td>{{ r.won }}</td><td>{{ r.lost }}</td>
+        <td class="{{ 'text-green-700 font-semibold' if r.rate >= 50 else '' }}">{{ r.rate }}%</td></tr>{% endfor %}</tbody></table>
+    {% endfor %}
+  </div>
+</details>
+{% endif %}
 {% if message %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">{{ message }}</p>{% endif %}
 {% if unscored and has_claude_key %}
 <form method="post" action="/leads/score" class="mb-4"

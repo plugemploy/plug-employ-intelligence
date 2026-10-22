@@ -1,6 +1,14 @@
-<form hx-post="/leads/{{ lead.id }}/status" hx-target="#status" hx-trigger="change" class="flex items-center gap-2">
-  <select name="status" class="border rounded px-2 py-1 text-sm">
-    {% for s in statuses %}<option {% if s == lead.status %}selected{% endif %}>{{ s }}</option>{% endfor %}
-  </select>
-  {% if saved %}<span class="text-xs text-green-700">Saved ✓</span>{% endif %}
+<form hx-post="/leads/{{ lead.id }}/status" hx-target="#status" hx-trigger="change" class="grid gap-2">
+  <div class="flex items-center gap-2">
+    <select name="status" class="border rounded px-2 py-1 text-sm">
+      {% for s in statuses %}<option {% if s == lead.status %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+    {% if saved %}<span class="text-xs text-green-700">Saved ✓</span>{% endif %}
+  </div>
+  {% if lead.status in ("Won", "Not interested") %}
+  <label class="grid gap-1 text-xs text-slate-600">Why? (optional; teaches the scoring)
+    <input name="reason" value="{{ lead.outcome_reason }}" maxlength="500"
+           placeholder="{{ 'e.g. Loved the event sponsorship idea' if lead.status == 'Won' else 'e.g. No budget until spring' }}"
+           class="border rounded px-2 py-1 text-sm"></label>
+  {% endif %}
 </form>
