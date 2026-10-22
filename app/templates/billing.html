@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Billing{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Billing</h1>
+<p class="text-sm text-slate-600 mb-4">Current plan: <b>{{ current.label or org.plan_tier }}</b>
+  {% if org.billing_status %}· status: <b>{{ org.billing_status }}</b>{% endif %}</p>
+{% if message %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">{{ message }}</p>{% endif %}
+{% if org.plan_tier == "owner" %}
+  <p class="text-sm text-slate-600">This is the owner's account and isn't billed.</p>
+{% elif not ready %}
+  <p class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded p-3">Billing isn't set up on this server yet.</p>
+{% else %}
+  {% if org.stripe_customer_id %}
+  <form method="post" action="/billing/portal" class="mb-6">
+    <button class="rounded border px-4 py-2 text-sm hover:bg-slate-50">Manage subscription, card or invoices</button>
+    <span class="text-xs text-slate-500 ml-2">Opens Stripe's secure page. Cancel anytime there.</span>
+  </form>
+  {% endif %}
+  <div class="grid md:grid-cols-2 gap-4 max-w-4xl">
+    {% for tier, p in offers %}
+    <form method="post" action="/billing/checkout" class="bg-white rounded-xl shadow p-5 grid gap-2 {{ 'ring-2 ring-green-600' if tier == org.plan_tier and org.billing_status }}">
+      <input type="hidden" name="tier" value="{{ tier }}">
+      <h2 class="font-semibold">{{ p.label }}</h2>
+      <p class="text-2xl font-bold">${{ p.price }}<span class="text-sm font-normal text-slate-500">/month{% if tier == "wholesale" %} per publisher{% endif %}</span></p>
+      <ul class="text-sm text-slate-600 list-disc ml-5">
+        <li>About {{ (p.allowance_usd / 0.035)|int }} searches a month, plus scoring and drafts</li>
+        {% if p.trial_days %}<li>First {{ p.trial_days }} days free</li>{% endif %}
+        {% if tier == "wholesale" %}<li>{{ seats }} publisher account{{ "s" if seats != 1 }} = ${{ p.price * seats }}/month</li>{% endif %}
+        {% if tier == "founding" %}<li>Price locked for 12 months</li>{% endif %}
+      </ul>
+      {% if tier == org.plan_tier and org.billing_status %}
+      <button disabled class="rounded bg-slate-200 text-slate-500 px-4 py-2 text-sm justify-self-start">Current plan</button>
+      {% else %}<button class="rounded bg-slate-800 text-white px-4 py-2 text-sm justify-self-start">Choose {{ p.label }}</button>{% endif %}
+    </form>
+    {% endfor %}
+  </div>
+  <p class="text-xs text-slate-500 mt-4">Payments are handled by Stripe. Card details never touch this app.</p>
+{% endif %}
+{% endblock %}

@@ -14,7 +14,7 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import auth, catalog, close_crm, plans, digest, gmail, nightly, outreach, places, scoring
+from app import auth, billing, catalog, close_crm, plans, digest, gmail, nightly, outreach, places, scoring
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
@@ -589,6 +589,51 @@ def setup_first_run(db: Session = Depends(get_session), account=Depends(current_
     msg = (f"Your first search found {s['added']} leads; {s['high']} scored 8+. More arrive every night."
            if not s["error"] else f"First search stopped early: {s['error']}")
     return back_to_leads(msg)
+
+
+# ---- Billing (Stripe) ------------------------------------------------------------------------
+
+def back_to_billing(msg: str):
+    from urllib.parse import quote
+    return RedirectResponse(f"/billing?msg={quote(msg)}", status_code=303)
+
+
+@app.get("/billing")
+def billing_page(request: Request, msg: str = "", db: Session = Depends(get_session), user: User = Depends(require_admin)):
+    org = db.get(Organization, user.org_id)
+    offers = [(t, plans.PLANS[t]) for t in billing.SELLABLE]
+    return render(request, "billing.html", db, None, offers=offers, seats=billing.seats(db, org),
+                  ready=billing.configured(), message=msg, current=plans.PLANS.get(org.plan_tier, {}))
+
+
+@app.post("/billing/checkout")
+def billing_checkout(tier: str = Form(...), db: Session = Depends(get_session), user: User = Depends(require_admin)):
+    org = db.get(Organization, user.org_id)
+    if not billing.configured():
+        return back_to_billing("Billing isn't set up yet.")
+    if org.plan_tier == "owner":
+        return back_to_billing("The owner account isn't billed.")
+    try:
+        return RedirectResponse(billing.checkout_url(db, org, tier, user.email), status_code=303)
+    except Exception as exc:
+        return back_to_billing(f"Couldn't start checkout: {str(exc).splitlines()[0]}")
+
+
+@app.get("/billing/return")
+def billing_return(session_id: str = "", db: Session = Depends(get_session), user: User = Depends(require_admin)):
+    try:
+        label = billing.finish_checkout(db, db.get(Organization, user.org_id), session_id)
+    except Exception as exc:
+        return back_to_billing(f"We couldn't confirm the payment: {str(exc).splitlines()[0]}")
+    return back_to_billing(f"You're subscribed to the {label} plan. Thank you!")
+
+
+@app.post("/billing/portal")
+def billing_portal(db: Session = Depends(get_session), user: User = Depends(require_admin)):
+    org = db.get(Organization, user.org_id)
+    if not org.stripe_customer_id:
+        return back_to_billing("No subscription yet.")
+    return RedirectResponse(billing.portal_url(org), status_code=303)
 
 
 # ---- Company admin -------------------------------------------------------------------------

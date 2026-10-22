@@ -24,6 +24,7 @@
       <div class="ml-auto flex items-center gap-3 text-sm">
         {% if user and user.is_admin %}
         <a href="/admin" class="hover:underline font-medium">Team</a>
+        <a href="/billing" class="hover:underline">Billing</a>
         {% if accounts|length > 1 %}
         <form method="post" action="/switch-account" class="flex items-center gap-2">
           <label for="acct" class="text-slate-500">Viewing</label>

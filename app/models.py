@@ -21,6 +21,10 @@ class Organization(Base):
     name: Mapped[str] = mapped_column(String(200))
     plan: Mapped[str] = mapped_column(String(30), default="trial", server_default="trial")  # trial, active, cancelled
     plan_tier: Mapped[str] = mapped_column(String(30), default="personal", server_default="personal")  # see app/plans.py
+    # Stripe (billing). Card details live only at Stripe, never here.
+    stripe_customer_id: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    stripe_subscription_id: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    billing_status: Mapped[str] = mapped_column(String(30), default="", server_default="")  # Stripe's status, e.g. trialing, active
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import close_crm, digest, gmail, places, plans, scoring, website
+from app import billing, close_crm, digest, gmail, places, plans, scoring, website
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
 from app.models import Account, ApiUsage, Lead, NightlyRun, NightlySettings
@@ -108,6 +108,12 @@ def check_and_run():
                 ids = due_accounts(db, datetime.now().astimezone())
             for account_id in ids:
                 run_for_account(account_id)
+            if billing.configured():
+                with Session(engine) as db:
+                    try:
+                        billing.sync_all(db)  # cancellations and failed payments
+                    except Exception:
+                        log.exception("Stripe sync failed")
             with Session(engine) as db:
                 for account_id in digest.due_accounts(db, datetime.now().astimezone()):
                     try:

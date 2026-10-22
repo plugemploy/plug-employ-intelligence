@@ -13,6 +13,8 @@ from app.config import MONTHLY_API_BUDGET_USD
 from app.models import Account, Organization
 
 PLANS = {
+    "beta": {"label": "Beta", "price": 49, "allowance_usd": 8.0, "trial_days": 30},
+    "founding": {"label": "Founding member", "price": 79, "allowance_usd": 15.0},
     "personal": {"label": "Personal", "price": 99, "allowance_usd": 15.0},
     "wholesale": {"label": "Wholesale (per publisher)", "price": 60, "allowance_usd": 10.0},
     "owner": {"label": "Owner", "price": 0, "allowance_usd": None},  # only the overall .env cap applies
@@ -27,6 +29,9 @@ def plan_for(db: Session, account: Account) -> dict:
 
 
 def monthly_limit(db: Session, account: Account) -> float:
+    org = db.get(Organization, account.org_id) if account.org_id else None
+    if org and org.plan == "cancelled":
+        return 0.0  # no active subscription: searches pause, everything else keeps working
     allowance = plan_for(db, account)["allowance_usd"]
     return MONTHLY_API_BUDGET_USD if allowance is None else allowance
 
