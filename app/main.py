@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import date
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -14,7 +14,7 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import contacts, nightly, places, scoring
+from app import gmail, nightly, places, scoring
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
 from app.models import STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun
@@ -85,7 +85,7 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
         if zip_code:
             q = q.where(Lead.zip_code == zip_code)
         if hide_contacted:
-            q = q.where(Lead.contacted_match == "")
+            q = q.where(Lead.last_emailed_at.is_(None))
         if new and last_run:
             q = q.where(Lead.created_at >= last_run.started_at)
         leads = list(db.scalars(q.order_by(Lead.business_name)))
@@ -226,7 +226,8 @@ def run_search(request: Request, zips: list[str] = Form(default=[]), industries:
             for z in zips:
                 for ind in industries:
                     results.append(places.search_and_save(db, account.id, z, ind))
-            contacts.match_leads(db, account.id)
+            if account.gmail_token_enc:
+                gmail.check_account(db, account.id)
             site_check.check_unchecked(db, account.id)
             if ANTHROPIC_API_KEY:
                 scoring.score_unscored(db, account.id)
@@ -276,14 +277,12 @@ def clean_list(raw: str) -> list[str]:
 
 @app.get("/business")
 def business_page(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
-    from app.models import Contact
-    n_contacts = db.scalar(select(func.count()).select_from(Contact).where(Contact.account_id == account.id)) if account else 0
-    n_contacted = db.scalar(select(func.count()).select_from(Lead).where(
-        Lead.account_id == account.id, Lead.contacted_match != "")) if account else 0
+    n_emailed = db.scalar(select(func.count()).select_from(Lead).where(
+        Lead.account_id == account.id, Lead.last_emailed_at.is_not(None))) if account else 0
     extra = [i for i in (account.industry_list if account else []) if i not in INDUSTRIES]
     return render(request, "business.html", db, account, all_inds=INDUSTRIES, extra_inds=", ".join(extra),
-                  default_desc=scoring.DEFAULT_DESCRIPTION, n_contacts=n_contacts, n_contacted=n_contacted,
-                  message=request.query_params.get("msg", ""))
+                  default_desc=scoring.DEFAULT_DESCRIPTION, n_emailed=n_emailed,
+                  gmail_ready=gmail.configured(), message=request.query_params.get("msg", ""))
 
 
 @app.post("/business")
@@ -298,19 +297,49 @@ def save_business(description: str = Form(""), zips: str = Form(""), industries:
     return RedirectResponse("/business?msg=Saved%20%E2%9C%93", status_code=303)
 
 
-@app.post("/business/contacts")
-async def upload_contacts(file: UploadFile, db: Session = Depends(get_session), account=Depends(current_account)):
+def back_to_business(msg: str):
     from urllib.parse import quote
-    if account is None:
-        raise HTTPException(400, "Create an account first")
-    raw = (await file.read())[:10_000_000]
-    try:
-        n = contacts.add_contacts(db, account.id, raw.decode("utf-8-sig", errors="replace"))
-        m = contacts.match_leads(db, account.id)
-        msg = f"Added {n} new contacts. {m} of your leads are marked Already contacted."
-    except ValueError as exc:
-        msg = str(exc)
     return RedirectResponse(f"/business?msg={quote(msg)}", status_code=303)
+
+
+@app.get("/gmail/connect")
+def gmail_connect(account=Depends(current_account)):
+    if account is None or not gmail.configured():
+        return back_to_business("Gmail isn't set up yet: the Google sign-in values are missing from .env.")
+    return RedirectResponse(gmail.start_connect(account.id), status_code=303)
+
+
+@app.get("/gmail/callback")
+def gmail_callback(state: str = "", code: str = "", error: str = "", db: Session = Depends(get_session)):
+    if error:
+        return back_to_business(f"Gmail wasn't connected ({error}). If it says access blocked, N2's Google admin "
+                                "needs to allow this app.")
+    try:
+        account = gmail.finish_connect(db, state, code)
+    except Exception as exc:
+        return back_to_business(f"Gmail wasn't connected: {str(exc).splitlines()[0]}")
+    resp = back_to_business(f"Connected {account.gmail_address}. Click Check Gmail now to scan your leads.")
+    resp.set_cookie(ACCOUNT_COOKIE, str(account.id), httponly=True, samesite="lax")
+    return resp
+
+
+@app.post("/gmail/check")
+def gmail_check(db: Session = Depends(get_session), account=Depends(current_account)):
+    if account is None or not account.gmail_token_enc:
+        return back_to_business("Connect Gmail first.")
+    try:
+        s = gmail.check_account(db, account.id)
+    except Exception as exc:
+        return back_to_business(f"Gmail check failed: {str(exc).splitlines()[0]}")
+    return back_to_business(f"Checked {s['checked']} business websites: you've emailed {s['emailed']} leads. "
+                            f"Added {s['follow_ups']} follow-ups (see Due today).")
+
+
+@app.post("/gmail/disconnect")
+def gmail_disconnect(db: Session = Depends(get_session), account=Depends(current_account)):
+    if account:
+        gmail.disconnect(db, account)
+    return back_to_business("Gmail disconnected. Its stored access was deleted from this app.")
 
 
 @app.get("/usage")

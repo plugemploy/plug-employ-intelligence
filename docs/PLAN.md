@@ -48,8 +48,10 @@ The prototype runs locally on a Mac and must later move to cloud hosting.
 - Each account has its own monthly API cost limit (`accounts.monthly_budget_usd`), set per plan,
   to protect margins. The `.env` `MONTHLY_API_BUDGET_USD` is an overall safety cap for the prototype.
 - Each account sets its own business description, ZIP codes and industries on "My business".
-- "Already contacted": owners upload their Google Contacts export (Gmail only). A direct Gmail
-  connection comes after the cloud move; selling it needs Google's paid security review.
+- Gmail (n2co.com Workspace accounts): owners connect Gmail read-only; leads they've emailed get
+  tagged and a follow-up is added after 14 quiet days. Only sender/recipient domain and date are used.
+  Works for up to 100 test users now; selling publicly needs Google verification + paid security
+  review, unless N2's Workspace admin registers it as an Internal app. N2's admin can also block it.
 - Before selling: real logins, billing, and cloud hosting.
 
 ### Website reading

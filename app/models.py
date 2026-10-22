@@ -22,6 +22,10 @@ class Account(Base):
     business_description: Mapped[str] = mapped_column(Text, default="", server_default="")
     target_zips: Mapped[str] = mapped_column(Text, default="", server_default="")  # comma-separated, first = most important
     industries: Mapped[str] = mapped_column(Text, default="", server_default="")  # comma-separated
+    # Connected Gmail (read-only). The access token is stored encrypted.
+    gmail_address: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    gmail_token_enc: Mapped[str] = mapped_column(Text, default="", server_default="")
+    gmail_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     @property
     def zip_list(self) -> list[str]:
@@ -54,8 +58,9 @@ class Lead(Base):
     website_status: Mapped[str | None] = mapped_column(String(20))
     website_text: Mapped[str] = mapped_column(Text, default="", server_default="")
     website_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # Set when the business matches someone in the owner's uploaded Gmail contacts.
-    contacted_match: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    # From the Gmail check: latest email to/from the business's website domain.
+    last_emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    emailed_domain: Mapped[str] = mapped_column(String(200), default="", server_default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -136,14 +141,3 @@ class NightlyRun(Base):
     high_scores: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str] = mapped_column(Text, default="")
 
-
-class Contact(Base):
-    """People from the owner's Google Contacts export, used to spot businesses already contacted."""
-
-    __tablename__ = "contacts"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
-    name: Mapped[str] = mapped_column(String(300), default="")
-    organization: Mapped[str] = mapped_column(String(300), default="")
-    email: Mapped[str] = mapped_column(String(300), default="")
-    email_domain: Mapped[str] = mapped_column(String(200), default="", index=True)

@@ -1,33 +1,34 @@
-"""Checks the My business page and Gmail contacts matching (no network, no cost)."""
+"""Checks the My business page and the Gmail check with fake Gmail (no network, no cost)."""
+
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app import contacts
+from app import gmail
 from app.db import engine
 from app.main import app
-from app.models import Account, Contact, Lead
+from app.models import Account, FollowUp, Lead
 
-GOOGLE_CSV = (
-    "First Name,Last Name,Organization Name,E-mail 1 - Label,E-mail 1 - Value\n"
-    "Ann,Lee,,* Other,ann@farragutdental.com\n"
-    "Bob,Ray,Knox Legacy Dental,,bob.ray@gmail.com ::: bob@work.com\n"
-    "Cat,Ng,,,cat@gmail.com\n"
-)
+NOW = datetime.now(timezone.utc)
+FAKE_INBOX = {"farragutdental.com": NOW - timedelta(days=30), "recent.com": NOW - timedelta(days=2),
+              "wonclient.com": NOW - timedelta(days=60)}
 
 
 @pytest.fixture
 def ids():
     with Session(engine) as db:
-        a, b = Account(name="Test: Biz A"), Account(name="Test: Biz B")
+        a, b = Account(name="Test: Biz A", gmail_token_enc="x"), Account(name="Test: Biz B")
         db.add_all([a, b])
         db.flush()
         db.add_all([
             Lead(account_id=a.id, business_name="Farragut Dental", website="https://www.farragutdental.com/"),
-            Lead(account_id=a.id, business_name="Knox Legacy Dental, PLLC", website="https://knoxlegacy.com"),
-            Lead(account_id=a.id, business_name="Gmail Only Salon", website="https://gmail.com"),
+            Lead(account_id=a.id, business_name="Recent Co", website="https://recent.com"),
+            Lead(account_id=a.id, business_name="Won Client", website="https://wonclient.com", status="Won"),
+            Lead(account_id=a.id, business_name="Never Emailed", website="https://quiet.com"),
+            Lead(account_id=a.id, business_name="Gmail Site", website="https://gmail.com"),
             Lead(account_id=b.id, business_name="Farragut Dental", website="https://farragutdental.com"),
         ])
         db.commit()
@@ -38,24 +39,36 @@ def ids():
         db.commit()
 
 
-def test_parse_and_match(ids):
+@pytest.fixture
+def fake_gmail(monkeypatch):
+    asked = []
+    monkeypatch.setattr(gmail, "configured", lambda: True)
+    monkeypatch.setattr(gmail, "gmail_service", lambda db, account: "fake")
+    monkeypatch.setattr(gmail, "latest_email_time", lambda svc, d: asked.append(d) or FAKE_INBOX.get(d))
+    return asked
+
+
+def test_check_tags_and_follow_ups(ids, fake_gmail):
     with Session(engine) as db:
-        assert contacts.add_contacts(db, ids["a"], GOOGLE_CSV) == 4
-        assert contacts.add_contacts(db, ids["a"], GOOGLE_CSV) == 0  # repeats skipped
-        assert contacts.match_leads(db, ids["a"]) == 2
-        marked = {l.business_name: l.contacted_match for l in db.scalars(select(Lead).where(Lead.account_id == ids["a"]))}
-        assert marked == {"Farragut Dental": "ann@farragutdental.com", "Knox Legacy Dental, PLLC": "Knox Legacy Dental",
-                          "Gmail Only Salon": ""}
-        # other account untouched
-        assert contacts.match_leads(db, ids["b"]) == 0
+        s = gmail.check_account(db, ids["a"])
+        assert s == {"checked": 4, "emailed": 3, "follow_ups": 1}
+        assert "gmail.com" not in fake_gmail  # free mail never searched
+        leads = {l.business_name: l for l in db.scalars(select(Lead).where(Lead.account_id == ids["a"]))}
+        assert leads["Farragut Dental"].emailed_domain == "farragutdental.com"
+        assert leads["Never Emailed"].last_emailed_at is None
+        fus = db.scalars(select(FollowUp).where(FollowUp.account_id == ids["a"])).all()
+        assert [f.lead_id for f in fus] == [leads["Farragut Dental"].id]  # not Recent (2 days), not Won
+        assert gmail.check_account(db, ids["a"])["follow_ups"] == 0  # no duplicate follow-up
+        # account B has no Gmail connected: untouched
+        assert gmail.check_account(db, ids["b"]) == {"checked": 0, "emailed": 0, "follow_ups": 0}
 
 
-def test_bad_file_rejected():
-    with pytest.raises(ValueError):
-        contacts.parse_csv("Name,Phone\nA,555\n")
+def test_site_domain():
+    assert gmail.site_domain("https://www.Example.com/path") == "example.com"
+    assert gmail.site_domain("example.org") == "example.org"
 
 
-def test_business_page_save_and_upload(ids):
+def test_pages(ids, fake_gmail):
     c = TestClient(app)
     c.cookies.set("account_id", str(ids["a"]))
     r = c.post("/business", data={"description": "We sell billboards.", "zips": "37919, 37934\n12, 37919",
@@ -65,9 +78,17 @@ def test_business_page_save_and_upload(ids):
         a = db.get(Account, ids["a"])
         assert (a.business_description, a.zip_list, a.industry_list) == (
             "We sell billboards.", ["37919", "37934"], ["Dentist", "Golf", "Florist"])
-    r = c.post("/business/contacts", files={"file": ("contacts.csv", GOOGLE_CSV, "text/csv")})
-    assert "2 of your leads" in r.text
-    assert "Already contacted" in c.get("/leads").text
+    assert "emailed 3 leads" in c.post("/gmail/check").text
+    assert "Emailed ·" in c.get("/leads").text
     assert "Farragut Dental" not in c.get("/leads?hide_contacted=1").text
+    assert "Follow up: last emailed" in c.get("/due").text
+    assert "disconnected" in c.post("/gmail/disconnect").text
     with Session(engine) as db:
-        assert db.scalars(select(Contact).where(Contact.account_id == ids["b"])).first() is None
+        assert db.get(Account, ids["a"]).gmail_token_enc == ""
+
+
+def test_token_is_encrypted(monkeypatch):
+    from cryptography.fernet import Fernet
+    monkeypatch.setattr(gmail, "APP_SECRET_KEY", Fernet.generate_key().decode())
+    secret = gmail._fernet().encrypt(b'{"refresh_token": "abc"}').decode()
+    assert "abc" not in secret and gmail._fernet().decrypt(secret.encode()) == b'{"refresh_token": "abc"}'

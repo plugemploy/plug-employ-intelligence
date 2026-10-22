@@ -20,19 +20,23 @@
   <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save</button>
 </form>
 <section class="bg-white rounded-xl shadow p-6 max-w-3xl">
-  <h2 class="font-semibold mb-1">Already contacted? (Gmail)</h2>
-  <p class="text-sm text-slate-600 mb-3">Gmail saves everyone you've emailed in Google Contacts. Upload them, and leads that match get an
-    <span class="rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs">Already contacted</span> tag.</p>
-  <ol class="text-sm text-slate-700 list-decimal ml-5 mb-4 space-y-1">
-    <li>Open <b>contacts.google.com</b> (signed in with your Gmail).</li>
-    <li>On the left, click <b>Other contacts</b>, then the <b>Export</b> button (or ⋮ → Export). Choose <b>Google CSV</b>.</li>
-    <li>Upload that file here. You can also upload your main contacts. Uploads add up; repeats are skipped.</li>
-  </ol>
-  <form method="post" action="/business/contacts" enctype="multipart/form-data" class="flex flex-wrap gap-2 items-center text-sm">
-    <input type="file" name="file" accept=".csv,text/csv" required class="text-sm">
-    <button class="rounded bg-purple-700 text-white px-3 py-1">Upload contacts</button>
-  </form>
-  <p class="text-xs text-slate-500 mt-3">Now loaded: {{ n_contacts }} contacts · {{ n_contacted }} leads marked Already contacted.
-    Only names, organizations and email addresses are kept, and only for this account.</p>
+  <h2 class="font-semibold mb-1">Gmail: already emailed?</h2>
+  <p class="text-sm text-slate-600 mb-3">Connect Gmail (read-only) and the app checks whether you've emailed each lead's business,
+    tags it <span class="rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs">Emailed · date</span>, and adds a follow-up
+    when it's been quiet for 14+ days. Only who and when is used; email text is never read or stored. Runs with each nightly search.</p>
+  {% if account.gmail_address %}
+    <p class="text-sm mb-3">Connected: <b>{{ account.gmail_address }}</b>
+      {% if account.gmail_checked_at %}· last checked {{ account.gmail_checked_at.astimezone().strftime("%b %-d, %-I:%M %p") }}{% endif %}
+      · {{ n_emailed }} leads emailed</p>
+    <div class="flex gap-2">
+      <form method="post" action="/gmail/check" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Checking…'">
+        <button class="rounded bg-purple-700 text-white px-3 py-1 text-sm">Check Gmail now</button></form>
+      <form method="post" action="/gmail/disconnect"><button class="rounded border px-3 py-1 text-sm hover:bg-slate-50">Disconnect</button></form>
+    </div>
+  {% elif gmail_ready %}
+    <a href="/gmail/connect" class="inline-block rounded bg-purple-700 text-white px-3 py-1 text-sm">Connect Gmail</a>
+  {% else %}
+    <p class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded p-3">Not set up yet: the Google sign-in values need to be added to .env.</p>
+  {% endif %}
 </section>
 {% endblock %}

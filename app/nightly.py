@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import contacts, places, scoring, website
+from app import gmail, places, scoring, website
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
 from app.models import Account, ApiUsage, Lead, NightlyRun, NightlySettings
@@ -55,7 +55,10 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
                 stats = places.search_and_save(db, account_id, z, ind)
                 run.searches += 1
                 run.added += stats["added"]
-            contacts.match_leads(db, account_id)
+            try:
+                gmail.check_account(db, account_id)
+            except Exception:  # a Gmail hiccup shouldn't stop the lead search
+                log.exception("Gmail check failed")
             website.check_unchecked(db, account_id, limit=1000)
             if ANTHROPIC_API_KEY:
                 scoring.score_unscored(db, account_id, limit=1000)
