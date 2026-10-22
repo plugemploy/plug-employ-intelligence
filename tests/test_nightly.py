@@ -68,3 +68,12 @@ def test_run_keeps_error(account_id, monkeypatch):
     monkeypatch.setattr(places, "search_and_save", boom)
     run = nightly.run_for_account(account_id, max_searches=1)
     assert "budget" in run.error
+
+
+def test_second_copy_skips_while_locked(monkeypatch):
+    from sqlalchemy import text
+    monkeypatch.setattr(nightly, "due_accounts", lambda db, now: pytest.fail("should not run"))
+    with engine.connect() as other:  # pretend another copy of the app holds the lock
+        other.scalar(text("SELECT pg_advisory_lock(:k)"), {"k": nightly.NIGHTLY_LOCK_ID})
+        nightly.check_and_run()
+        other.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": nightly.NIGHTLY_LOCK_ID})

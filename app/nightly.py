@@ -9,7 +9,7 @@ import threading
 from datetime import datetime, timedelta
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app import places, scoring
@@ -82,11 +82,21 @@ def due_accounts(db: Session, now: datetime) -> list[int]:
     return due
 
 
+NIGHTLY_LOCK_ID = 734221  # any fixed number; shared by every copy of the app
+
+
 def check_and_run():
-    with Session(engine) as db:
-        ids = due_accounts(db, datetime.now().astimezone())
-    for account_id in ids:
-        run_for_account(account_id)
+    """Run due accounts. A database lock stops two copies of the app from both running."""
+    with engine.connect() as conn:
+        if not conn.scalar(text("SELECT pg_try_advisory_lock(:k)"), {"k": NIGHTLY_LOCK_ID}):
+            return
+        try:
+            with Session(engine) as db:
+                ids = due_accounts(db, datetime.now().astimezone())
+            for account_id in ids:
+                run_for_account(account_id)
+        finally:
+            conn.execute(text("SELECT pg_advisory_unlock(:k)"), {"k": NIGHTLY_LOCK_ID})
 
 
 def start_scheduler() -> BackgroundScheduler:
