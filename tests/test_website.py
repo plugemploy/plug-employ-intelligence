@@ -66,3 +66,8 @@ def test_about_link_same_site_only():
             '<a href="/services">Services</a>')
     assert website.find_about_link(html, "https://www.glowspa.com/") == "https://www.glowspa.com/about-us"
     assert website.find_about_link('<a href="https://other.com/team">x</a>', "https://glowspa.com/") == ""
+
+
+def test_garbled_page_is_skipped():
+    assert website.html_to_text("\x00\x11\ufffd\ufffd" * 50) == ""
+    assert website.html_to_text("<p>Fine\x00 text</p>") == "Fine text"

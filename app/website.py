@@ -46,10 +46,21 @@ class _TextOnly(HTMLParser):
             self.parts.append(data)
 
 
+def looks_garbled(text: str) -> bool:
+    """Binary or wrongly-encoded pages decode into replacement and control characters."""
+    if not text:
+        return False
+    bad = sum(1 for ch in text[:5000] if ch == "\ufffd" or (ord(ch) < 32 and ch not in "\t\n\r"))
+    return bad > len(text[:5000]) * 0.02
+
+
 def html_to_text(html: str) -> str:
+    if looks_garbled(html):
+        return ""
     p = _TextOnly()
-    p.feed(html)
-    return re.sub(r"\s+", " ", " ".join(p.parts)).strip()[:MAX_TEXT]
+    p.feed(html.replace("\x00", ""))
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", " ".join(p.parts))
+    return re.sub(r"\s+", " ", text).strip()[:MAX_TEXT]
 
 
 def find_about_link(html: str, page_url: str) -> str:
@@ -100,6 +111,8 @@ def fetch_site(url: str) -> tuple[str, str, str]:
             return "error", "", ""
         html = r.text[:MAX_BYTES]
         text = html_to_text(html)
+        if not text:
+            return "error", "", ""  # unreadable page
         about = find_about_link(html, str(r.url))
         if about and robots_allows(about, client):
             try:
@@ -117,7 +130,10 @@ def check_unchecked(db: Session, account_id: int, limit: int = 100) -> dict:
     leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.website_checked_at.is_(None))
                        .order_by(Lead.score.desc().nulls_first(), Lead.id).limit(limit)).all()
     for lead in leads:
-        status, text, about = fetch_site(lead.website or "")
+        try:
+            status, text, about = fetch_site(lead.website or "")
+        except Exception:  # one odd website must never stop the rest
+            status, text, about = "error", "", ""
         lead.website_status, lead.website_text, lead.website_about_url = status, text, about
         lead.website_checked_at = datetime.now(timezone.utc)
         if status == "ok":
