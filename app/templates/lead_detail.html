@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ lead.business_name }}{% endblock %}
 {% block content %}
-<a href="/leads" class="text-sm text-blue-700 hover:underline">← All leads</a>
+<a href="/leads" class="text-sm text-blue-700 hover:underline">← Back to leads</a>
 <div class="mt-2 mb-6">
   <h1 class="text-2xl font-bold">{{ lead.business_name }}</h1>
   {% if lead.last_emailed_at %}<p class="mt-1 inline-block rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs">Emailed · last on {{ lead.last_emailed_at.astimezone().strftime("%b %-d, %Y") }} ({{ lead.emailed_domain }})</p>{% endif %}

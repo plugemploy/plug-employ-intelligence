@@ -24,6 +24,7 @@
     <label class="flex items-center gap-1"><input type="checkbox" name="hide_contacted" value="1" {% if f_hide %}checked{% endif %}> Hide already emailed</label>
     {% if f_new %}<input type="hidden" name="new" value="1">{% endif %}
     <button class="rounded bg-slate-800 text-white px-3 py-1">Apply</button>
+    {% if has_filters %}<a href="/leads?clear=1" class="self-center text-slate-500 hover:underline">Clear filters</a>{% endif %}
   </form>
 </div>
 {% include "_allowance.html" %}

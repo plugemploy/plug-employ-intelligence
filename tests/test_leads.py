@@ -79,3 +79,13 @@ def test_industry_filter_and_sort(two_accounts):
     assert "Zed Florist" in html and "Amy Dental" not in html and 'selected>Florist' in html
     html = c.get("/leads?sort=industry").text
     assert html.index("Amy Dental") < html.index("Zed Florist")
+
+
+def test_filters_remembered_after_opening_a_lead(two_accounts):
+    c = TestClient(app)
+    login_as(c, two_accounts["a"])
+    c.get("/leads?zip_code=37934&sort=score")
+    r = c.get("/leads", follow_redirects=False)  # e.g. "Back to leads" from a lead page
+    assert r.status_code == 303 and "zip_code=37934" in r.headers["location"] and "sort=score" in r.headers["location"]
+    c.get("/leads?clear=1")
+    assert c.get("/leads", follow_redirects=False).status_code == 200

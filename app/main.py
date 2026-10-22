@@ -53,6 +53,9 @@ def render(request, name, db, account, **ctx):
     )
 
 
+LEADS_FILTER_COOKIE = "leads_filters"
+
+
 def get_lead(db: Session, account: Account | None, lead_id: int) -> Lead:
     """Load a lead only if it belongs to the current account."""
     lead = db.get(Lead, lead_id)
@@ -130,6 +133,17 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", industry:
                db: Session = Depends(get_session), account=Depends(current_account)):
     if account and account.setup_done_at is None:
         return RedirectResponse("/setup", status_code=303)
+    # Remember the filters so coming back from a lead shows the same list.
+    from urllib.parse import urlencode
+    filter_keys = ("status", "zip_code", "industry", "sort", "new", "hide_contacted")
+    chosen = {k: v for k, v in request.query_params.items() if k in filter_keys and v}
+    saved = request.cookies.get(LEADS_FILTER_COOKIE, "")
+    if "clear" in request.query_params:
+        resp = RedirectResponse("/leads", status_code=303)
+        resp.delete_cookie(LEADS_FILTER_COOKIE)
+        return resp
+    if not request.query_params and saved:
+        return RedirectResponse(f"/leads?{saved}", status_code=303)
     leads, last_run = [], None
     if account:
         last_run = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
@@ -157,11 +171,17 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", industry:
         Lead.account_id == (account.id if account else 0))) if i}, key=str.lower)
     zips = sorted({z for z in db.scalars(select(Lead.zip_code).where(Lead.account_id == (account.id if account else 0)))})
     unscored = sum(1 for l in leads if l.score is None)
-    return render(request, "leads.html", db, account, leads=leads, zips=zips, industries=industries,
+    resp = render(request, "leads.html", db, account, leads=leads, zips=zips, industries=industries, has_filters=bool(chosen),
                   f_status=status, f_zip=zip_code, f_industry=industry, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   working=scoring.whats_working(db, account.id) if account else {},
                   allow=plans.usage(db, account) if account else None,
                   has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.enabled_for(db, account), can_draft=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
+    if "msg" not in request.query_params:  # a status message page keeps the earlier filters
+        if chosen:
+            resp.set_cookie(LEADS_FILTER_COOKIE, urlencode(chosen), httponly=True, samesite="lax", max_age=30 * 86400)
+        else:
+            resp.delete_cookie(LEADS_FILTER_COOKIE)
+    return resp
 
 
 @app.post("/leads/score")
