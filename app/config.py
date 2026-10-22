@@ -7,6 +7,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+# Render gives "postgresql://..." (or "postgres://"); this app talks to Postgres through psycopg 3.
+for _prefix in ("postgres://", "postgresql://"):
+    if DATABASE_URL.startswith(_prefix):
+        DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL.removeprefix(_prefix)
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY", "")
 MONTHLY_API_BUDGET_USD = float(os.getenv("MONTHLY_API_BUDGET_USD", "50"))
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
