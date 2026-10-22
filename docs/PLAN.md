@@ -45,8 +45,8 @@ The prototype runs locally on a Mac and must later move to cloud hosting.
 
 ### Business model
 - Sold to franchise owners as a **monthly subscription** (priced above $50/month).
-- Each account has its own monthly API cost limit (`accounts.monthly_budget_usd`), set per plan,
-  to protect margins. The `.env` `MONTHLY_API_BUDGET_USD` is an overall safety cap for the prototype.
+- Each account has its own monthly API cost limit, set by its plan (app/plans.py), to protect margins.
+  The `.env` `MONTHLY_API_BUDGET_USD` is the owner account's limit only.
 - Each account sets its own business description, ZIP codes and industries on "My business".
 - Gmail (n2co.com Workspace accounts): owners connect Gmail read-only; leads they've emailed get
   tagged and a follow-up is added after 14 quiet days. Only sender/recipient domain and date are used.
@@ -62,8 +62,13 @@ The prototype runs locally on a Mac and must later move to cloud hosting.
   N2 franchise data is never used in the product. Ownership questions are with an attorney.
 
 ### Plans and pricing
-- Personal: $99/month, includes ~$15 of API usage (~350 searches plus scoring and drafts).
-- Wholesale: $60/month per publisher (sold to a company), includes ~$10 (~230 searches).
+- Standard: $99/month, ~$15 of API usage (~430 searches), up to 20 nightly searches. **No Gmail features.**
+- Pro: $149/month, ~$25 (~710 searches), up to 30 nightly searches, Gmail features (Emailed tags,
+  quiet follow-ups, drafts, Monday digest).
+- Premium: price not set yet (placeholder: ~$40 allowance, 50 nightly searches, Gmail).
+- Beta: new sign-ups get everything free for 30 days, no card; then searches pause until they pick a plan.
+- Earlier Founding ($79) and Wholesale ($60/publisher) plans stay in the code for existing companies but aren't sold.
+- Each company has its own limit; the `.env` `MONTHLY_API_BUDGET_USD` applies only to the owner account.
 - Usage shows as "searches left"; the nightly search paces itself; searches pause at the allowance.
 
 ### Website reading

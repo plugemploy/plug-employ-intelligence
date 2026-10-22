@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Feedback{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Feedback <span class="text-slate-400 text-lg">({{ rows|length }})</span></h1>
+<p class="text-sm text-slate-500 mb-4">Everything testers sent from the Send feedback box, newest first. Only you see this page.</p>
+<ul class="bg-white rounded-xl shadow divide-y">
+  {% for f, email, company in rows %}
+  <li class="p-4">
+    <p class="text-sm whitespace-pre-line">{{ f.text }}</p>
+    <p class="text-xs text-slate-500 mt-1">{{ email or "unknown" }}{% if company %} · {{ company }}{% endif %}
+      · on {{ f.page or "?" }} · {{ f.created_at.astimezone().strftime("%b %-d, %-I:%M %p") }}</p>
+  </li>
+  {% else %}
+  <li class="p-6 text-center text-slate-500">No feedback yet.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

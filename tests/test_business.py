@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from tests.conftest import login_as
+from tests.conftest import login_as, on_plan
 from app import gmail
 from app.db import engine
 from app.main import app
@@ -34,6 +34,8 @@ def ids():
         ])
         db.commit()
         out = {"a": a.id, "b": b.id}
+    on_plan(out["a"], "pro")
+    on_plan(out["b"], "pro")
     yield out
     with Session(engine) as db:
         db.execute(delete(Account).where(Account.name.like("Test:%")))

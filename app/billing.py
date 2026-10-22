@@ -13,7 +13,7 @@ from app.config import APP_BASE_URL, STRIPE_SECRET_KEY
 from app.models import Account, Organization
 from app.plans import PLANS
 
-SELLABLE = ("beta", "founding", "personal", "wholesale")
+SELLABLE = ("personal", "pro")  # Premium joins once it has a price
 PRODUCT_NAME = "Plug Employ Intelligence"
 ACTIVE_STATUSES = ("trialing", "active", "past_due")  # past_due: Stripe is retrying the card
 _price_ids: dict[str, str] = {}

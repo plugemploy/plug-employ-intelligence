@@ -4,8 +4,8 @@
 <h1 class="text-2xl font-bold mb-1">Find leads</h1>
 <p class="text-sm text-slate-600 mb-4">Searches Google Places. Skips closed businesses, ones with fewer than
   {{ min_reviews }} reviews, ones outside the ZIP, and ones already in your list.</p>
-<p class="text-sm mb-4">API spending this month (estimated, at full price): <b>${{ "%.2f"|format(spent) }}</b> of ${{ budget|int }}
-  · about ${{ cost_each }} per ZIP × industry search.</p>
+<p class="text-sm mb-4">About ${{ cost_each }} per ZIP × industry search{% if allow %} · spent this month (estimated, at full price):
+  <b>${{ "%.2f"|format(allow.spent) }}</b> of ${{ "%.0f"|format(allow.limit) }}{% endif %}.</p>
 {% include "_allowance.html" %}
 {% if not has_key %}<p class="mb-4 rounded bg-red-50 border border-red-300 p-3 text-red-800 text-sm">No Google key in .env yet.</p>{% endif %}
 {% if error %}<p class="mb-4 rounded bg-red-50 border border-red-300 p-3 text-red-800 text-sm">{{ error }}</p>{% endif %}

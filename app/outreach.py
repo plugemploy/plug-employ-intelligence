@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import gmail
+from app import gmail, plans
 from app.config import ANTHROPIC_API_KEY
 from app.models import OUTCOMES, Account, ApiUsage, Lead
 from app.places import check_budget
@@ -66,6 +66,8 @@ def save_draft(service, to: str, subject: str, body: str) -> str:
 
 
 def draft_for_lead(db: Session, account: Account, lead: Lead, service=None) -> DraftEmail:
+    if not plans.has_email(db, account):
+        raise ValueError(plans.EMAIL_PLAN_MSG)
     if not gmail.can_compose(account):
         raise ValueError("Reconnect Gmail on My business to allow drafts.")
     check_budget(db, account.id, EST_COST_PER_EMAIL)

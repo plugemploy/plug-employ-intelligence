@@ -119,7 +119,7 @@ def sign_in(db: Session, email: str, name: str, signup_company: str = "") -> Use
     """Find or create the user for a verified Google email."""
     user = db.scalars(select(User).where(User.email == email)).first()
     if user is None and signup_company:
-        org = Organization(name=signup_company, plan="trial")
+        org = Organization(name=signup_company, plan="trial", plan_tier="beta")
         db.add(org)
         db.flush()
         account = new_account(db, org.id, name or signup_company)

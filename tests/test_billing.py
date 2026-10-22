@@ -1,5 +1,6 @@
 """Checks Stripe billing with a fake Stripe (no real requests, no charges)."""
 
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace as NS
 
 import pytest
@@ -7,10 +8,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
-from app import auth, billing, plans
+from app import auth, billing, gmail, nightly, outreach, places, plans
 from app.db import engine
 from app.main import app
-from app.models import Account, Organization, User
+from app.models import Account, Lead, Organization, User
 
 
 class FakeStripe:
@@ -80,25 +81,74 @@ def client(uid):
     return c
 
 
-def test_beta_checkout_and_return(org):
+def test_pro_checkout_and_return(org):
     c = client(org["user"])
-    assert "Choose Beta" in c.get("/billing").text
-    r = c.post("/billing/checkout", data={"tier": "beta"}, follow_redirects=False)
+    page = c.get("/billing").text
+    assert "Choose Standard" in page and "Choose Pro" in page and "Choose Beta" not in page
+    r = c.post("/billing/checkout", data={"tier": "pro"}, follow_redirects=False)
     assert r.headers["location"] == "https://checkout.stripe.test/s1"
     fake = org["fake"]
-    assert ("price", "pei_beta_monthly", 4900) in fake.created
-    assert fake.checkout["subscription_data"]["trial_period_days"] == 30
+    assert ("price", "pei_pro_monthly", 14900) in fake.created and ("price", "pei_personal_monthly", 9900) in fake.created
+    assert "trial_period_days" not in fake.checkout["subscription_data"]
     assert fake.checkout["customer_email"] == "boss@billing.test"
-    assert "subscribed to the Beta plan" in c.get("/billing/return?session_id=cs_1").text
+    assert "subscribed to the Pro plan" in c.get("/billing/return?session_id=cs_1").text
     with Session(engine) as db:
         o = db.get(Organization, org["org"])
-        assert (o.plan_tier, o.plan, o.billing_status, o.stripe_customer_id) == ("beta", "active", "trialing", "cus_1")
-        assert plans.monthly_limit(db, db.get(Account, org["acct"])) == 8.0
+        assert (o.plan_tier, o.plan, o.billing_status, o.stripe_customer_id) == ("pro", "active", "trialing", "cus_1")
+        assert plans.monthly_limit(db, db.get(Account, org["acct"])) == 25.0
 
 
-def test_wholesale_charges_per_publisher(org):
-    client(org["user"]).post("/billing/checkout", data={"tier": "wholesale"}, follow_redirects=False)
-    assert org["fake"].checkout["line_items"][0]["quantity"] == 2
+def test_old_plans_not_for_sale(org):
+    r = client(org["user"]).post("/billing/checkout", data={"tier": "wholesale"}, follow_redirects=False)
+    assert "Unknown%20plan" in r.headers["location"]
+
+
+def test_free_beta_ends_after_30_days(org):
+    with Session(engine) as db:
+        o = db.get(Organization, org["org"])
+        o.plan_tier = "beta"
+        a = db.get(Account, org["acct"])
+        assert plans.monthly_limit(db, a) == 15.0 and plans.has_email(db, a)
+        o.created_at = datetime.now(timezone.utc) - timedelta(days=31)
+        db.commit()
+        assert plans.monthly_limit(db, a) == 0.0
+        with pytest.raises(places.BudgetExceeded, match="free trial has ended"):
+            places.check_budget(db, a.id, 0.035)
+        o.plan = "active"  # subscribed: no trial limit
+        db.commit()
+        assert plans.monthly_limit(db, a) == 15.0
+
+
+def test_signup_starts_on_beta():
+    with Session(engine) as db:
+        u = auth.sign_in(db, "new@beta.test", "New Person", "Test: Beta Signup Co")
+        o = db.get(Organization, u.org_id)
+        assert (o.plan, o.plan_tier) == ("trial", "beta")
+        db.delete(u)
+        db.commit()
+
+
+def test_standard_plan_has_no_gmail(org, monkeypatch):
+    monkeypatch.setattr(gmail, "configured", lambda: True)
+    with Session(engine) as db:
+        a = db.get(Account, org["acct"])
+        a.gmail_token_enc, a.setup_done_at = "x", datetime.now(timezone.utc)
+        lead = Lead(account_id=a.id, business_name="Test Lead", score=9)
+        db.add(lead)
+        db.commit()
+        assert not plans.has_email(db, a)
+        assert gmail.check_account(db, a.id) == {"checked": 0, "emailed": 0, "follow_ups": 0}
+        with pytest.raises(ValueError, match="Pro plan"):
+            outreach.draft_for_lead(db, a, lead)
+        lead_id = lead.id
+    c = TestClient(app, follow_redirects=False)
+    c.cookies.set(auth.SESSION_COOKIE, auth.make_session(org["user"]))
+    assert "included in the" in c.get("/business").text
+    assert "Pro%20plan" in c.get("/gmail/connect?agree=1").headers["location"]
+    assert "Draft an email" not in c.get(f"/leads/{lead_id}").text
+    c.post("/nightly", data={"enabled": "1", "run_hour": "2", "searches_per_night": "100"})
+    with Session(engine) as db:
+        assert nightly.get_settings(db, org["acct"]).searches_per_night == 20
 
 
 def test_cancelled_subscription_pauses_searches(org):

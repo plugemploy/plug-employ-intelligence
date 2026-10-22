@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app import places, scoring
+from app import places, plans, scoring
 from app.db import engine
 from app.models import Account, ApiUsage, Lead
 
@@ -41,7 +41,7 @@ def test_scores_only_unscored_and_logs_cost(account_id, monkeypatch):
 
 def test_budget_stops_scoring(account_id, monkeypatch):
     monkeypatch.setattr(scoring, "ask_claude", lambda lead, system: pytest.fail("should not call Claude"))
-    monkeypatch.setattr(places, "MONTHLY_API_BUDGET_USD", 0)
+    monkeypatch.setattr(plans, "monthly_limit", lambda db, account: 0.0)
     with Session(engine) as db, pytest.raises(places.BudgetExceeded):
         scoring.score_unscored(db, account_id)
 

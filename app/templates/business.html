@@ -20,7 +20,10 @@
   <p class="text-sm text-slate-600 mb-3">Connect Gmail (read-only) and the app checks whether you've emailed each lead's business,
     tags it <span class="rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs">Emailed · date</span>, and adds a follow-up
     when it's been quiet for 14+ days. Only who and when is used; email text is never read or stored. Runs with each nightly search.</p>
-  {% if account.gmail_address %}
+  {% if not has_email %}
+    <p class="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded p-3">Gmail features are included in the
+      <b>Pro</b> plan. <a href="/billing" class="text-blue-700 hover:underline">See plans</a></p>
+  {% elif account.gmail_address %}
     <p class="text-sm mb-3">Connected: <b>{{ account.gmail_address }}</b>
       {% if account.gmail_checked_at %}· last checked {{ account.gmail_checked_at.astimezone().strftime("%b %-d, %-I:%M %p") }}{% endif %}
       · {{ n_emailed }} leads emailed

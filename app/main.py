@@ -18,8 +18,8 @@ from app import auth, billing, catalog, close_crm, plans, digest, gmail, nightly
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
-from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
-from app.models import OUTCOMES, STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun, Organization, User
+from app.config import ANTHROPIC_API_KEY, COOKIE_SECURE, GOOGLE_PLACES_API_KEY
+from app.models import OUTCOMES, STATUSES, Account, Feedback, FollowUp, Lead, LeadNote, NightlyRun, Organization, User
 
 INDUSTRIES = places.INDUSTRIES
 
@@ -54,6 +54,10 @@ def render(request, name, db, account, **ctx):
 
 
 LEADS_FILTER_COOKIE = "leads_filters"
+
+
+def can_draft(db: Session, account: Account | None) -> bool:
+    return bool(account and plans.has_email(db, account) and gmail.can_compose(account))
 
 
 def get_lead(db: Session, account: Account | None, lead_id: int) -> Lead:
@@ -103,7 +107,7 @@ def auth_callback(state: str = "", code: str = "", error: str = "", db: Session 
     except Exception as exc:
         return RedirectResponse(f"/login?msg={quote(str(exc).splitlines()[0])}", status_code=303)
     resp = RedirectResponse("/setup" if company else "/leads", status_code=303)
-    resp.set_cookie(auth.SESSION_COOKIE, auth.make_session(user.id), httponly=True, samesite="lax",
+    resp.set_cookie(auth.SESSION_COOKIE, auth.make_session(user.id), httponly=True, samesite="lax", secure=COOKIE_SECURE,
                     max_age=auth.SESSION_DAYS * 86400)
     resp.delete_cookie(ACCOUNT_COOKIE)
     return resp
@@ -123,7 +127,7 @@ def switch_account(account_id: int = Form(...), db: Session = Depends(get_sessio
     if not user.is_admin or target is None or target.org_id != user.org_id:
         raise HTTPException(404, "Account not found")
     resp = RedirectResponse("/leads", status_code=303)
-    resp.set_cookie(ACCOUNT_COOKIE, str(account_id), httponly=True, samesite="lax")
+    resp.set_cookie(ACCOUNT_COOKIE, str(account_id), httponly=True, samesite="lax", secure=COOKIE_SECURE)
     return resp
 
 
@@ -184,10 +188,10 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
                   f_q=text, f_status=status, f_zip=zip_code, f_industry=industry, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   working=scoring.whats_working(db, account.id) if account else {},
                   allow=plans.usage(db, account) if account else None,
-                  has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.enabled_for(db, account), can_draft=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
+                  has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.enabled_for(db, account), can_draft=can_draft(db, account), message=request.query_params.get("msg", ""))
     if "msg" not in request.query_params:  # a status message page keeps the earlier filters
         if chosen:
-            resp.set_cookie(LEADS_FILTER_COOKIE, urlencode(chosen), httponly=True, samesite="lax", max_age=30 * 86400)
+            resp.set_cookie(LEADS_FILTER_COOKIE, urlencode(chosen), httponly=True, samesite="lax", secure=COOKIE_SECURE, max_age=30 * 86400)
         else:
             resp.delete_cookie(LEADS_FILTER_COOKIE)
     return resp
@@ -310,7 +314,7 @@ def restore_lead(lead_id: int, db: Session = Depends(get_session), account=Depen
 def lead_detail(lead_id: int, request: Request, db: Session = Depends(get_session),
                 account=Depends(current_account)):
     return render(request, "lead_detail.html", db, account, lead=get_lead(db, account, lead_id),
-                  can_draft=bool(account and gmail.can_compose(account)), has_close=close_crm.enabled_for(db, account))
+                  can_draft=can_draft(db, account), has_close=close_crm.enabled_for(db, account))
 
 
 @app.post("/leads/{lead_id}/status")
@@ -351,7 +355,9 @@ def draft_top(db: Session = Depends(get_session), account=Depends(current_accoun
     from urllib.parse import quote
     if account is None:
         raise HTTPException(400, "Create an account first")
-    if not gmail.can_compose(account):
+    if not plans.has_email(db, account):
+        msg = plans.EMAIL_PLAN_MSG
+    elif not gmail.can_compose(account):
         msg = "Reconnect Gmail on My business to allow drafts."
     else:
         try:
@@ -473,8 +479,8 @@ def follow_up_done(fu_id: int, request: Request, db: Session = Depends(get_sessi
 
 
 def search_ctx(db, account):
-    return dict(allow=plans.usage(db, account) if account else None,zips=account.zip_list if account else [], industries=account.industry_list if account else [], spent=places.spent_this_month(db),
-                budget=MONTHLY_API_BUDGET_USD, cost_each=places.COST_PER_REQUEST_USD,
+    return dict(allow=plans.usage(db, account) if account else None,zips=account.zip_list if account else [], industries=account.industry_list if account else [],
+                cost_each=places.COST_PER_REQUEST_USD,
                 min_reviews=places.MIN_REVIEWS, has_key=bool(GOOGLE_PLACES_API_KEY))
 
 
@@ -524,7 +530,7 @@ def nightly_page(request: Request, db: Session = Depends(get_session), account=D
         runs = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
                           .order_by(NightlyRun.started_at.desc()).limit(10)).all()
         ctx = dict(st=st, runs=runs, upcoming=nightly.next_pairs(db, st),
-                   cost_each=places.COST_PER_REQUEST_USD, has_close=close_crm.enabled_for(db, account), saved=request.query_params.get("saved"))
+                   cost_each=places.COST_PER_REQUEST_USD, nightly_max=plans.plan_for(db, account)["nightly_max"], has_close=close_crm.enabled_for(db, account), saved=request.query_params.get("saved"))
     return render(request, "nightly.html", db, account, **ctx)
 
 
@@ -536,7 +542,7 @@ def save_nightly(enabled: str = Form(""), run_hour: int = Form(2), searches_per_
     st = nightly.get_settings(db, account.id)
     st.enabled = bool(enabled)
     st.run_hour = max(0, min(23, run_hour))
-    st.searches_per_night = max(1, min(100, searches_per_night))
+    st.searches_per_night = max(1, min(plans.plan_for(db, account)["nightly_max"], searches_per_night))
     db.commit()
     return RedirectResponse("/nightly?saved=1", status_code=303)
 
@@ -557,7 +563,8 @@ def business_page(request: Request, db: Session = Depends(get_session), account=
         Lead.account_id == account.id, Lead.deleted_at.is_(None), Lead.last_emailed_at.is_not(None))) if account else 0
     return render(request, "business.html", db, account, categories=catalog.CATEGORIES, all_catalog=catalog.ALL,
                   default_desc=scoring.DEFAULT_DESCRIPTION, n_emailed=n_emailed,
-                  gmail_ready=gmail.configured(), can_compose=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
+                  gmail_ready=gmail.configured(), can_compose=bool(account and gmail.can_compose(account)),
+                  has_email=bool(account and plans.has_email(db, account)), message=request.query_params.get("msg", ""))
 
 
 @app.post("/business")
@@ -581,6 +588,8 @@ def back_to_business(msg: str):
 def gmail_connect(agree: str = "", db: Session = Depends(get_session), account=Depends(current_account)):
     if account is None or not gmail.configured():
         return back_to_business("Gmail isn't set up yet: the Google sign-in values are missing from .env.")
+    if not plans.has_email(db, account):
+        return back_to_business(plans.EMAIL_PLAN_MSG)
     if not agree:
         return back_to_business("Tick the box to agree before connecting Gmail.")
     account.gmail_consent_at = datetime.now(timezone.utc)
@@ -599,7 +608,7 @@ def gmail_callback(state: str = "", code: str = "", error: str = "", db: Session
     except Exception as exc:
         return back_to_business(f"Gmail wasn't connected: {str(exc).splitlines()[0]}")
     resp = back_to_business(f"Connected {account.gmail_address}. Click Check Gmail now to scan your leads.")
-    resp.set_cookie(ACCOUNT_COOKIE, str(account.id), httponly=True, samesite="lax")
+    resp.set_cookie(ACCOUNT_COOKIE, str(account.id), httponly=True, samesite="lax", secure=COOKIE_SECURE)
     return resp
 
 
@@ -607,6 +616,8 @@ def gmail_callback(state: str = "", code: str = "", error: str = "", db: Session
 def gmail_check(db: Session = Depends(get_session), account=Depends(current_account)):
     if account is None or not account.gmail_token_enc:
         return back_to_business("Connect Gmail first.")
+    if not plans.has_email(db, account):
+        return back_to_business(plans.EMAIL_PLAN_MSG)
     try:
         s = gmail.check_account(db, account.id)
     except Exception as exc:
@@ -621,6 +632,8 @@ def digest_settings(action: str = Form("save"), digest_enabled: str = Form(""),
     if account is None:
         raise HTTPException(400, "Create an account first")
     if action == "send":
+        if not plans.has_email(db, account):
+            return back_to_business(plans.EMAIL_PLAN_MSG)
         try:
             subject = digest.send(db, account.id)
             return back_to_business(f"Digest sent to {account.gmail_address}: \"{subject}\"")
@@ -706,7 +719,8 @@ def billing_page(request: Request, msg: str = "", db: Session = Depends(get_sess
     org = db.get(Organization, user.org_id)
     offers = [(t, plans.PLANS[t]) for t in billing.SELLABLE]
     return render(request, "billing.html", db, None, offers=offers, seats=billing.seats(db, org),
-                  ready=billing.configured(), message=msg, current=plans.PLANS.get(org.plan_tier, {}))
+                  ready=billing.configured(), message=msg, current=plans.PLANS.get(org.plan_tier, {}),
+                  trial_ends=plans.trial_ends(org), now=datetime.now(timezone.utc))
 
 
 @app.post("/billing/checkout")
@@ -827,9 +841,32 @@ def usage_page(request: Request, db: Session = Depends(get_session), account=Dep
         ctx = dict(by_service=by_service, by_day=by_day,
                    spent=places.spent_this_month(db, account.id), limit=plans.monthly_limit(db, account),
                    allow=plans.usage(db, account),
-                   overall=places.spent_this_month(db), overall_cap=MONTHLY_API_BUDGET_USD,
+                   overall=places.spent_this_month(db),
                    month=start.strftime("%B %Y"))
     return render(request, "usage.html", db, account, **ctx)
+
+
+# ---- Feedback from testers ----------------------------------------------------------------
+
+@app.post("/feedback")
+def send_feedback(text: str = Form(""), page: str = Form(""), db: Session = Depends(get_session),
+                  user: User = Depends(current_user), account=Depends(current_account)):
+    if not text.strip():
+        return HTMLResponse('<p class="text-xs text-red-700">Type something first.</p>')
+    db.add(Feedback(account_id=account.id if account else None, user_id=user.id, page=page[:300], text=text.strip()[:5000]))
+    db.commit()
+    return HTMLResponse('<p class="text-sm text-green-700">Thanks! Savannah will see this.</p>')
+
+
+@app.get("/feedback")
+def feedback_list(request: Request, db: Session = Depends(get_session), user: User = Depends(current_user)):
+    org = db.get(Organization, user.org_id)
+    if org.plan_tier != "owner":  # only the app owner reads everyone's feedback
+        raise HTTPException(404)
+    rows = db.execute(select(Feedback, User.email, Organization.name).outerjoin(User, User.id == Feedback.user_id)
+                      .outerjoin(Organization, Organization.id == User.org_id)
+                      .order_by(Feedback.created_at.desc()).limit(500)).all()
+    return render(request, "feedback.html", db, None, rows=rows)
 
 
 @app.get("/status")

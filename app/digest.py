@@ -7,7 +7,7 @@ from email.message import EmailMessage
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import gmail
+from app import gmail, plans
 from app.config import APP_BASE_URL
 from app.models import OUTCOMES, Account, FollowUp, Lead
 
@@ -55,7 +55,7 @@ def due_accounts(db: Session, now: datetime) -> list[int]:
         this_monday -= timedelta(days=7)
     out = []
     for a in db.scalars(select(Account).where(Account.digest_enabled.is_(True), Account.gmail_token_enc != "")):
-        if gmail.can_compose(a) and (a.digest_sent_at is None or a.digest_sent_at < this_monday):
+        if gmail.can_compose(a) and plans.has_email(db, a) and (a.digest_sent_at is None or a.digest_sent_at < this_monday):
             out.append(a.id)
     return out
 

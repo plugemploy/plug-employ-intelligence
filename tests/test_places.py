@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from app import places
+from app import places, plans
 from app.db import engine
 from app.models import Account, ApiUsage, Lead
 
@@ -45,7 +45,7 @@ def test_filters_and_duplicates(account_id, monkeypatch):
 def test_budget_stops_search(account_id, monkeypatch):
     calls = []
     monkeypatch.setattr(places, "fetch_page", lambda q, t=None: calls.append(q) or {"places": []})
-    monkeypatch.setattr(places, "MONTHLY_API_BUDGET_USD", 0)
+    monkeypatch.setattr(plans, "monthly_limit", lambda db, account: 0.0)
     with Session(engine) as db, pytest.raises(places.BudgetExceeded):
         places.search_and_save(db, account_id, "37934", "Dentist")
     assert calls == []

@@ -4,10 +4,11 @@
 <div class="mb-4 rounded-xl bg-white shadow p-3 text-sm flex flex-wrap items-center gap-3
             {{ 'border border-red-300' if pct >= 100 else 'border border-amber-300' if pct >= 80 else '' }}">
   <span>🔎 <b>{{ allow.searches_left }}</b> of {{ allow.searches_total }} searches left this month
-    <span class="text-slate-500">({{ allow.plan.label }} plan)</span></span>
+    <span class="text-slate-500">({{ allow.plan.label }} plan{% if allow.trial_ends and not allow.trial_over %}, free until {{ allow.trial_ends.astimezone().strftime("%b %-d") }}{% endif %})</span></span>
   <div class="h-2 w-40 rounded bg-slate-100 overflow-hidden">
     <div class="h-2 {{ 'bg-red-500' if pct >= 100 else 'bg-amber-500' if pct >= 80 else 'bg-green-600' }}" style="width: {{ [pct, 100]|min }}%"></div></div>
-  {% if pct >= 100 %}<span class="text-red-700">New searches are paused until the 1st. Your leads, scoring and drafts keep working.</span>
+  {% if allow.trial_over %}<span class="text-red-700">Your free trial has ended. <a href="/billing" class="underline">Choose a plan</a> to keep searching. Your leads stay here.</span>
+  {% elif pct >= 100 %}<span class="text-red-700">New searches are paused until the 1st. Your leads, scoring and drafts keep working.</span>
   {% elif pct >= 80 %}<span class="text-amber-800">Running low. The nightly search is pacing itself to last the month.</span>{% endif %}
 </div>
 {% endif %}

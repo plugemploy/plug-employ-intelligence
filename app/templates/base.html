@@ -22,6 +22,7 @@
         <a href="/business" class="hover:underline">My business</a>
       </nav>
       <div class="ml-auto flex items-center gap-3 text-sm">
+        {% if org and org.plan_tier == "owner" %}<a href="/feedback" class="hover:underline">Feedback</a>{% endif %}
         {% if user and user.is_admin %}
         <a href="/admin" class="hover:underline font-medium">Team</a>
         <a href="/billing" class="hover:underline">Billing</a>
@@ -46,5 +47,16 @@
       {% block content %}{% endblock %}
     {% endif %}
   </main>
+  {% if user %}
+  <details class="fixed bottom-4 right-4 w-72 rounded-xl bg-white shadow-lg border text-sm">
+    <summary class="cursor-pointer px-4 py-2 font-medium">💬 Send feedback</summary>
+    <form hx-post="/feedback" hx-target="#feedback-result" hx-on::after-request="if (event.detail.successful) this.reset()" class="grid gap-2 px-4 pb-4">
+      <textarea name="text" rows="4" required placeholder="What's confusing, broken, or missing?" class="border rounded px-2 py-1"></textarea>
+      <input type="hidden" name="page" value="{{ request.url.path }}">
+      <button class="justify-self-start rounded bg-slate-800 text-white px-3 py-1">Send</button>
+      <div id="feedback-result"></div>
+    </form>
+  </details>
+  {% endif %}
 </body>
 </html>

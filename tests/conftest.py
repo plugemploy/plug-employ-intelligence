@@ -31,6 +31,16 @@ def login_as(client, account_id: int, role: str = "owner") -> int:
         return user.id
 
 
+def on_plan(account_id: int, tier: str) -> None:
+    """Give an account its own test company on the given plan."""
+    with Session(engine) as db:
+        org = Organization(name=f"Test: {tier} org {account_id}", plan="active", plan_tier=tier)
+        db.add(org)
+        db.flush()
+        db.get(Account, account_id).org_id = org.id
+        db.commit()
+
+
 @pytest.fixture(autouse=True, scope="session")
 def _cleanup_test_orgs():
     yield

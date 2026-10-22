@@ -182,6 +182,18 @@ class NightlyRun(Base):
 
 
 
+class Feedback(Base):
+    """A note a tester sent from the Send feedback box. The owner reads them all on /feedback."""
+
+    __tablename__ = "feedback"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    page: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
 ROLES = ("owner", "admin", "publisher")
 
 

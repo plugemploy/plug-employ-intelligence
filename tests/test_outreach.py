@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
-from tests.conftest import login_as
+from tests.conftest import login_as, on_plan
 from app import digest, gmail, outreach
 from app.db import engine
 from app.main import app
@@ -27,7 +27,9 @@ def ids():
                           last_emailed_at=datetime.now(timezone.utc) - timedelta(days=20)))
         db.add_all(leads)
         db.commit()
-        yield {"a": a.id, "first": leads[0].id, "emailed": leads[-1].id}
+        out = {"a": a.id, "first": leads[0].id, "emailed": leads[-1].id}
+    on_plan(out["a"], "pro")
+    yield out
     with Session(engine) as db:
         db.execute(delete(Account).where(Account.name.like("Test:%")))
         db.commit()

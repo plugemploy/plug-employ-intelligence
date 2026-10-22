@@ -39,4 +39,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Plans built (2026-10-21): app/plans.py Personal $99 ($15 allowance), Wholesale $60/publisher ($10), Owner (only .env cap). organizations.plan_tier. Searches-left meter, nightly pacing (nightly_quota), Find leads skips searches done in last 30 days.
 - Stripe built (2026-10-21): app/billing.py, /billing (Checkout, return, Stripe portal), daily status sync; plans beta ($49, $8, 30-day trial), founding ($79), personal, wholesale (per publisher). Prices auto-created by lookup key pei_<tier>_monthly. Cancelled = searches paused.
 - Owner/manager names (2026-10-21): website check also reads a linked About/Team page (robots.txt respected); scoring returns contact_name/contact_title only when the website states them; used in drafts, Close contact, digest.
+- Delete/restore leads + duplicate check on Add lead + Gmail "we never sell your data" checkbox (2026-10-22).
+- Beta prep Day 1 (2026-10-22): plans Standard $99 (no Gmail) / Pro $149 / Premium placeholder / free 30-day Beta for
+  new sign-ups; per-plan nightly max; no shared overall cap; Send feedback box (owner reads /feedback); secure cookies on https.
+- Beta plan: Day 2 put it online (Render + domain), Day 3 test as a new customer and invite testers.
 - Next: Stripe test keys from Savannah, cloud hosting + domain, results tracking for beta, per-customer Close, territory lock, Google verification.

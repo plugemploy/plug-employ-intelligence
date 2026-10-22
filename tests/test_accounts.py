@@ -8,7 +8,8 @@ from sqlalchemy.orm import Session
 from app import auth, close_crm
 from app.db import engine
 from app.main import app
-from app.models import Account, Lead, Organization, User
+from app.models import Account, Feedback, Lead, Organization, User
+from tests.conftest import login_as
 
 
 @pytest.fixture
@@ -96,3 +97,22 @@ def test_close_only_for_owner_company(two_companies, monkeypatch):
         monkeypatch.setattr(close_crm, "OWNER_ORG", "Test: Alpha Media")
         assert close_crm.enabled_for(db, db.get(Account, two_companies["a1"]))
         assert not close_crm.enabled_for(db, db.get(Account, two_companies["b1"]))
+
+
+def test_feedback_box_and_owner_page():
+    with Session(engine) as db:
+        a = Account(name="Test: Feedback Pub")
+        db.add(a)
+        db.commit()
+        aid = a.id
+    c = TestClient(app)
+    login_as(c, aid)
+    assert "Send feedback" in c.get("/leads").text
+    assert "Thanks!" in c.post("/feedback", data={"text": "Test: the search page confused me", "page": "/search"}).text
+    assert "Type something" in c.post("/feedback", data={"text": "  "}).text
+    assert c.get("/feedback").status_code == 404  # testers can't read everyone's feedback
+    with Session(engine) as db:
+        f = db.scalars(select(Feedback).where(Feedback.account_id == aid)).one()
+        assert (f.page, f.text) == ("/search", "Test: the search page confused me")
+        db.delete(f)
+        db.commit()

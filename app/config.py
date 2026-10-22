@@ -14,5 +14,6 @@ APP_SECRET_KEY = os.getenv("APP_SECRET_KEY", "")
 GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
 GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
 APP_BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+COOKIE_SECURE = APP_BASE_URL.startswith("https://")  # online: cookies only travel over https
 CLOSE_API_KEY = os.getenv("CLOSE_API_KEY", "")
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")

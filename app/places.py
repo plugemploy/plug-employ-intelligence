@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
-from app.models import Account, ApiUsage, Lead
+from app.models import Account, ApiUsage, Lead, Organization
 
 SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 # Asking for phone, website, rating and reviews makes this the "Enterprise" price tier.
@@ -52,12 +52,12 @@ def spent_this_month(db: Session, account_id: int | None = None) -> float:
 
 
 def check_budget(db: Session, account_id: int, next_cost: float) -> None:
-    """Stop before going over the account's own monthly limit or the overall prototype cap."""
-    if spent_this_month(db) + next_cost > MONTHLY_API_BUDGET_USD:
-        raise BudgetExceeded(f"Overall monthly API budget of ${MONTHLY_API_BUDGET_USD:.0f} reached.")
-    from app.plans import monthly_limit
+    """Stop before going over the account's own monthly limit (the owner's is MONTHLY_API_BUDGET_USD)."""
+    from app.plans import monthly_limit, trial_over
     account = db.get(Account, account_id)
     limit = monthly_limit(db, account) if account else 0
+    if limit == 0 and account and trial_over(db.get(Organization, account.org_id) if account.org_id else None):
+        raise BudgetExceeded("Your free trial has ended. Choose a plan on the Billing page to keep searching.")
     if spent_this_month(db, account_id) + next_cost > limit:
         raise BudgetExceeded("This month's search allowance is used up. Searches resume on the 1st.")
 

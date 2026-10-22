@@ -136,7 +136,8 @@ def check_account(db: Session, account_id: int) -> dict:
     """Tag leads this account has emailed and add follow-ups for ones gone quiet."""
     stats = {"checked": 0, "emailed": 0, "follow_ups": 0}
     account = db.get(Account, account_id)
-    if not (account and account.gmail_token_enc and configured()):
+    from app.plans import has_email
+    if not (account and account.gmail_token_enc and configured() and has_email(db, account)):
         return stats
     service = gmail_service(db, account)
     seen: dict[str, datetime | None] = {}
