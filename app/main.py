@@ -18,7 +18,13 @@ from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUD
 from app.models import STATUSES, Account, FollowUp, Lead, LeadNote
 
 TEST_ZIPS = ["37934", "37922", "37932", "37923", "37919", "37909"]
-INDUSTRIES = ["Restaurant", "Dentist", "Auto repair", "Fitness", "Salon", "HVAC", "Real estate", "Landscaping"]
+INDUSTRIES = [
+    "Dentist", "Orthodontist", "Med spa", "Dermatology", "Chiropractor", "Physical therapy",
+    "Salon", "Fitness", "Restaurant", "Wine shop", "Boutique", "Jeweler", "Golf", "Event venue",
+    "HVAC", "Roofing", "Remodeling", "Pool", "Interior design", "Pest control", "Landscaping", "Auto repair",
+    "Real estate", "Financial advisor", "Insurance agent", "Law firm", "Mortgage lender",
+    "Private school", "Tutoring", "Kids activities", "Veterinarian", "Pet grooming",
+]
 
 app = FastAPI(title="Plug Employ Intelligence")
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
