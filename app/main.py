@@ -14,7 +14,7 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import digest, gmail, nightly, outreach, places, scoring
+from app import close_crm, digest, gmail, nightly, outreach, places, scoring
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
 from app.models import OUTCOMES, STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun
@@ -98,7 +98,7 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
     return render(request, "leads.html", db, account, leads=leads, zips=zips,
                   f_status=status, f_zip=zip_code, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   working=scoring.whats_working(db, account.id) if account else {},
-                  has_claude_key=bool(ANTHROPIC_API_KEY), can_draft=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
+                  has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.configured(), can_draft=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
 
 
 @app.post("/leads/score")
@@ -154,7 +154,7 @@ def create_lead(business_name: str = Form(...), address: str = Form(""), zip_cod
 def lead_detail(lead_id: int, request: Request, db: Session = Depends(get_session),
                 account=Depends(current_account)):
     return render(request, "lead_detail.html", db, account, lead=get_lead(db, account, lead_id),
-                  can_draft=bool(account and gmail.can_compose(account)))
+                  can_draft=bool(account and gmail.can_compose(account)), has_close=close_crm.configured())
 
 
 @app.post("/leads/{lead_id}/status")
@@ -224,6 +224,55 @@ def set_renewal(db: Session, lead: Lead, contract_end: date | None) -> None:
         due = max(date.today(), contract_end - timedelta(days=RENEWAL_DAYS_BEFORE))
         db.add(FollowUp(account_id=lead.account_id, lead_id=lead.id, due_date=due,
                         task=f"{RENEWAL_PREFIX}: contract ends {contract_end:%b %-d, %Y}"))
+
+
+def back_to_leads(msg: str):
+    from urllib.parse import quote
+    return RedirectResponse(f"/leads?sort=score&msg={quote(msg)}", status_code=303)
+
+
+@app.post("/close/send-top")
+def close_send_top(db: Session = Depends(get_session), account=Depends(current_account)):
+    if account is None or not close_crm.configured():
+        return back_to_leads("Close isn't connected: add CLOSE_API_KEY to .env.")
+    try:
+        s = close_crm.send_leads(db, close_crm.top_unsent(db, account.id))
+    except Exception as exc:
+        return back_to_leads(f"Close error: {str(exc).splitlines()[0]}")
+    return back_to_leads(f"Sent {s['sent']} leads to Close as Potential. {s['already_in_close']} were already in Close."
+                         + (f" {s['failed']} failed." if s["failed"] else ""))
+
+
+@app.post("/close/sync")
+def close_sync(db: Session = Depends(get_session), account=Depends(current_account)):
+    if account is None or not close_crm.configured():
+        return back_to_leads("Close isn't connected: add CLOSE_API_KEY to .env.")
+    try:
+        s = close_crm.sync_back(db, account.id)
+    except Exception as exc:
+        return back_to_leads(f"Close error: {str(exc).splitlines()[0]}")
+    return back_to_leads(f"Synced from Close: {s['updated']} leads updated.")
+
+
+@app.post("/leads/{lead_id}/close")
+def close_send_one(lead_id: int, db: Session = Depends(get_session), account=Depends(current_account)):
+    from fastapi.responses import HTMLResponse
+    from html import escape
+    lead = get_lead(db, account, lead_id)
+    try:
+        s = close_crm.send_leads(db, [lead])
+    except Exception as exc:
+        return HTMLResponse(f'<span class="text-sm text-red-700">{escape(str(exc).splitlines()[0])}</span>')
+    msg = "Sent to Close as Potential ✓" if s["sent"] else "Already in Close ✓" if s["already_in_close"] else "Couldn't send."
+    return HTMLResponse(f'<span class="text-sm text-green-700">{msg}</span>')
+
+
+@app.post("/close/settings")
+def close_settings(close_auto_send: str = Form(""), db: Session = Depends(get_session), account=Depends(current_account)):
+    if account:
+        account.close_auto_send = bool(close_auto_send)
+        db.commit()
+    return RedirectResponse("/nightly?saved=1", status_code=303)
 
 
 @app.post("/leads/{lead_id}/notes")
@@ -313,7 +362,7 @@ def nightly_page(request: Request, db: Session = Depends(get_session), account=D
         runs = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
                           .order_by(NightlyRun.started_at.desc()).limit(10)).all()
         ctx = dict(st=st, runs=runs, upcoming=nightly.next_pairs(db, st),
-                   cost_each=places.COST_PER_REQUEST_USD, saved=request.query_params.get("saved"))
+                   cost_each=places.COST_PER_REQUEST_USD, has_close=close_crm.configured(), saved=request.query_params.get("saved"))
     return render(request, "nightly.html", db, account, **ctx)
 
 

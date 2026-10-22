@@ -49,6 +49,15 @@
   <button class="rounded bg-blue-700 text-white px-3 py-1 text-sm">Score {{ unscored }} unscored lead{{ "s" if unscored != 1 }} with Claude</button>
 </form>
 {% endif %}
+{% if has_close %}
+<div class="mb-2 flex flex-wrap gap-2 items-center">
+  <form method="post" action="/close/send-top" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Sending…'">
+    <button class="rounded bg-emerald-700 text-white px-3 py-1 text-sm">📞 Send top 20 to Close</button></form>
+  <form method="post" action="/close/sync" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Syncing…'">
+    <button class="rounded border px-3 py-1 text-sm hover:bg-slate-50">↻ Sync from Close</button></form>
+  <span class="text-xs text-slate-500">Your VA calls from Close; statuses come back here each night.</span>
+</div>
+{% endif %}
 {% if can_draft %}
 <form method="post" action="/leads/draft-top" class="mb-4"
       onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Writing drafts…'">
@@ -73,7 +82,8 @@
         <td class="p-3">{{ l.industry }}</td>
         <td class="p-3">{{ l.zip_code }}</td>
         <td class="p-3 whitespace-nowrap">{% if l.rating %}★ {{ l.rating }} <span class="text-slate-400">({{ l.review_count }})</span>{% endif %}</td>
-        <td class="p-3">{% with s = l.status %}{% include "_badge.html" %}{% endwith %}</td>
+        <td class="p-3">{% with s = l.status %}{% include "_badge.html" %}{% endwith %}
+          {% if l.close_status %}<span class="block text-xs text-emerald-700 mt-0.5">Close: {{ l.close_status }}</span>{% endif %}</td>
         <td class="p-3 {% if fu and fu.due_date <= today %}text-red-700 font-medium{% endif %}">
           {{ fu.due_date.strftime("%b %-d") if fu else "—" }}</td>
         <td class="p-3 text-slate-600 max-w-xs truncate">{{ l.last_note.text if l.last_note else "" }}</td>

@@ -33,4 +33,5 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - My business page (description, ZIPs, industries per account) built (2026-10-21). Gmail connect (gmail.readonly, token encrypted with APP_SECRET_KEY) replaces the contacts upload: Emailed tag + follow-up after 14 quiet days. Setup: docs/GMAIL_SETUP.md. Connect only via http://127.0.0.1:8000. Full re-score of real leads is saved for the final test run.
 - Learning from results built (2026-10-21): Won/Not interested + reason feed past_results into scoring; What's working panel.
 - #3 built (2026-10-21): Gmail drafts (app/outreach.py, never sends to leads), Monday 8am digest to self (app/digest.py), renewal follow-up 30 days before contract_end. Needs gmail.compose scope + reconnect.
+- Close CRM built (2026-10-21): app/close_crm.py sends leads as Potential (dedupe by domain/name), syncs VA statuses back nightly (STATUS_MAP), optional nightly auto-send of 9+. CLOSE_API_KEY is one org for now; per-account later.
 - Next: cloud hosting, domain, logins, Stripe, territory lock, Google verification.

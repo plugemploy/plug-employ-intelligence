@@ -29,6 +29,7 @@ class Account(Base):
     gmail_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     digest_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     digest_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    close_auto_send: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # nightly 9+ leads
 
     @property
     def zip_list(self) -> list[str]:
@@ -56,6 +57,9 @@ class Lead(Base):
     outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     contract_end: Mapped[date | None] = mapped_column(Date)  # for Won leads: renewal reminder 30 days before
     draft_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Gmail draft made
+    # Close CRM: where the VA calls. Status there syncs back here.
+    close_lead_id: Mapped[str] = mapped_column(String(100), default="", server_default="", index=True)
+    close_status: Mapped[str] = mapped_column(String(100), default="", server_default="")
     google_place_id: Mapped[str | None] = mapped_column(String(200), index=True)
     rating: Mapped[float | None] = mapped_column(Float)
     review_count: Mapped[int | None] = mapped_column(Integer)

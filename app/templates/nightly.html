@@ -21,6 +21,14 @@
   <p class="text-sm text-slate-600">ZIP codes and industries come from <a href="/business" class="text-blue-700 hover:underline">My business</a>.</p>
   <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save</button>
 </form>
+{% if has_close %}
+<form method="post" action="/close/settings" class="bg-white rounded-xl shadow p-4 max-w-3xl mb-6 flex flex-wrap gap-3 items-center text-sm">
+  <label class="flex items-center gap-2"><input type="checkbox" name="close_auto_send" value="1" {% if account.close_auto_send %}checked{% endif %}>
+    Each night, send new leads scored 9+ to Close for my VA</label>
+  <button class="rounded border px-3 py-1 hover:bg-slate-50">Save</button>
+  <span class="text-xs text-slate-500">Statuses from Close sync back every night either way.</span>
+</form>
+{% endif %}
 <div class="grid md:grid-cols-2 gap-6">
   <section class="bg-white rounded-xl shadow p-4"><h2 class="font-semibold mb-2">Next batch ({{ upcoming|length }})</h2>
     <ul class="text-sm text-slate-700 columns-2">{% for z, i in upcoming %}<li>{{ i }} in {{ z }}</li>{% else %}<li class="text-slate-500">Everything was searched in the last 30 days.</li>{% endfor %}</ul></section>

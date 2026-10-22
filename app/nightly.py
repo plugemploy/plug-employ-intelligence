@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import digest, gmail, places, scoring, website
+from app import close_crm, digest, gmail, places, scoring, website
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
 from app.models import Account, ApiUsage, Lead, NightlyRun, NightlySettings
@@ -62,6 +62,14 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
             website.check_unchecked(db, account_id, limit=1000)
             if ANTHROPIC_API_KEY:
                 scoring.score_unscored(db, account_id, limit=1000)
+            if close_crm.configured():
+                try:
+                    close_crm.sync_back(db, account_id)
+                    if db.get(Account, account_id).close_auto_send:
+                        close_crm.send_leads(db, close_crm.top_unsent(db, account_id, min_score=9, limit=50))
+                except Exception:  # a Close hiccup shouldn't stop the lead search
+                    log.exception("Close sync failed")
+                    db.rollback()
         except Exception as exc:  # keep the error for the morning summary
             log.exception("Nightly run failed")
             run.error = str(exc).splitlines()[0][:500]

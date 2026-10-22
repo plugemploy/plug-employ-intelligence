@@ -18,6 +18,13 @@
     {% if lead.website_status %}<p class="text-xs text-slate-400 mt-1">{{ ws.get(lead.website_status, "") }}</p>{% endif %}</div>
 </div>
 {% endif %}
+{% if has_close %}
+<div class="mb-4 flex items-center gap-3">
+  {% if lead.close_lead_id %}<span class="text-sm text-emerald-700">In Close · status: <b>{{ lead.close_status or "unknown" }}</b></span>
+  {% else %}<button hx-post="/leads/{{ lead.id }}/close" hx-swap="outerHTML" hx-disabled-elt="this"
+      class="rounded bg-emerald-700 text-white px-3 py-1 text-sm">📞 Send to Close</button>{% endif %}
+</div>
+{% endif %}
 {% if can_draft %}
 <div class="mb-6 rounded-xl bg-white shadow p-4">
   <button hx-post="/leads/{{ lead.id }}/draft" hx-target="#draft" hx-disabled-elt="this"
