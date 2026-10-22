@@ -1,0 +1,12 @@
+{% extends "public.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Start your free trial</h1>
+<p class="text-sm text-slate-600 mb-6">For publishers and teams that sell local advertising. Set up takes about 5 minutes.</p>
+{% if message %}<p class="mb-4 rounded bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">{{ message }}</p>{% endif %}
+<form method="get" action="/auth/google" class="grid gap-4">
+  <label class="grid gap-1 text-sm">Company or publication name
+    <input name="company" required maxlength="200" class="border rounded px-3 py-2" placeholder="e.g. Westside Living Magazine"></label>
+  <button class="rounded-lg bg-slate-800 text-white px-4 py-2 font-medium" {% if not ready %}disabled{% endif %}>Continue with Google</button>
+</form>
+<p class="mt-6 text-sm text-slate-600">Already have an account? <a href="/login" class="text-blue-700 hover:underline">Sign in</a></p>
+{% endblock %}

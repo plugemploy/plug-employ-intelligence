@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from tests.conftest import login_as
 from app import close_crm
 from app.db import engine
 from app.main import app
@@ -87,8 +88,8 @@ def test_unknown_status_changes_nothing(ids):
 
 
 def test_pages_show_close(ids, monkeypatch):
-    monkeypatch.setattr(close_crm, "configured", lambda: True)
+    monkeypatch.setattr(close_crm, "enabled_for", lambda db, a: True)
     c = TestClient(app)
-    c.cookies.set("account_id", str(ids))
+    login_as(c, ids)
     assert "Send top 20 to Close" in c.get("/leads").text
     assert "send new leads scored 9+ to Close" in c.get("/nightly").text

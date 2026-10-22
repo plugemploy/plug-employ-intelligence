@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from tests.conftest import login_as
 from app import gmail
 from app.db import engine
 from app.main import app
@@ -70,7 +71,7 @@ def test_site_domain():
 
 def test_pages(ids, fake_gmail):
     c = TestClient(app)
-    c.cookies.set("account_id", str(ids["a"]))
+    login_as(c, ids["a"])
     r = c.post("/business", data={"description": "We sell billboards.", "zips": "37919, 37934\n12, 37919",
                                   "industries": ["Dentist", "Golf"], "extra_industries": "Florist, Dentist"})
     assert r.status_code == 200

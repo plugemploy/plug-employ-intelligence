@@ -54,6 +54,13 @@ The prototype runs locally on a Mac and must later move to cloud hosting.
   review, unless N2's Workspace admin registers it as an Internal app. N2's admin can also block it.
 - Before selling: real logins, billing, and cloud hosting.
 
+### Product structure (for selling)
+- Organization (a publishing company, or one independent publisher) → publisher accounts → users.
+- Users sign in with Google. Owners/admins manage the team and territories on /admin; publishers see
+  only their own account. Self-serve sign-up starts a trial organization.
+- Built to sell to any company that sells local advertising, not only N2. Demos use sample data only;
+  N2 franchise data is never used in the product. Ownership questions are with an attorney.
+
 ### Website reading
 - Only each business's own homepage, only when its robots.txt allows, one request per site,
   with our own user agent. Text is used to sharpen Claude's score (chain vs. local, events).

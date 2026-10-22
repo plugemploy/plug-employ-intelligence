@@ -14,7 +14,7 @@ from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from app.db import engine
-from app.models import STATUSES, Account, FollowUp, Lead, LeadNote
+from app.models import STATUSES, Account, FollowUp, Lead, LeadNote, Organization
 from app.places import INDUSTRIES as ALL_INDUSTRIES
 
 ZIPS = ["37934", "37922", "37932", "37923", "37919", "37909"]
@@ -28,8 +28,13 @@ def run():
     random.seed(42)
     with Session(engine) as db:
         db.execute(delete(Account).where(Account.name.like("Sample:%")))
+        org = db.query(Organization).filter_by(name="Demo Publishing Co").first()
+        if org is None:
+            org = Organization(name="Demo Publishing Co", plan="trial")
+            db.add(org)
+            db.flush()
         for acct_name in ["Sample: Farragut Franchise", "Sample: West Knox Franchise"]:
-            acct = Account(name=acct_name, target_zips=",".join(ZIPS), industries=",".join(ALL_INDUSTRIES))
+            acct = Account(org_id=org.id, name=acct_name, target_zips=",".join(ZIPS), industries=",".join(ALL_INDUSTRIES))
             db.add(acct)
             db.flush()
             for i in range(15):

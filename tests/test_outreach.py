@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from tests.conftest import login_as
 from app import digest, gmail, outreach
 from app.db import engine
 from app.main import app
@@ -58,7 +59,7 @@ def test_draft_top_skips_won_emailed_and_repeats(ids, fakes):
 
 def test_single_draft_uses_known_address(ids, fakes):
     c = TestClient(app)
-    c.cookies.set("account_id", str(ids["a"]))
+    login_as(c, ids["a"])
     r = c.post(f"/leads/{ids['emailed']}/draft")
     assert "Saved in your Gmail Drafts" in r.text
     assert fakes["drafts"] == [("owner@old.com", "Hi Emailed Before")]
@@ -78,7 +79,7 @@ def test_digest_content_and_schedule(ids, fakes):
 
 def test_renewal_reminder(ids):
     c = TestClient(app)
-    c.cookies.set("account_id", str(ids["a"]))
+    login_as(c, ids["a"])
     end = date.today() + timedelta(days=90)
     c.post(f"/leads/{ids['first']}/status", data={"status": "Won", "contract_end": end.isoformat()})
     c.post(f"/leads/{ids['first']}/status", data={"status": "Won", "contract_end": end.isoformat()})  # no duplicate

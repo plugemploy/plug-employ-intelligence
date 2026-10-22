@@ -21,19 +21,26 @@
         <a href="/usage" class="hover:underline">Usage</a>
         <a href="/business" class="hover:underline">My business</a>
       </nav>
-      <form method="post" action="/switch-account" class="ml-auto flex items-center gap-2 text-sm">
-        <label for="acct" class="text-slate-500">Account</label>
-        <select id="acct" name="account_id" onchange="this.form.submit()" class="border rounded px-2 py-1">
-          {% for a in accounts %}
-          <option value="{{ a.id }}" {% if account and a.id == account.id %}selected{% endif %}>{{ a.name }}</option>
-          {% endfor %}
-        </select>
-      </form>
+      <div class="ml-auto flex items-center gap-3 text-sm">
+        {% if user and user.is_admin %}
+        <a href="/admin" class="hover:underline font-medium">Team</a>
+        {% if accounts|length > 1 %}
+        <form method="post" action="/switch-account" class="flex items-center gap-2">
+          <label for="acct" class="text-slate-500">Viewing</label>
+          <select id="acct" name="account_id" onchange="this.form.submit()" class="border rounded px-2 py-1">
+            {% for a in accounts %}
+            <option value="{{ a.id }}" {% if account and a.id == account.id %}selected{% endif %}>{{ a.name }}</option>
+            {% endfor %}
+          </select>
+        </form>{% endif %}{% endif %}
+        {% if user %}<span class="text-slate-500 hidden md:inline">{{ user.email }}</span>
+        <form method="post" action="/logout"><button class="text-slate-500 hover:underline">Sign out</button></form>{% endif %}
+      </div>
     </div>
   </header>
   <main class="max-w-6xl mx-auto px-4 py-6">
-    {% if not account %}
-      <p class="text-slate-600">No accounts yet. Load the sample data: <code>.venv/bin/python scripts/seed.py</code></p>
+    {% if not account and not (user and user.is_admin) %}
+      <p class="text-slate-600">Your account isn't set up yet. Ask your company admin to add you.</p>
     {% else %}
       {% block content %}{% endblock %}
     {% endif %}

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from tests.conftest import login_as
 from app import scoring
 from app.db import engine
 from app.main import app
@@ -31,7 +32,7 @@ def ids():
 
 def test_outcomes_saved_and_used(ids):
     c = TestClient(app)
-    c.cookies.set("account_id", str(ids["a"]))
+    login_as(c, ids["a"])
     r = c.post(f"/leads/{ids['spa']}/status", data={"status": "Won", "reason": "Loved the event idea"})
     assert "Why?" in r.text
     c.post(f"/leads/{ids['gym']}/status", data={"status": "Not interested", "reason": "No budget"})
@@ -49,7 +50,7 @@ def test_outcomes_saved_and_used(ids):
 
 def test_moving_back_clears_reason(ids):
     c = TestClient(app)
-    c.cookies.set("account_id", str(ids["a"]))
+    login_as(c, ids["a"])
     c.post(f"/leads/{ids['spa']}/status", data={"status": "Won", "reason": "x"})
     r = c.post(f"/leads/{ids['spa']}/status", data={"status": "Interested"})
     assert "Why?" not in r.text

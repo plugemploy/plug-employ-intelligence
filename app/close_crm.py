@@ -36,8 +36,21 @@ STATUS_MAP = {
 }
 
 
+# The Close key in .env is the owner's own Close account. Until each customer connects their own,
+# only accounts in this organization may use it.
+OWNER_ORG = "Plug Employ"
+
+
 def configured() -> bool:
     return bool(CLOSE_API_KEY)
+
+
+def enabled_for(db: Session, account) -> bool:
+    from app.models import Organization
+    if not (configured() and account and account.org_id):
+        return False
+    org = db.get(Organization, account.org_id)
+    return bool(org and org.name == OWNER_ORG)
 
 
 class CloseClient:

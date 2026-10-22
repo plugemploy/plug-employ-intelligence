@@ -1,11 +1,11 @@
-"""Plug Employ Intelligence: accounts and lead tracker."""
+"""Plug Employ Intelligence: lead finding, scoring and tracking for local ad sellers."""
 
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
@@ -14,10 +14,11 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import close_crm, digest, gmail, nightly, outreach, places, scoring
+from app import auth, close_crm, digest, gmail, nightly, outreach, places, scoring
+from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, GOOGLE_PLACES_API_KEY, MONTHLY_API_BUDGET_USD
-from app.models import OUTCOMES, STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun
+from app.models import OUTCOMES, STATUSES, Account, FollowUp, Lead, LeadNote, NightlyRun, Organization, User
 
 INDUSTRIES = places.INDUSTRIES
 
@@ -31,22 +32,23 @@ async def lifespan(app):
 app = FastAPI(title="Plug Employ Intelligence", lifespan=lifespan)
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
-# Prototype: the account is picked from a dropdown and kept in a cookie.
-# Real logins replace this in a later phase.
-ACCOUNT_COOKIE = "account_id"
 
 
-def current_account(request: Request, db: Session = Depends(get_session)) -> Account | None:
-    raw = request.cookies.get(ACCOUNT_COOKIE, "")
-    account = db.get(Account, int(raw)) if raw.isdigit() else None
-    return account or db.scalars(select(Account).order_by(Account.id)).first()
+@app.exception_handler(auth.LoginRequired)
+def login_required(request: Request, exc: auth.LoginRequired):
+    if request.headers.get("HX-Request"):
+        return HTMLResponse("", headers={"HX-Redirect": "/login"})
+    return RedirectResponse("/login", status_code=303)
 
 
 def render(request, name, db, account, **ctx):
-    accounts = db.scalars(select(Account).order_by(Account.name)).all()
+    user = getattr(request.state, "user", None)
+    accounts = auth.visible_accounts(db, user) if user else []
+    org = db.get(Organization, user.org_id) if user else None
     return templates.TemplateResponse(
         request, name,
-        {"account": account, "accounts": accounts, "statuses": STATUSES, "today": date.today(), **ctx},
+        {"account": account, "accounts": accounts, "user": user, "org": org, "statuses": STATUSES,
+         "today": date.today(), **ctx},
     )
 
 
@@ -63,8 +65,59 @@ def home():
     return RedirectResponse("/leads")
 
 
+# ---- Sign in / sign up ---------------------------------------------------------------------
+
+def page(request, name, **ctx):
+    return templates.TemplateResponse(request, name, {"user": None, "account": None, "accounts": [], **ctx})
+
+
+@app.get("/login")
+def login_page(request: Request, msg: str = ""):
+    return page(request, "login.html", message=msg, ready=gmail.configured())
+
+
+@app.get("/signup")
+def signup_page(request: Request, msg: str = ""):
+    return page(request, "signup.html", message=msg, ready=gmail.configured())
+
+
+@app.get("/auth/google")
+def auth_google(company: str = ""):
+    if not gmail.configured():
+        return RedirectResponse("/login?msg=Google%20sign-in%20isn%27t%20set%20up%20yet.", status_code=303)
+    return RedirectResponse(auth.start_login(company), status_code=303)
+
+
+@app.get("/auth/callback")
+def auth_callback(state: str = "", code: str = "", error: str = "", db: Session = Depends(get_session)):
+    from urllib.parse import quote
+    if error:
+        return RedirectResponse(f"/login?msg={quote('Sign-in cancelled.')}", status_code=303)
+    try:
+        identity, company = auth.google_identity(state, code)
+        user = auth.sign_in(db, identity["email"], identity["name"], company)
+    except Exception as exc:
+        return RedirectResponse(f"/login?msg={quote(str(exc).splitlines()[0])}", status_code=303)
+    resp = RedirectResponse("/admin" if company else "/leads", status_code=303)
+    resp.set_cookie(auth.SESSION_COOKIE, auth.make_session(user.id), httponly=True, samesite="lax",
+                    max_age=auth.SESSION_DAYS * 86400)
+    resp.delete_cookie(ACCOUNT_COOKIE)
+    return resp
+
+
+@app.post("/logout")
+def logout():
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie(auth.SESSION_COOKIE)
+    resp.delete_cookie(ACCOUNT_COOKIE)
+    return resp
+
+
 @app.post("/switch-account")
-def switch_account(account_id: int = Form(...)):
+def switch_account(account_id: int = Form(...), db: Session = Depends(get_session), user: User = Depends(current_user)):
+    target = db.get(Account, account_id)
+    if not user.is_admin or target is None or target.org_id != user.org_id:
+        raise HTTPException(404, "Account not found")
     resp = RedirectResponse("/leads", status_code=303)
     resp.set_cookie(ACCOUNT_COOKIE, str(account_id), httponly=True, samesite="lax")
     return resp
@@ -98,7 +151,7 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
     return render(request, "leads.html", db, account, leads=leads, zips=zips,
                   f_status=status, f_zip=zip_code, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   working=scoring.whats_working(db, account.id) if account else {},
-                  has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.configured(), can_draft=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
+                  has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.enabled_for(db, account), can_draft=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
 
 
 @app.post("/leads/score")
@@ -154,7 +207,7 @@ def create_lead(business_name: str = Form(...), address: str = Form(""), zip_cod
 def lead_detail(lead_id: int, request: Request, db: Session = Depends(get_session),
                 account=Depends(current_account)):
     return render(request, "lead_detail.html", db, account, lead=get_lead(db, account, lead_id),
-                  can_draft=bool(account and gmail.can_compose(account)), has_close=close_crm.configured())
+                  can_draft=bool(account and gmail.can_compose(account)), has_close=close_crm.enabled_for(db, account))
 
 
 @app.post("/leads/{lead_id}/status")
@@ -233,8 +286,8 @@ def back_to_leads(msg: str):
 
 @app.post("/close/send-top")
 def close_send_top(db: Session = Depends(get_session), account=Depends(current_account)):
-    if account is None or not close_crm.configured():
-        return back_to_leads("Close isn't connected: add CLOSE_API_KEY to .env.")
+    if not close_crm.enabled_for(db, account):
+        return back_to_leads("Close isn't connected for this account.")
     try:
         s = close_crm.send_leads(db, close_crm.top_unsent(db, account.id))
     except Exception as exc:
@@ -245,8 +298,8 @@ def close_send_top(db: Session = Depends(get_session), account=Depends(current_a
 
 @app.post("/close/sync")
 def close_sync(db: Session = Depends(get_session), account=Depends(current_account)):
-    if account is None or not close_crm.configured():
-        return back_to_leads("Close isn't connected: add CLOSE_API_KEY to .env.")
+    if not close_crm.enabled_for(db, account):
+        return back_to_leads("Close isn't connected for this account.")
     try:
         s = close_crm.sync_back(db, account.id)
     except Exception as exc:
@@ -259,6 +312,8 @@ def close_send_one(lead_id: int, db: Session = Depends(get_session), account=Dep
     from fastapi.responses import HTMLResponse
     from html import escape
     lead = get_lead(db, account, lead_id)
+    if not close_crm.enabled_for(db, account):
+        return HTMLResponse('<span class="text-sm text-red-700">Close isn\'t connected for this account.</span>')
     try:
         s = close_crm.send_leads(db, [lead])
     except Exception as exc:
@@ -362,7 +417,7 @@ def nightly_page(request: Request, db: Session = Depends(get_session), account=D
         runs = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
                           .order_by(NightlyRun.started_at.desc()).limit(10)).all()
         ctx = dict(st=st, runs=runs, upcoming=nightly.next_pairs(db, st),
-                   cost_each=places.COST_PER_REQUEST_USD, has_close=close_crm.configured(), saved=request.query_params.get("saved"))
+                   cost_each=places.COST_PER_REQUEST_USD, has_close=close_crm.enabled_for(db, account), saved=request.query_params.get("saved"))
     return render(request, "nightly.html", db, account, **ctx)
 
 
@@ -424,10 +479,11 @@ def gmail_connect(account=Depends(current_account)):
 
 
 @app.get("/gmail/callback")
-def gmail_callback(state: str = "", code: str = "", error: str = "", db: Session = Depends(get_session)):
+def gmail_callback(state: str = "", code: str = "", error: str = "", db: Session = Depends(get_session),
+                   user: User = Depends(current_user)):
     if error:
-        return back_to_business(f"Gmail wasn't connected ({error}). If it says access blocked, N2's Google admin "
-                                "needs to allow this app.")
+        return back_to_business(f"Gmail wasn't connected ({error}). If it says access blocked, your company's Google "
+                                "Workspace admin needs to allow this app.")
     try:
         account = gmail.finish_connect(db, state, code)
     except Exception as exc:
@@ -472,6 +528,74 @@ def gmail_disconnect(db: Session = Depends(get_session), account=Depends(current
     return back_to_business("Gmail disconnected. Its stored access was deleted from this app.")
 
 
+# ---- Company admin -------------------------------------------------------------------------
+
+def back_to_admin(msg: str):
+    from urllib.parse import quote
+    return RedirectResponse(f"/admin?msg={quote(msg)}", status_code=303)
+
+
+@app.get("/admin")
+def admin_page(request: Request, msg: str = "", db: Session = Depends(get_session), user: User = Depends(require_admin)):
+    from sqlalchemy import case
+    from app.models import ApiUsage
+    accounts = auth.visible_accounts(db, user)
+    ids = [a.id for a in accounts] or [0]
+    lead_stats = {r[0]: r[1:] for r in db.execute(
+        select(Lead.account_id, func.count(), func.sum(case((Lead.score >= 8, 1), else_=0)),
+               func.sum(case((Lead.last_emailed_at.is_not(None), 1), else_=0)),
+               func.sum(case((Lead.status == "Won", 1), else_=0)))
+        .where(Lead.account_id.in_(ids)).group_by(Lead.account_id))}
+    spend = dict(db.execute(select(ApiUsage.account_id, func.sum(ApiUsage.est_cost_usd))
+                            .where(ApiUsage.account_id.in_(ids), ApiUsage.created_at >= places.month_start())
+                            .group_by(ApiUsage.account_id)).all())
+    users = db.scalars(select(User).where(User.org_id == user.org_id).order_by(User.email)).all()
+    rows = []
+    for a in accounts:
+        total, hot, emailed, won = lead_stats.get(a.id, (0, 0, 0, 0))
+        rows.append(dict(account=a, users=[u for u in users if u.account_id == a.id], leads=total or 0,
+                         hot=hot or 0, emailed=emailed or 0, won=won or 0, spend=float(spend.get(a.id, 0) or 0)))
+    return render(request, "admin.html", db, None, rows=rows, users=users, message=msg,
+                  totals=dict(leads=sum(r["leads"] for r in rows), hot=sum(r["hot"] for r in rows),
+                              won=sum(r["won"] for r in rows), spend=sum(r["spend"] for r in rows)))
+
+
+@app.post("/admin/publishers")
+def admin_add_publisher(name: str = Form(...), email: str = Form(...), zips: str = Form(""),
+                        db: Session = Depends(get_session), user: User = Depends(require_admin)):
+    email = email.strip().lower()
+    if "@" not in email:
+        return back_to_admin("Please enter a valid email.")
+    if db.scalars(select(User).where(User.email == email)).first():
+        return back_to_admin(f"{email} already has an account.")
+    zip_list = ",".join(z for z in clean_list(zips) if z.isdigit() and len(z) == 5)
+    account = auth.new_account(db, user.org_id, name.strip() or email, zip_list)
+    db.add(User(org_id=user.org_id, account_id=account.id, email=email, name=name.strip(), role="publisher"))
+    db.commit()
+    return back_to_admin(f"Added {email}. They can sign in with Google using that email.")
+
+
+@app.post("/admin/accounts/{account_id}/zips")
+def admin_set_zips(account_id: int, zips: str = Form(""), db: Session = Depends(get_session),
+                   user: User = Depends(require_admin)):
+    account = db.get(Account, account_id)
+    if account is None or account.org_id != user.org_id:
+        raise HTTPException(404, "Account not found")
+    account.target_zips = ",".join(z for z in clean_list(zips) if z.isdigit() and len(z) == 5)
+    db.commit()
+    return back_to_admin(f"Updated ZIP codes for {account.name}.")
+
+
+@app.post("/admin/users/{user_id}/remove")
+def admin_remove_user(user_id: int, db: Session = Depends(get_session), user: User = Depends(require_admin)):
+    target = db.get(User, user_id)
+    if target is None or target.org_id != user.org_id or target.id == user.id or target.role == "owner":
+        return back_to_admin("That person can't be removed.")
+    db.delete(target)
+    db.commit()
+    return back_to_admin(f"Removed {target.email}'s access. Their leads are kept.")
+
+
 @app.get("/usage")
 def usage_page(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
     from sqlalchemy import func as f
@@ -497,12 +621,12 @@ def usage_page(request: Request, db: Session = Depends(get_session), account=Dep
 
 
 @app.get("/status")
-def status_page(request: Request):
+def status_page(request: Request, user: User = Depends(current_user)):
     return templates.TemplateResponse(request, "index.html", {"db": check_database()})
 
 
 @app.get("/db-status")
-def db_status(request: Request):
+def db_status(request: Request, user: User = Depends(current_user)):
     """Just the database box, so the "Check again" button can refresh it (HTMX)."""
     return templates.TemplateResponse(request, "_db_status.html", {"db": check_database()})
 

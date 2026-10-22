@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from tests.conftest import login_as
 from app.db import engine
 from app.main import app
 from app.models import Account, FollowUp, Lead
@@ -29,7 +30,7 @@ def two_accounts():
 
 def client_for(account_id):
     c = TestClient(app)
-    c.cookies.set("account_id", str(account_id))
+    login_as(c, account_id)
     return c
 
 

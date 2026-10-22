@@ -13,9 +13,22 @@ class Base(DeclarativeBase):
     pass
 
 
+class Organization(Base):
+    """A customer company (a publishing company, or one independent publisher). Owns accounts and users."""
+
+    __tablename__ = "organizations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    plan: Mapped[str] = mapped_column(String(30), default="trial", server_default="trial")  # trial, active, cancelled
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Account(Base):
+    """One publisher's workspace: their leads, territory, connections. Belongs to an organization."""
+
     __tablename__ = "accounts"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int | None] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(200))
     # Per-customer monthly API limit (subscription plans will set this).
     monthly_budget_usd: Mapped[float] = mapped_column(Numeric(10, 2), default=50, server_default="50")
@@ -153,3 +166,24 @@ class NightlyRun(Base):
     high_scores: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str] = mapped_column(Text, default="")
 
+
+
+ROLES = ("owner", "admin", "publisher")
+
+
+class User(Base):
+    """A person who signs in with Google. Owners/admins manage their organization; publishers use one account."""
+
+    __tablename__ = "users"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    org_id: Mapped[int] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"), index=True)
+    account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id", ondelete="SET NULL"), index=True)
+    email: Mapped[str] = mapped_column(String(300), unique=True)
+    name: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    role: Mapped[str] = mapped_column(String(20), default="publisher", server_default="publisher")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role in ("owner", "admin")

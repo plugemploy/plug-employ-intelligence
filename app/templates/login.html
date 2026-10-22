@@ -1,0 +1,11 @@
+{% extends "public.html" %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Sign in</h1>
+<p class="text-sm text-slate-600 mb-6">Find, score and follow up with local advertisers, automatically.</p>
+{% if message %}<p class="mb-4 rounded bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">{{ message }}</p>{% endif %}
+{% if ready %}
+<a href="/auth/google" class="flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 font-medium hover:bg-slate-50">
+  <span class="text-lg">G</span> Sign in with Google</a>
+{% else %}<p class="text-sm text-red-700">Google sign-in isn't set up on this server yet.</p>{% endif %}
+<p class="mt-6 text-sm text-slate-600">New here? <a href="/signup" class="text-blue-700 hover:underline">Start a free trial</a></p>
+{% endblock %}
