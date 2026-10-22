@@ -61,6 +61,11 @@ The prototype runs locally on a Mac and must later move to cloud hosting.
 - Built to sell to any company that sells local advertising, not only N2. Demos use sample data only;
   N2 franchise data is never used in the product. Ownership questions are with an attorney.
 
+### Plans and pricing
+- Personal: $99/month, includes ~$15 of API usage (~350 searches plus scoring and drafts).
+- Wholesale: $60/month per publisher (sold to a company), includes ~$10 (~230 searches).
+- Usage shows as "searches left"; the nightly search paces itself; searches pause at the allowance.
+
 ### Website reading
 - Only each business's own homepage, only when its robots.txt allows, one request per site,
   with our own user agent. Text is used to sharpen Claude's score (chain vs. local, events).

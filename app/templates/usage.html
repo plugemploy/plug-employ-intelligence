@@ -4,9 +4,10 @@
 {% set names = {"google_places_text_search": "Google searches", "claude_scoring": "Claude scoring"} %}
 {% set pct = (spent / limit * 100) if limit else 100 %}
 <h1 class="text-2xl font-bold mb-4">Usage · {{ month }}</h1>
+{% include "_allowance.html" %}
 <section class="bg-white rounded-xl shadow p-6 mb-6 max-w-2xl">
   <p class="text-sm text-slate-600">This account's spending (estimated, at full list price)</p>
-  <p class="text-3xl font-bold">${{ "%.2f"|format(spent) }} <span class="text-base font-normal text-slate-500">of ${{ "%.0f"|format(limit) }} monthly limit</span></p>
+  <p class="text-3xl font-bold">${{ "%.2f"|format(spent) }} <span class="text-base font-normal text-slate-500">of ${{ "%.0f"|format(limit) }} included this month</span></p>
   <div class="mt-3 h-3 rounded bg-slate-100 overflow-hidden">
     <div class="h-3 {{ 'bg-red-500' if pct >= 90 else 'bg-amber-500' if pct >= 70 else 'bg-green-600' }}" style="width: {{ [pct, 100]|min }}%"></div>
   </div>

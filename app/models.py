@@ -20,6 +20,7 @@ class Organization(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
     plan: Mapped[str] = mapped_column(String(30), default="trial", server_default="trial")  # trial, active, cancelled
+    plan_tier: Mapped[str] = mapped_column(String(30), default="personal", server_default="personal")  # see app/plans.py
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

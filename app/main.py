@@ -14,7 +14,7 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import auth, catalog, close_crm, digest, gmail, nightly, outreach, places, scoring
+from app import auth, catalog, close_crm, plans, digest, gmail, nightly, outreach, places, scoring
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
@@ -154,6 +154,7 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
     return render(request, "leads.html", db, account, leads=leads, zips=zips,
                   f_status=status, f_zip=zip_code, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   working=scoring.whats_working(db, account.id) if account else {},
+                  allow=plans.usage(db, account) if account else None,
                   has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.enabled_for(db, account), can_draft=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
 
 
@@ -373,7 +374,7 @@ def follow_up_done(fu_id: int, request: Request, db: Session = Depends(get_sessi
 
 
 def search_ctx(db, account):
-    return dict(zips=account.zip_list if account else [], industries=account.industry_list if account else [], spent=places.spent_this_month(db),
+    return dict(allow=plans.usage(db, account) if account else None,zips=account.zip_list if account else [], industries=account.industry_list if account else [], spent=places.spent_this_month(db),
                 budget=MONTHLY_API_BUDGET_USD, cost_each=places.COST_PER_REQUEST_USD,
                 min_reviews=places.MIN_REVIEWS, has_key=bool(GOOGLE_PLACES_API_KEY))
 
@@ -395,8 +396,12 @@ def run_search(request: Request, zips: list[str] = Form(default=[]), industries:
         error = "Pick at least one ZIP and one industry."
     else:
         try:
+            recent = places.recently_searched(db, account.id)
             for z in zips:
                 for ind in industries:
+                    if f"{ind} in {z}" in recent:
+                        results.append({"zip": z, "industry": ind, "recent": True})
+                        continue
                     results.append(places.search_and_save(db, account.id, z, ind))
             if account.gmail_token_enc:
                 gmail.check_account(db, account.id)
@@ -672,7 +677,8 @@ def usage_page(request: Request, db: Session = Depends(get_session), account=Dep
             .where(ApiUsage.account_id == account.id, ApiUsage.created_at >= start)
             .group_by(day).order_by(day.desc())).all()
         ctx = dict(by_service=by_service, by_day=by_day,
-                   spent=places.spent_this_month(db, account.id), limit=float(account.monthly_budget_usd),
+                   spent=places.spent_this_month(db, account.id), limit=plans.monthly_limit(db, account),
+                   allow=plans.usage(db, account),
                    overall=places.spent_this_month(db), overall_cap=MONTHLY_API_BUDGET_USD,
                    month=start.strftime("%B %Y"))
     return render(request, "usage.html", db, account, **ctx)

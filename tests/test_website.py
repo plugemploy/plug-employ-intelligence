@@ -55,7 +55,7 @@ def test_check_marks_leads_and_rescore(account_id, monkeypatch):
 
 def test_account_limit_stops_before_overall_cap(account_id):
     with Session(engine) as db:
-        db.add(ApiUsage(account_id=account_id, service="claude_scoring", detail="x", est_cost_usd=0.99))
+        db.add(ApiUsage(account_id=account_id, service="claude_scoring", detail="x", est_cost_usd=14.99))
         db.commit()
-        with pytest.raises(places.BudgetExceeded, match="account"):
+        with pytest.raises(places.BudgetExceeded, match="allowance"):
             places.check_budget(db, account_id, 0.035)

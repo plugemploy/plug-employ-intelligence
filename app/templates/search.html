@@ -6,6 +6,7 @@
   {{ min_reviews }} reviews, ones outside the ZIP, and ones already in your list.</p>
 <p class="text-sm mb-4">API spending this month (estimated, at full price): <b>${{ "%.2f"|format(spent) }}</b> of ${{ budget|int }}
   · about ${{ cost_each }} per ZIP × industry search.</p>
+{% include "_allowance.html" %}
 {% if not has_key %}<p class="mb-4 rounded bg-red-50 border border-red-300 p-3 text-red-800 text-sm">No Google key in .env yet.</p>{% endif %}
 {% if error %}<p class="mb-4 rounded bg-red-50 border border-red-300 p-3 text-red-800 text-sm">{{ error }}</p>{% endif %}
 {% if results %}
@@ -14,10 +15,12 @@
     <thead class="bg-slate-100 text-left text-slate-600"><tr>
       <th class="p-3">Search</th><th class="p-3">Found</th><th class="p-3">Added</th><th class="p-3">Skipped</th></tr></thead>
     <tbody>{% for r in results %}<tr class="border-t">
-      <td class="p-3">{{ r.industry }} in {{ r.zip }}</td><td class="p-3">{{ r.found }}</td>
+      <td class="p-3">{{ r.industry }} in {{ r.zip }}</td>
+      {% if r.recent %}<td class="p-3 text-slate-500" colspan="3">Already searched in the last 30 days, skipped (no charge)</td>
+      {% else %}<td class="p-3">{{ r.found }}</td>
       <td class="p-3 font-semibold text-green-700">{{ r.added }}</td>
       <td class="p-3 text-slate-500">{{ r.skipped_closed }} closed · {{ r.skipped_few_reviews }} few reviews ·
-        {{ r.skipped_other_zip }} other ZIP · {{ r.skipped_duplicate }} already had</td></tr>{% endfor %}</tbody>
+        {{ r.skipped_other_zip }} other ZIP · {{ r.skipped_duplicate }} already had</td>{% endif %}</tr>{% endfor %}</tbody>
   </table>
   <p class="p-3 text-sm"><a href="/leads?status=New" class="text-blue-700 hover:underline">See new leads →</a></p>
 </div>

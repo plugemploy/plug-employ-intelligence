@@ -55,10 +55,23 @@ def check_budget(db: Session, account_id: int, next_cost: float) -> None:
     """Stop before going over the account's own monthly limit or the overall prototype cap."""
     if spent_this_month(db) + next_cost > MONTHLY_API_BUDGET_USD:
         raise BudgetExceeded(f"Overall monthly API budget of ${MONTHLY_API_BUDGET_USD:.0f} reached.")
+    from app.plans import monthly_limit
     account = db.get(Account, account_id)
-    limit = float(account.monthly_budget_usd) if account else 0
+    limit = monthly_limit(db, account) if account else 0
     if spent_this_month(db, account_id) + next_cost > limit:
-        raise BudgetExceeded(f"This account's monthly limit of ${limit:.0f} reached.")
+        raise BudgetExceeded("This month's search allowance is used up. Searches resume on the 1st.")
+
+
+RESEARCH_AFTER_DAYS = 30  # a ZIP + industry search isn't repeated within this many days
+
+
+def recently_searched(db: Session, account_id: int) -> set[str]:
+    """Searches ("Dentist in 37934") this account ran in the last 30 days."""
+    from datetime import timedelta
+    since = datetime.now(timezone.utc) - timedelta(days=RESEARCH_AFTER_DAYS)
+    return set(db.scalars(select(ApiUsage.detail).where(
+        ApiUsage.account_id == account_id, ApiUsage.service == "google_places_text_search",
+        ApiUsage.created_at >= since)))
 
 
 def fetch_page(query: str, page_token: str | None = None) -> dict:

@@ -36,4 +36,5 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Close CRM built (2026-10-21): app/close_crm.py sends leads as Potential (dedupe by domain/name), syncs VA statuses back nightly (STATUS_MAP), optional nightly auto-send of 9+. CLOSE_API_KEY is one org for now; per-account later.
 - Multi-company + Google sign-in built (2026-10-21): organizations > accounts > users (owner/admin/publisher), app/auth.py (encrypted session cookie), /signup, /admin team page. First sign-in on an empty users table claims the "Plug Employ" org. Close limited to that org (close_crm.OWNER_ORG).
 - Setup wizard + industry picker built (2026-10-21): /setup (description, ZIPs, ~145 grouped business types in app/catalog.py with search, select all, custom; Claude suggests from description), /setup/first starter search (10 searches). New accounts redirect to /setup until done.
-- Next: Stripe billing, cloud hosting + domain, per-customer Close, territory lock, Google verification.
+- Plans built (2026-10-21): app/plans.py Personal $99 ($15 allowance), Wholesale $60/publisher ($10), Owner (only .env cap). organizations.plan_tier. Searches-left meter, nightly pacing (nightly_quota), Find leads skips searches done in last 30 days.
+- Next: Stripe billing (incl. "add 100 searches"), cloud hosting + domain, per-customer Close, territory lock, Google verification.

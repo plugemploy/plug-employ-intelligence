@@ -12,14 +12,13 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import close_crm, digest, gmail, places, scoring, website
+from app import close_crm, digest, gmail, places, plans, scoring, website
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
 from app.models import Account, ApiUsage, Lead, NightlyRun, NightlySettings
 
 log = logging.getLogger("nightly")
 _lock = threading.Lock()
-RESEARCH_AFTER_DAYS = 30  # don't repeat a ZIP + industry search within this many days
 
 
 def get_settings(db: Session, account_id: int) -> NightlySettings:
@@ -33,10 +32,7 @@ def get_settings(db: Session, account_id: int) -> NightlySettings:
 
 def next_pairs(db: Session, s: NightlySettings) -> list[tuple[str, str]]:
     """The next ZIP + industry searches, skipping ones done in the last 30 days."""
-    since = datetime.now().astimezone() - timedelta(days=RESEARCH_AFTER_DAYS)
-    done = set(db.scalars(select(ApiUsage.detail).where(
-        ApiUsage.account_id == s.account_id, ApiUsage.service == "google_places_text_search",
-        ApiUsage.created_at >= since)))
+    done = places.recently_searched(db, s.account_id)
     account = db.get(Account, s.account_id)
     zips, inds = account.zip_list, account.industry_list  # from the "My business" page
     pairs = [(z, i) for z in zips for i in inds if f"{i} in {z}" not in done]
@@ -51,7 +47,12 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
         db.add(run)
         db.commit()
         try:
-            for z, ind in next_pairs(db, s)[:max_searches]:
+            account = db.get(Account, account_id)
+            if max_searches is None:  # nightly: spread the plan's allowance over the month
+                limit = plans.nightly_quota(db, account, s.searches_per_night)
+            else:  # starter search: as many as asked, within what's left
+                limit = min(max_searches, plans.usage(db, account)["searches_left"])
+            for z, ind in next_pairs(db, s)[:limit]:
                 stats = places.search_and_save(db, account_id, z, ind)
                 run.searches += 1
                 run.added += stats["added"]
