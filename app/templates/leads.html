@@ -3,6 +3,7 @@
 <div class="flex flex-wrap items-end justify-between gap-4 mb-4">
   <h1 class="text-2xl font-bold">Leads <span class="text-slate-400 text-lg">({{ leads|length }})</span></h1>
   <form method="get" class="flex flex-wrap gap-2 text-sm">
+    <input type="search" name="q" value="{{ f_q }}" placeholder="Search name, owner, address, notes…" class="border rounded px-2 py-1 w-56">
     <select name="status" class="border rounded px-2 py-1">
       <option value="">All statuses</option>
       {% for s in statuses %}<option {% if s == f_status %}selected{% endif %}>{{ s }}</option>{% endfor %}

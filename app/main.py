@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -128,14 +128,14 @@ def switch_account(account_id: int = Form(...), db: Session = Depends(get_sessio
 
 
 @app.get("/leads")
-def leads_list(request: Request, status: str = "", zip_code: str = "", industry: str = "", sort: str = "follow_up", new: str = "",
+def leads_list(request: Request, text: str = Query("", alias="q"), status: str = "", zip_code: str = "", industry: str = "", sort: str = "follow_up", new: str = "",
                hide_contacted: str = "",
                db: Session = Depends(get_session), account=Depends(current_account)):
     if account and account.setup_done_at is None:
         return RedirectResponse("/setup", status_code=303)
     # Remember the filters so coming back from a lead shows the same list.
     from urllib.parse import urlencode
-    filter_keys = ("status", "zip_code", "industry", "sort", "new", "hide_contacted")
+    filter_keys = ("q", "status", "zip_code", "industry", "sort", "new", "hide_contacted")
     chosen = {k: v for k, v in request.query_params.items() if k in filter_keys and v}
     saved = request.cookies.get(LEADS_FILTER_COOKIE, "")
     if "clear" in request.query_params:
@@ -156,6 +156,13 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", industry:
             q = q.where(Lead.zip_code == zip_code)
         if industry:
             q = q.where(Lead.industry == industry)
+        if text.strip():
+            from sqlalchemy import or_
+            like = f"%{text.strip()}%"
+            noted = select(LeadNote.lead_id).where(LeadNote.account_id == account.id, LeadNote.text.ilike(like))
+            q = q.where(or_(Lead.business_name.ilike(like), Lead.contact_name.ilike(like), Lead.address.ilike(like),
+                            Lead.industry.ilike(like), Lead.phone.ilike(like), Lead.website.ilike(like),
+                            Lead.id.in_(noted)))
         if hide_contacted:
             q = q.where(Lead.last_emailed_at.is_(None))
         if new and last_run:
@@ -172,7 +179,7 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", industry:
     zips = sorted({z for z in db.scalars(select(Lead.zip_code).where(Lead.account_id == (account.id if account else 0)))})
     unscored = sum(1 for l in leads if l.score is None)
     resp = render(request, "leads.html", db, account, leads=leads, zips=zips, industries=industries, has_filters=bool(chosen),
-                  f_status=status, f_zip=zip_code, f_industry=industry, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
+                  f_q=text, f_status=status, f_zip=zip_code, f_industry=industry, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   working=scoring.whats_working(db, account.id) if account else {},
                   allow=plans.usage(db, account) if account else None,
                   has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.enabled_for(db, account), can_draft=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))

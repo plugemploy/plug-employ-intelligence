@@ -89,3 +89,15 @@ def test_filters_remembered_after_opening_a_lead(two_accounts):
     assert r.status_code == 303 and "zip_code=37934" in r.headers["location"] and "sort=score" in r.headers["location"]
     c.get("/leads?clear=1")
     assert c.get("/leads", follow_redirects=False).status_code == 200
+
+
+def test_search_bar(two_accounts):
+    with Session(engine) as db:
+        db.add(Lead(account_id=two_accounts["a"], business_name="Glow Spa", contact_name="Sarah Lee", address="1 Kingston Pike"))
+        db.commit()
+    c = TestClient(app)
+    login_as(c, two_accounts["a"])
+    for term in ("glow", "sarah lee", "kingston"):
+        html = c.get(f"/leads?q={term}").text
+        assert "Glow Spa" in html and "Alpha Test Lead" not in html
+    assert "Bravo Test Lead" not in c.get("/leads?q=bravo").text  # other account never searchable
