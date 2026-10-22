@@ -75,7 +75,7 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
             log.exception("Nightly run failed")
             run.error = str(exc).splitlines()[0][:500]
         run.high_scores = db.scalar(select(func.count()).select_from(Lead).where(
-            Lead.account_id == account_id, Lead.created_at >= run.started_at, Lead.score >= 8)) or 0
+            Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.created_at >= run.started_at, Lead.score >= 8)) or 0
         run.finished_at = func.now()
         db.commit()
         db.refresh(run)

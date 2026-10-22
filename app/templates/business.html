@@ -23,7 +23,8 @@
   {% if account.gmail_address %}
     <p class="text-sm mb-3">Connected: <b>{{ account.gmail_address }}</b>
       {% if account.gmail_checked_at %}· last checked {{ account.gmail_checked_at.astimezone().strftime("%b %-d, %-I:%M %p") }}{% endif %}
-      · {{ n_emailed }} leads emailed</p>
+      · {{ n_emailed }} leads emailed
+      {% if account.gmail_consent_at %}· agreed to Gmail terms {{ account.gmail_consent_at.astimezone().strftime("%b %-d, %Y") }}{% endif %}</p>
     <div class="flex gap-2">
       <form method="post" action="/gmail/check" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Checking…'">
         <button class="rounded bg-purple-700 text-white px-3 py-1 text-sm">Check Gmail now</button></form>
@@ -42,7 +43,15 @@
       click <b>Disconnect</b>, then <b>Connect Gmail</b> again and allow the new permission.</p>
     {% endif %}
   {% elif gmail_ready %}
-    <a href="/gmail/connect" class="inline-block rounded bg-purple-700 text-white px-3 py-1 text-sm">Connect Gmail</a>
+    <form method="get" action="/gmail/connect" class="grid gap-3 text-sm">
+      <label class="flex items-start gap-2 rounded border border-slate-200 bg-slate-50 p-3">
+        <input type="checkbox" name="agree" value="1" required class="mt-1">
+        <span><b>We never sell your data.</b> I agree to let Plug Employ Intelligence see who I've emailed and when
+          (never the message text) and save email drafts for me to review. My Gmail data is never sold or shared,
+          and no email is ever sent to my leads. I can disconnect at any time.</span>
+      </label>
+      <button class="justify-self-start rounded bg-purple-700 text-white px-3 py-1">Connect Gmail</button>
+    </form>
   {% else %}
     <p class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded p-3">Not set up yet: the Google sign-in values need to be added to .env.</p>
   {% endif %}

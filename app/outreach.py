@@ -85,7 +85,7 @@ def draft_top(db: Session, account: Account) -> dict:
     """Drafts for the best-scored open leads that don't have a draft yet."""
     stats = {"drafted": 0, "failed": 0}
     leads = db.scalars(select(Lead).where(
-        Lead.account_id == account.id, Lead.status.not_in(OUTCOMES), Lead.draft_created_at.is_(None),
+        Lead.account_id == account.id, Lead.deleted_at.is_(None), Lead.status.not_in(OUTCOMES), Lead.draft_created_at.is_(None),
         Lead.last_emailed_at.is_(None), Lead.score.is_not(None)).order_by(Lead.score.desc(), Lead.review_count.desc().nulls_last())
         .limit(TOP_N)).all()
     service = gmail.gmail_service(db, account) if leads else None

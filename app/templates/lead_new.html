@@ -2,13 +2,31 @@
 {% block title %}Add lead{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-bold mb-4">Add a lead</h1>
+{% if dupe %}
+<div class="mb-4 max-w-lg rounded bg-amber-50 border border-amber-300 p-4 text-sm text-amber-900">
+  <p class="font-semibold">You already have this lead{% if dupe.deleted_at %} (it's in Deleted leads){% endif %}:</p>
+  <p class="mt-1"><a href="/leads/{{ dupe.id }}" class="text-blue-700 hover:underline font-medium">{{ dupe.business_name }}</a>
+    <span class="text-slate-600">· {{ dupe.address or dupe.zip_code }}{% if dupe.phone %} · {{ dupe.phone }}{% endif %}</span></p>
+  <div class="mt-3 flex flex-wrap gap-2">
+    {% if dupe.deleted_at %}
+    <form method="post" action="/leads/{{ dupe.id }}/restore"><button class="rounded bg-slate-800 text-white px-3 py-1">Restore it</button></form>
+    {% else %}
+    <a href="/leads/{{ dupe.id }}" class="rounded bg-slate-800 text-white px-3 py-1">Open it</a>
+    {% endif %}
+  </div>
+  <p class="mt-3 text-xs text-slate-600">Not the same business (for example, another location)? Use "Add anyway" below.</p>
+</div>
+{% endif %}
 <form method="post" class="bg-white rounded-xl shadow p-6 grid gap-4 max-w-lg">
   {% for name, label in [("business_name","Business name *"),("industry","Industry"),("address","Address"),
                          ("zip_code","ZIP"),("phone","Phone"),("website","Website")] %}
   <label class="grid gap-1 text-sm">{{ label }}
-    <input name="{{ name }}" class="border rounded px-3 py-2" {% if name == "business_name" %}required{% endif %}>
+    <input name="{{ name }}" value="{{ form.get(name, '') }}" class="border rounded px-3 py-2" {% if name == "business_name" %}required{% endif %}>
   </label>
   {% endfor %}
-  <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save lead</button>
+  <div class="flex gap-2">
+    <button class="rounded bg-slate-800 text-white px-4 py-2">Save lead</button>
+    {% if dupe %}<button name="add_anyway" value="1" class="rounded border px-4 py-2 hover:bg-slate-50">Add anyway</button>{% endif %}
+  </div>
 </form>
 {% endblock %}

@@ -127,7 +127,7 @@ def fetch_site(url: str) -> tuple[str, str, str]:
 def check_unchecked(db: Session, account_id: int, limit: int = 100) -> dict:
     """Read the homepage of leads not checked yet. Clears their score so Claude re-scores with it."""
     stats = {"ok": 0, "no_site": 0, "blocked": 0, "error": 0}
-    leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.website_checked_at.is_(None))
+    leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.website_checked_at.is_(None))
                        .order_by(Lead.score.desc().nulls_first(), Lead.id).limit(limit)).all()
     for lead in leads:
         try:

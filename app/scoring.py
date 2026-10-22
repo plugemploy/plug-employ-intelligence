@@ -49,7 +49,7 @@ def past_results(db: Session, account_id: int) -> str:
     """This account's recent wins and losses, so scores lean toward what has actually worked."""
     parts = []
     for status, label in (("Won", "Became customers"), ("Not interested", "Said no")):
-        leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.status == status)
+        leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.status == status)
                            .order_by(Lead.outcome_at.desc().nulls_last(), Lead.id.desc())
                            .limit(EXAMPLES_EACH)).all()
         if leads:
@@ -109,7 +109,7 @@ def score_unscored(db: Session, account_id: int, limit: int = 100) -> dict:
     """Score this account's leads that don't have a score yet."""
     stats = {"scored": 0, "failed": 0, "cost": 0.0}
     system = build_system(db.get(Account, account_id), past_results(db, account_id))
-    leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.score.is_(None))
+    leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.score.is_(None))
                        .order_by(Lead.id).limit(limit)).all()
     for lead in leads:
         check_budget(db, account_id, EST_COST_PER_LEAD)
@@ -139,7 +139,7 @@ def whats_working(db: Session, account_id: int) -> dict:
         rows = db.execute(
             select(col, func.sum(case((Lead.status == "Won", 1), else_=0)),
                    func.sum(case((Lead.status == "Not interested", 1), else_=0)))
-            .where(Lead.account_id == account_id, Lead.status.in_(["Won", "Not interested"]))
+            .where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.status.in_(["Won", "Not interested"]))
             .group_by(col)).all()
         out[key] = sorted(({"name": n or "unknown", "won": int(w), "lost": int(l), "rate": round(100 * w / (w + l))}
                            for n, w, l in rows), key=lambda r: (-r["rate"], -r["won"]))

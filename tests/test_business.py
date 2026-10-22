@@ -93,3 +93,19 @@ def test_token_is_encrypted(monkeypatch):
     monkeypatch.setattr(gmail, "APP_SECRET_KEY", Fernet.generate_key().decode())
     secret = gmail._fernet().encrypt(b'{"refresh_token": "abc"}').decode()
     assert "abc" not in secret and gmail._fernet().decrypt(secret.encode()) == b'{"refresh_token": "abc"}'
+
+
+def test_gmail_connect_needs_agreement(ids, monkeypatch):
+    monkeypatch.setattr(gmail, "configured", lambda: True)
+    monkeypatch.setattr(gmail, "start_connect", lambda account_id: "https://accounts.google.com/fake")
+    c = TestClient(app, follow_redirects=False)
+    login_as(c, ids["b"])
+    assert "Connect Gmail" in c.get("/business").text and "We never sell your data" in c.get("/business").text
+    r = c.get("/gmail/connect")
+    assert r.headers["location"].startswith("/business?msg=Tick")
+    with Session(engine) as db:
+        assert db.get(Account, ids["b"]).gmail_consent_at is None
+    r = c.get("/gmail/connect?agree=1")
+    assert r.headers["location"] == "https://accounts.google.com/fake"
+    with Session(engine) as db:
+        assert db.get(Account, ids["b"]).gmail_consent_at is not None

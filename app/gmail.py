@@ -141,7 +141,7 @@ def check_account(db: Session, account_id: int) -> dict:
     service = gmail_service(db, account)
     seen: dict[str, datetime | None] = {}
     now = datetime.now(timezone.utc)
-    leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.website != "")).all()
+    leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.website != "")).all()
     for lead in leads:
         domain = site_domain(lead.website)
         if not domain or domain in FREE_MAIL:

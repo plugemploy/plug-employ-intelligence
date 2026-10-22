@@ -148,7 +148,7 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
     if account:
         last_run = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
                               .order_by(NightlyRun.started_at.desc())).first()
-        q = (select(Lead).where(Lead.account_id == account.id)
+        q = (select(Lead).where(Lead.account_id == account.id, Lead.deleted_at.is_(None))
              .options(selectinload(Lead.notes), selectinload(Lead.follow_ups)))
         if status:
             q = q.where(Lead.status == status)
@@ -175,10 +175,12 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
         elif sort == "follow_up":
             leads.sort(key=lambda l: l.next_follow_up.due_date if l.next_follow_up else date.max)
     industries = sorted({i for i in db.scalars(select(Lead.industry).where(
-        Lead.account_id == (account.id if account else 0))) if i}, key=str.lower)
-    zips = sorted({z for z in db.scalars(select(Lead.zip_code).where(Lead.account_id == (account.id if account else 0)))})
+        Lead.account_id == (account.id if account else 0), Lead.deleted_at.is_(None))) if i}, key=str.lower)
+    zips = sorted({z for z in db.scalars(select(Lead.zip_code).where(Lead.account_id == (account.id if account else 0), Lead.deleted_at.is_(None)))})
     unscored = sum(1 for l in leads if l.score is None)
-    resp = render(request, "leads.html", db, account, leads=leads, zips=zips, industries=industries, has_filters=bool(chosen),
+    n_deleted = db.scalar(select(func.count()).select_from(Lead).where(
+        Lead.account_id == account.id, Lead.deleted_at.is_not(None))) if account else 0
+    resp = render(request, "leads.html", db, account, leads=leads, n_deleted=n_deleted, zips=zips, industries=industries, has_filters=bool(chosen),
                   f_q=text, f_status=status, f_zip=zip_code, f_industry=industry, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   working=scoring.whats_working(db, account.id) if account else {},
                   allow=plans.usage(db, account) if account else None,
@@ -214,28 +216,92 @@ def due_today(request: Request, db: Session = Depends(get_session), account=Depe
     items = []
     if account:
         items = db.scalars(
-            select(FollowUp).where(FollowUp.account_id == account.id, FollowUp.done.is_(False),
+            select(FollowUp).join(FollowUp.lead).where(FollowUp.account_id == account.id, FollowUp.done.is_(False),
+                                                       Lead.deleted_at.is_(None),
                                    FollowUp.due_date <= date.today())
             .options(selectinload(FollowUp.lead)).order_by(FollowUp.due_date)
         ).all()
     return render(request, "due.html", db, account, items=items)
 
 
+NAME_FILLER = {"the", "llc", "inc", "co", "company", "corp", "ltd", "and"}
+# Sites many businesses share, so a matching domain doesn't mean the same business.
+SHARED_DOMAINS = {"facebook.com", "instagram.com", "google.com", "business.site", "yelp.com", "linktr.ee",
+                  "sites.google.com", "squareup.com", "square.site", "wixsite.com"}
+
+
+def _name_key(name: str) -> str:
+    import re
+    words = re.sub(r"[^a-z0-9 ]", " ", name.lower().replace("&", " and ")).split()
+    return " ".join(w for w in words if w not in NAME_FILLER)
+
+
+def _phone_key(phone: str) -> str:
+    digits = "".join(c for c in phone if c.isdigit())
+    return digits[-10:] if len(digits) >= 7 else ""
+
+
+def find_duplicate(db: Session, account_id: int, business_name: str, zip_code: str, phone: str, website: str) -> Lead | None:
+    """An existing lead (deleted ones too) that looks like the same business: same phone, same website,
+    or same name in the same ZIP."""
+    name, zip_code, phone = _name_key(business_name), zip_code.strip(), _phone_key(phone)
+    domain = gmail.site_domain(website.strip().lower()) if website.strip() else ""
+    if domain in SHARED_DOMAINS:
+        domain = ""
+    for lead in db.scalars(select(Lead).where(Lead.account_id == account_id).order_by(Lead.deleted_at.nulls_first(), Lead.id)):
+        if phone and _phone_key(lead.phone) == phone:
+            return lead
+        if domain and lead.website and gmail.site_domain(lead.website.lower()) == domain:
+            return lead
+        if name and _name_key(lead.business_name) == name and (not zip_code or not lead.zip_code or lead.zip_code == zip_code):
+            return lead
+    return None
+
+
 @app.get("/leads/new")
 def new_lead_form(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
-    return render(request, "lead_new.html", db, account)
+    return render(request, "lead_new.html", db, account, form={})
 
 
 @app.post("/leads/new")
-def create_lead(business_name: str = Form(...), address: str = Form(""), zip_code: str = Form(""),
-                phone: str = Form(""), website: str = Form(""), industry: str = Form(""),
+def create_lead(request: Request, business_name: str = Form(...), address: str = Form(""), zip_code: str = Form(""),
+                phone: str = Form(""), website: str = Form(""), industry: str = Form(""), add_anyway: str = Form(""),
                 db: Session = Depends(get_session), account=Depends(current_account)):
     if account is None:
         raise HTTPException(400, "Create an account first")
+    if not add_anyway:
+        dupe = find_duplicate(db, account.id, business_name, zip_code, phone, website)
+        if dupe:
+            form = dict(business_name=business_name, address=address, zip_code=zip_code, phone=phone,
+                        website=website, industry=industry)
+            return render(request, "lead_new.html", db, account, form=form, dupe=dupe)
     lead = Lead(account_id=account.id, business_name=business_name.strip(), address=address.strip(),
                 zip_code=zip_code.strip(), phone=phone.strip(), website=website.strip(),
                 industry=industry.strip(), status="New")
     db.add(lead)
+    db.commit()
+    return RedirectResponse(f"/leads/{lead.id}", status_code=303)
+
+
+@app.get("/leads/deleted")
+def deleted_leads(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    leads = db.scalars(select(Lead).where(Lead.account_id == account.id, Lead.deleted_at.is_not(None))
+                       .order_by(Lead.deleted_at.desc())).all() if account else []
+    return render(request, "deleted.html", db, account, leads=leads, message=request.query_params.get("msg", ""))
+
+
+@app.post("/leads/{lead_id}/delete")
+def delete_lead(lead_id: int, db: Session = Depends(get_session), account=Depends(current_account)):
+    lead = get_lead(db, account, lead_id)
+    lead.deleted_at = datetime.now(timezone.utc)
+    db.commit()
+    return back_to_leads(f"Deleted {lead.business_name}. You can bring it back from Deleted leads.")
+
+
+@app.post("/leads/{lead_id}/restore")
+def restore_lead(lead_id: int, db: Session = Depends(get_session), account=Depends(current_account)):
+    lead = get_lead(db, account, lead_id)
+    lead.deleted_at = None
     db.commit()
     return RedirectResponse(f"/leads/{lead.id}", status_code=303)
 
@@ -488,7 +554,7 @@ def clean_list(raw: str) -> list[str]:
 @app.get("/business")
 def business_page(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
     n_emailed = db.scalar(select(func.count()).select_from(Lead).where(
-        Lead.account_id == account.id, Lead.last_emailed_at.is_not(None))) if account else 0
+        Lead.account_id == account.id, Lead.deleted_at.is_(None), Lead.last_emailed_at.is_not(None))) if account else 0
     return render(request, "business.html", db, account, categories=catalog.CATEGORIES, all_catalog=catalog.ALL,
                   default_desc=scoring.DEFAULT_DESCRIPTION, n_emailed=n_emailed,
                   gmail_ready=gmail.configured(), can_compose=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
@@ -512,9 +578,13 @@ def back_to_business(msg: str):
 
 
 @app.get("/gmail/connect")
-def gmail_connect(account=Depends(current_account)):
+def gmail_connect(agree: str = "", db: Session = Depends(get_session), account=Depends(current_account)):
     if account is None or not gmail.configured():
         return back_to_business("Gmail isn't set up yet: the Google sign-in values are missing from .env.")
+    if not agree:
+        return back_to_business("Tick the box to agree before connecting Gmail.")
+    account.gmail_consent_at = datetime.now(timezone.utc)
+    db.commit()
     return RedirectResponse(gmail.start_connect(account.id), status_code=303)
 
 
@@ -686,7 +756,7 @@ def admin_page(request: Request, msg: str = "", db: Session = Depends(get_sessio
         select(Lead.account_id, func.count(), func.sum(case((Lead.score >= 8, 1), else_=0)),
                func.sum(case((Lead.last_emailed_at.is_not(None), 1), else_=0)),
                func.sum(case((Lead.status == "Won", 1), else_=0)))
-        .where(Lead.account_id.in_(ids)).group_by(Lead.account_id))}
+        .where(Lead.account_id.in_(ids), Lead.deleted_at.is_(None)).group_by(Lead.account_id))}
     spend = dict(db.execute(select(ApiUsage.account_id, func.sum(ApiUsage.est_cost_usd))
                             .where(ApiUsage.account_id.in_(ids), ApiUsage.created_at >= places.month_start())
                             .group_by(ApiUsage.account_id)).all())

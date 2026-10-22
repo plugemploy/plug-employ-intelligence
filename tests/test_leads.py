@@ -101,3 +101,69 @@ def test_search_bar(two_accounts):
         html = c.get(f"/leads?q={term}").text
         assert "Glow Spa" in html and "Alpha Test Lead" not in html
     assert "Bravo Test Lead" not in c.get("/leads?q=bravo").text  # other account never searchable
+
+
+def test_delete_hides_lead_and_restore_brings_it_back(two_accounts):
+    c = client_for(two_accounts["a"])
+    la = two_accounts["la"]
+    c.post(f"/leads/{la}/delete")
+    assert "Alpha Test Lead" not in c.get("/leads?sort=name").text
+    assert "Alpha Test Lead" in c.get("/leads/deleted").text
+    c.post(f"/leads/{la}/restore")
+    assert "Alpha Test Lead" in c.get("/leads?sort=name").text
+    assert "Alpha Test Lead" not in c.get("/leads/deleted").text
+
+
+def test_cannot_delete_other_accounts_lead(two_accounts):
+    c = client_for(two_accounts["a"])
+    assert c.post(f"/leads/{two_accounts['lb']}/delete").status_code == 404
+    assert c.post(f"/leads/{two_accounts['lb']}/restore").status_code == 404
+
+
+def _count(account_id, name):
+    from sqlalchemy import func, select
+    with Session(engine) as db:
+        return db.scalar(select(func.count()).select_from(Lead).where(
+            Lead.account_id == account_id, Lead.business_name == name))
+
+
+def test_add_lead_blocks_duplicates(two_accounts):
+    c = client_for(two_accounts["a"])
+    a = two_accounts["a"]
+    with Session(engine) as db:
+        db.add(Lead(account_id=a, business_name="Smoky Mtn Plumbing, LLC", zip_code="37934",
+                    phone="(865) 555-0101", website="https://www.smokyplumb.com/about"))
+        db.commit()
+    # Same name (punctuation and LLC ignored) in the same ZIP
+    html = c.post("/leads/new", data={"business_name": "smoky mtn plumbing", "zip_code": "37934"}).text
+    assert "You already have this lead" in html
+    # Same phone written differently
+    assert "You already have this lead" in c.post("/leads/new", data={"business_name": "Other", "phone": "865.555.0101"}).text
+    # Same website domain
+    assert "You already have this lead" in c.post("/leads/new", data={"business_name": "Other", "website": "smokyplumb.com"}).text
+    assert _count(a, "Other") == 0
+    # Same name in another ZIP is a different location
+    c.post("/leads/new", data={"business_name": "Smoky Mtn Plumbing", "zip_code": "37922"})
+    assert _count(a, "Smoky Mtn Plumbing") == 1
+    # Add anyway overrides
+    c.post("/leads/new", data={"business_name": "Other", "phone": "8655550101", "add_anyway": "1"})
+    assert _count(a, "Other") == 1
+
+
+def test_duplicate_check_finds_deleted_lead_and_ignores_other_accounts(two_accounts):
+    c = client_for(two_accounts["a"])
+    c.post(f"/leads/{two_accounts['la']}/delete")
+    html = c.post("/leads/new", data={"business_name": "Alpha Test Lead", "zip_code": "37934"}).text
+    assert "in Deleted leads" in html and "Restore it" in html
+    # Bravo belongs to account B, so A can add its own
+    c.post("/leads/new", data={"business_name": "Bravo Test Lead", "zip_code": "37922"})
+    assert _count(two_accounts["a"], "Bravo Test Lead") == 1
+
+
+def test_shared_domains_are_not_duplicates(two_accounts):
+    c = client_for(two_accounts["a"])
+    with Session(engine) as db:
+        db.add(Lead(account_id=two_accounts["a"], business_name="Page One", website="https://facebook.com/pageone"))
+        db.commit()
+    c.post("/leads/new", data={"business_name": "Page Two", "website": "https://www.facebook.com/pagetwo"})
+    assert _count(two_accounts["a"], "Page Two") == 1

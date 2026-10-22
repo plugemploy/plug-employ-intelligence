@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Deleted leads{% endblock %}
+{% block content %}
+<a href="/leads" class="text-sm text-blue-700 hover:underline">← Back to leads</a>
+<h1 class="text-2xl font-bold mt-2 mb-1">Deleted leads <span class="text-slate-400 text-lg">({{ leads|length }})</span></h1>
+<p class="text-sm text-slate-500 mb-4">Hidden from your leads, emails and Close. Searches skip them so they don't come back.</p>
+{% if message %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">{{ message }}</p>{% endif %}
+<ul class="bg-white rounded-xl shadow divide-y">
+  {% for l in leads %}
+  <li class="p-4 flex justify-between items-center gap-4">
+    <div>
+      <a href="/leads/{{ l.id }}" class="font-medium text-blue-700 hover:underline">{{ l.business_name }}</a>
+      <p class="text-sm text-slate-600">{{ l.industry }} · {{ l.address or l.zip_code }}{% if l.phone %} · {{ l.phone }}{% endif %}</p>
+      <p class="text-xs text-slate-400">Deleted {{ l.deleted_at.astimezone().strftime("%b %-d, %Y") }}</p>
+    </div>
+    <form method="post" action="/leads/{{ l.id }}/restore"><button class="rounded border px-3 py-1 text-sm hover:bg-slate-50">Restore</button></form>
+  </li>
+  {% else %}
+  <li class="p-6 text-center text-slate-500">No deleted leads.</li>
+  {% endfor %}
+</ul>
+{% endblock %}

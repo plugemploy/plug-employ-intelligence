@@ -17,12 +17,13 @@ QUIET_DAYS = 14
 
 def build(db: Session, account: Account, now: datetime) -> tuple[str, str]:
     week_ago = now - timedelta(days=7)
-    new_hot = db.scalars(select(Lead).where(Lead.account_id == account.id, Lead.created_at >= week_ago,
+    new_hot = db.scalars(select(Lead).where(Lead.account_id == account.id, Lead.deleted_at.is_(None), Lead.created_at >= week_ago,
                                             Lead.score >= 8).order_by(Lead.score.desc()).limit(10)).all()
-    due = db.scalars(select(FollowUp).where(FollowUp.account_id == account.id, FollowUp.done.is_(False),
+    due = db.scalars(select(FollowUp).join(FollowUp.lead).where(FollowUp.account_id == account.id, FollowUp.done.is_(False),
+                                            Lead.deleted_at.is_(None),
                                             FollowUp.due_date <= date.today() + timedelta(days=7))
                      .order_by(FollowUp.due_date).limit(15)).all()
-    quiet = db.scalars(select(Lead).where(Lead.account_id == account.id, Lead.status.not_in(OUTCOMES),
+    quiet = db.scalars(select(Lead).where(Lead.account_id == account.id, Lead.deleted_at.is_(None), Lead.status.not_in(OUTCOMES),
                                           Lead.last_emailed_at <= now - timedelta(days=QUIET_DAYS))
                        .order_by(Lead.score.desc().nulls_last()).limit(10)).all()
     lines = [f"Your week in Plug Employ Intelligence ({now.astimezone():%b %-d})", ""]

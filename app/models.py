@@ -45,6 +45,7 @@ class Account(Base):
     gmail_address: Mapped[str] = mapped_column(String(300), default="", server_default="")
     gmail_token_enc: Mapped[str] = mapped_column(Text, default="", server_default="")
     gmail_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    gmail_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # ticked "we don't sell your data"
     digest_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     digest_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     setup_done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # finished the setup wizard
@@ -96,6 +97,9 @@ class Lead(Base):
     # From the Gmail check: latest email to/from the business's website domain.
     last_emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     emailed_domain: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    # Deleted leads are hidden everywhere but the Deleted leads page, and can be restored.
+    # Searches still skip them, so a deleted business doesn't come back.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

@@ -159,7 +159,7 @@ def send_leads(db: Session, leads: list[Lead], client: CloseClient | None = None
 
 def top_unsent(db: Session, account_id: int, min_score: int = 0, limit: int = TOP_N) -> list[Lead]:
     return db.scalars(select(Lead).where(
-        Lead.account_id == account_id, Lead.close_lead_id == "", Lead.status.not_in(OUTCOMES),
+        Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.close_lead_id == "", Lead.status.not_in(OUTCOMES),
         Lead.phone != "", Lead.score >= max(min_score, 1))
         .order_by(Lead.score.desc(), Lead.review_count.desc().nulls_last()).limit(limit)).all()
 
@@ -193,7 +193,7 @@ def apply_status(db: Session, lead: Lead, close_label: str) -> bool:
 def sync_back(db: Session, account_id: int, client: CloseClient | None = None) -> dict:
     """Read the VA's status changes in Close and update the matching leads here."""
     stats = {"updated": 0}
-    leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.close_lead_id != "")).all()
+    leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.close_lead_id != "")).all()
     if not leads:
         return stats
     client = client or CloseClient()
