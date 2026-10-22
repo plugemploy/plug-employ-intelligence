@@ -1,5 +1,8 @@
 {# Searches-left meter. Needs: allow (from plans.usage). #}
-{% if allow and allow.plan.allowance_usd %}
+{% if allow and allow.plan.unlimited and not allow.trial_over and allow.pct < 1 %}
+<div class="mb-4 rounded-xl bg-white shadow p-3 text-sm">♾️ <b>Unlimited searches</b> across your territory
+  <span class="text-slate-500">({{ allow.plan.label }} plan: up to {{ allow.plan.max_zips }} ZIP codes × {{ allow.plan.max_industries }} business types, each searched once a month)</span></div>
+{% elif allow and allow.plan.allowance_usd %}
 {% set pct = (allow.pct * 100)|round|int %}
 <div class="mb-4 rounded-xl bg-white shadow p-3 text-sm flex flex-wrap items-center gap-3
             {{ 'border border-red-300' if pct >= 100 else 'border border-amber-300' if pct >= 80 else '' }}">

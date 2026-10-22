@@ -62,10 +62,14 @@ The prototype runs locally on a Mac and must later move to cloud hosting.
   N2 franchise data is never used in the product. Ownership questions are with an attorney.
 
 ### Plans and pricing
-- Standard: $99/month, ~$15 of API usage (~430 searches), up to 20 nightly searches. **No Gmail features.**
-- Pro: $149/month, ~$25 (~710 searches), up to 30 nightly searches, Gmail features (Emailed tags,
+- A "search" costs ~$0.039: Google $0.035 + ~$0.004 Claude scoring of the new leads (measured).
+- Standard: $99/month, $15 allowance (~380 searches), up to 20 nightly searches. **No Gmail features.**
+- Pro: $149/month, $25 (~640 searches), up to 30 nightly searches, Gmail features (Emailed tags,
   quiet follow-ups, drafts, Monday digest).
-- Premium: price not set yet (placeholder: ~$40 allowance, 50 nightly searches, Gmail).
+- Premium: $299/month, "unlimited searches across up to 20 ZIP codes and 70 business types": each
+  ZIP + type is searched at most once a month (31-day repeat rule), so the worst case is 1,400 searches
+  (~$55, the allowance). Up to 50 nightly searches, Gmail.
+- Every paid plan keeps at least 77% after card fees and ~$2.50 hosting at full use (checked by a test).
 - Beta: new sign-ups get everything free for 30 days, no card; then searches pause until they pick a plan.
 - Earlier Founding ($79) and Wholesale ($60/publisher) plans stay in the code for existing companies but aren't sold.
 - Each company has its own limit; the `.env` `MONTHLY_API_BUDGET_USD` applies only to the owner account.

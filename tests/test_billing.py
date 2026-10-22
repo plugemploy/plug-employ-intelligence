@@ -84,7 +84,8 @@ def client(uid):
 def test_pro_checkout_and_return(org):
     c = client(org["user"])
     page = c.get("/billing").text
-    assert "Choose Standard" in page and "Choose Pro" in page and "Choose Beta" not in page
+    assert "Choose Standard" in page and "Choose Pro" in page and "Choose Premium" in page and "Choose Beta" not in page
+    assert "Unlimited searches" in page
     r = c.post("/billing/checkout", data={"tier": "pro"}, follow_redirects=False)
     assert r.headers["location"] == "https://checkout.stripe.test/s1"
     fake = org["fake"]

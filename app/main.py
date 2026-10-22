@@ -564,7 +564,8 @@ def business_page(request: Request, db: Session = Depends(get_session), account=
     return render(request, "business.html", db, account, categories=catalog.CATEGORIES, all_catalog=catalog.ALL,
                   default_desc=scoring.DEFAULT_DESCRIPTION, n_emailed=n_emailed,
                   gmail_ready=gmail.configured(), can_compose=bool(account and gmail.can_compose(account)),
-                  has_email=bool(account and plans.has_email(db, account)), message=request.query_params.get("msg", ""))
+                  has_email=bool(account and plans.has_email(db, account)), plan=plans.plan_for(db, account) if account else {},
+                  message=request.query_params.get("msg", ""))
 
 
 @app.post("/business")
@@ -572,9 +573,12 @@ def save_business(description: str = Form(""), zips: str = Form(""), industries:
                   extra_industries: str = Form(""), db: Session = Depends(get_session), account=Depends(current_account)):
     if account is None:
         raise HTTPException(400, "Create an account first")
+    zip_list = [z for z in clean_list(zips) if z.isdigit() and len(z) == 5]
+    inds = clean_list(",".join(industries) + "," + extra_industries)
+    if err := plans.territory_error(plans.plan_for(db, account), zip_list, inds):
+        return back_to_business(err + " Nothing was saved.")
     account.business_description = description.strip()[:3000]
-    account.target_zips = ",".join(z for z in clean_list(zips) if z.isdigit() and len(z) == 5)
-    account.industries = ",".join(clean_list(",".join(industries) + "," + extra_industries))
+    account.target_zips, account.industries = ",".join(zip_list), ",".join(inds)
     db.commit()
     return RedirectResponse("/business?msg=Saved%20%E2%9C%93", status_code=303)
 
@@ -681,6 +685,8 @@ def setup_save(description: str = Form(""), zips: str = Form(""), industries: li
     from urllib.parse import quote
     zip_list = [z for z in clean_list(zips) if z.isdigit() and len(z) == 5]
     inds = clean_list(",".join(industries))
+    if err := plans.territory_error(plans.plan_for(db, account), zip_list, inds):
+        return RedirectResponse(f"/setup?msg={quote(err)}", status_code=303)
     account.business_description = description.strip()[:3000]
     account.target_zips, account.industries = ",".join(zip_list), ",".join(inds)
     db.commit()
@@ -720,7 +726,7 @@ def billing_page(request: Request, msg: str = "", db: Session = Depends(get_sess
     offers = [(t, plans.PLANS[t]) for t in billing.SELLABLE]
     return render(request, "billing.html", db, None, offers=offers, seats=billing.seats(db, org),
                   ready=billing.configured(), message=msg, current=plans.PLANS.get(org.plan_tier, {}),
-                  trial_ends=plans.trial_ends(org), now=datetime.now(timezone.utc))
+                  trial_ends=plans.trial_ends(org), now=datetime.now(timezone.utc), search_cost=plans.SEARCH_COST)
 
 
 @app.post("/billing/checkout")
@@ -806,7 +812,10 @@ def admin_set_zips(account_id: int, zips: str = Form(""), db: Session = Depends(
     account = db.get(Account, account_id)
     if account is None or account.org_id != user.org_id:
         raise HTTPException(404, "Account not found")
-    account.target_zips = ",".join(z for z in clean_list(zips) if z.isdigit() and len(z) == 5)
+    zip_list = [z for z in clean_list(zips) if z.isdigit() and len(z) == 5]
+    if err := plans.territory_error(plans.plan_for(db, account), zip_list):
+        return back_to_admin(err)
+    account.target_zips = ",".join(zip_list)
     db.commit()
     return back_to_admin(f"Updated ZIP codes for {account.name}.")
 

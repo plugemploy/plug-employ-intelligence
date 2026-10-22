@@ -13,6 +13,8 @@
     <input name="zips" value="{{ account.zip_list|join(', ') }}" class="border rounded px-3 py-2 text-sm"></label>
   <div><p class="font-semibold mb-2">Industries to search</p>
     {% with selected=account.industry_list, zip_count=account.zip_list|length %}{% include "_industry_picker.html" %}{% endwith %}</div>
+  {% if plan.max_zips %}<p class="text-xs text-slate-500">Your {{ plan.label }} plan covers up to {{ plan.max_zips }} ZIP codes
+    and {{ plan.max_industries }} business types.</p>{% endif %}
   <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save</button>
 </form>
 <section class="bg-white rounded-xl shadow p-6 max-w-3xl">

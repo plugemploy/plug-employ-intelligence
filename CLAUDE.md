@@ -42,5 +42,6 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Delete/restore leads + duplicate check on Add lead + Gmail "we never sell your data" checkbox (2026-10-22).
 - Beta prep Day 1 (2026-10-22): plans Standard $99 (no Gmail) / Pro $149 / Premium placeholder / free 30-day Beta for
   new sign-ups; per-plan nightly max; no shared overall cap; Send feedback box (owner reads /feedback); secure cookies on https.
+- Premium $299 (2026-10-22): 20 ZIPs x 70 business types, shown as unlimited; limits enforced on save.
 - Beta plan: Day 2 put it online (Render + domain), Day 3 test as a new customer and invite testers.
 - Next: Stripe test keys from Savannah, cloud hosting + domain, results tracking for beta, per-customer Close, territory lock, Google verification.

@@ -62,11 +62,11 @@ def check_budget(db: Session, account_id: int, next_cost: float) -> None:
         raise BudgetExceeded("This month's search allowance is used up. Searches resume on the 1st.")
 
 
-RESEARCH_AFTER_DAYS = 30  # a ZIP + industry search isn't repeated within this many days
+RESEARCH_AFTER_DAYS = 31  # a ZIP + industry search isn't repeated within this many days (so at most once a month)
 
 
 def recently_searched(db: Session, account_id: int) -> set[str]:
-    """Searches ("Dentist in 37934") this account ran in the last 30 days."""
+    """Searches ("Dentist in 37934") this account ran in the last RESEARCH_AFTER_DAYS days."""
     from datetime import timedelta
     since = datetime.now(timezone.utc) - timedelta(days=RESEARCH_AFTER_DAYS)
     return set(db.scalars(select(ApiUsage.detail).where(

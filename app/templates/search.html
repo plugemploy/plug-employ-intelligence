@@ -16,7 +16,7 @@
       <th class="p-3">Search</th><th class="p-3">Found</th><th class="p-3">Added</th><th class="p-3">Skipped</th></tr></thead>
     <tbody>{% for r in results %}<tr class="border-t">
       <td class="p-3">{{ r.industry }} in {{ r.zip }}</td>
-      {% if r.recent %}<td class="p-3 text-slate-500" colspan="3">Already searched in the last 30 days, skipped (no charge)</td>
+      {% if r.recent %}<td class="p-3 text-slate-500" colspan="3">Already searched in the last month, skipped (no charge)</td>
       {% else %}<td class="p-3">{{ r.found }}</td>
       <td class="p-3 font-semibold text-green-700">{{ r.added }}</td>
       <td class="p-3 text-slate-500">{{ r.skipped_closed }} closed · {{ r.skipped_few_reviews }} few reviews ·
