@@ -66,3 +66,16 @@ def test_status_note_and_follow_up(two_accounts):
 def test_add_lead(two_accounts):
     r = client_for(two_accounts["a"]).post("/leads/new", data={"business_name": "New Test Biz"})
     assert r.status_code == 200 and "New Test Biz" in r.text
+
+
+def test_industry_filter_and_sort(two_accounts):
+    with Session(engine) as db:
+        db.add(Lead(account_id=two_accounts["a"], business_name="Zed Florist", industry="Florist", score=5))
+        db.add(Lead(account_id=two_accounts["a"], business_name="Amy Dental", industry="Dentist", score=9))
+        db.commit()
+    c = TestClient(app)
+    login_as(c, two_accounts["a"])
+    html = c.get("/leads?industry=Florist").text
+    assert "Zed Florist" in html and "Amy Dental" not in html and 'selected>Florist' in html
+    html = c.get("/leads?sort=industry").text
+    assert html.index("Amy Dental") < html.index("Zed Florist")

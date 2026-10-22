@@ -11,9 +11,14 @@
       <option value="">All ZIPs</option>
       {% for z in zips %}<option {% if z == f_zip %}selected{% endif %}>{{ z }}</option>{% endfor %}
     </select>
+    <select name="industry" class="border rounded px-2 py-1">
+      <option value="">All industries</option>
+      {% for i in industries %}<option {% if i == f_industry %}selected{% endif %}>{{ i }}</option>{% endfor %}
+    </select>
     <select name="sort" class="border rounded px-2 py-1">
       <option value="follow_up" {% if sort == "follow_up" %}selected{% endif %}>Sort: next follow-up</option>
       <option value="score" {% if sort == "score" %}selected{% endif %}>Sort: best score</option>
+      <option value="industry" {% if sort == "industry" %}selected{% endif %}>Sort: industry</option>
       <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: name</option>
     </select>
     <label class="flex items-center gap-1"><input type="checkbox" name="hide_contacted" value="1" {% if f_hide %}checked{% endif %}> Hide already emailed</label>

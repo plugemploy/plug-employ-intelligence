@@ -125,7 +125,7 @@ def switch_account(account_id: int = Form(...), db: Session = Depends(get_sessio
 
 
 @app.get("/leads")
-def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str = "follow_up", new: str = "",
+def leads_list(request: Request, status: str = "", zip_code: str = "", industry: str = "", sort: str = "follow_up", new: str = "",
                hide_contacted: str = "",
                db: Session = Depends(get_session), account=Depends(current_account)):
     if account and account.setup_done_at is None:
@@ -140,6 +140,8 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
             q = q.where(Lead.status == status)
         if zip_code:
             q = q.where(Lead.zip_code == zip_code)
+        if industry:
+            q = q.where(Lead.industry == industry)
         if hide_contacted:
             q = q.where(Lead.last_emailed_at.is_(None))
         if new and last_run:
@@ -147,12 +149,16 @@ def leads_list(request: Request, status: str = "", zip_code: str = "", sort: str
         leads = list(db.scalars(q.order_by(Lead.business_name)))
         if sort == "score":
             leads.sort(key=lambda l: -(l.score or 0))
+        elif sort == "industry":
+            leads.sort(key=lambda l: ((l.industry or "~").lower(), -(l.score or 0)))
         elif sort == "follow_up":
             leads.sort(key=lambda l: l.next_follow_up.due_date if l.next_follow_up else date.max)
+    industries = sorted({i for i in db.scalars(select(Lead.industry).where(
+        Lead.account_id == (account.id if account else 0))) if i}, key=str.lower)
     zips = sorted({z for z in db.scalars(select(Lead.zip_code).where(Lead.account_id == (account.id if account else 0)))})
     unscored = sum(1 for l in leads if l.score is None)
-    return render(request, "leads.html", db, account, leads=leads, zips=zips,
-                  f_status=status, f_zip=zip_code, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
+    return render(request, "leads.html", db, account, leads=leads, zips=zips, industries=industries,
+                  f_status=status, f_zip=zip_code, f_industry=industry, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   working=scoring.whats_working(db, account.id) if account else {},
                   allow=plans.usage(db, account) if account else None,
                   has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.enabled_for(db, account), can_draft=bool(account and gmail.can_compose(account)), message=request.query_params.get("msg", ""))
