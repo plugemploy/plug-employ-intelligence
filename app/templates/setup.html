@@ -9,13 +9,12 @@
   <section class="bg-white rounded-xl shadow p-6 grid gap-2">
     <h2 class="font-semibold">1. What do you sell, and who is your ideal advertiser?</h2>
     <p class="text-xs text-slate-500">A few plain sentences. Claude uses this to score every lead for you.</p>
-    <textarea id="desc" name="description" rows="4" class="border rounded px-3 py-2 text-sm"
-      placeholder="e.g. We sell ad space and event sponsorships in a monthly neighborhood magazine. Best fits want to reach affluent homeowners, independents or growing multi-location, often 2-5 years in business.">{{ account.business_description }}</textarea>
+    <textarea id="desc" name="description" rows="4" class="border rounded px-3 py-2 text-sm">{{ account.business_description }}</textarea>
   </section>
   <section class="bg-white rounded-xl shadow p-6 grid gap-2">
     <h2 class="font-semibold">2. Your territory</h2>
     <p class="text-xs text-slate-500">ZIP codes, separated by commas. Put the most important first: they're searched first and count most.</p>
-    <input id="zips" name="zips" value="{{ account.zip_list|join(', ') }}" class="border rounded px-3 py-2 text-sm" placeholder="e.g. 37934, 37919, 37922">
+    <input id="zips" name="zips" value="{{ account.zip_list|join(', ') }}" class="border rounded px-3 py-2 text-sm">
   </section>
   <section class="bg-white rounded-xl shadow p-6 grid gap-3">
     <div class="flex flex-wrap items-center justify-between gap-2">

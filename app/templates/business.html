@@ -7,7 +7,7 @@
 <form method="post" class="bg-white rounded-xl shadow p-6 grid gap-6 max-w-3xl mb-6">
   <label class="grid gap-1"><span class="font-semibold">What you sell and who your ideal customer is</span>
     <span class="text-xs text-slate-500">A few plain sentences. Mention what makes a business a great fit, and what makes it a poor one.</span>
-    <textarea name="description" rows="5" class="border rounded px-3 py-2 text-sm" placeholder="{{ default_desc }}">{{ account.business_description }}</textarea></label>
+    <textarea name="description" rows="5" class="border rounded px-3 py-2 text-sm">{{ account.business_description }}</textarea></label>
   <label class="grid gap-1"><span class="font-semibold">Your ZIP codes</span>
     <span class="text-xs text-slate-500">Separate with commas. List the most important first: they're searched first and count most.</span>
     <input name="zips" value="{{ account.zip_list|join(', ') }}" class="border rounded px-3 py-2 text-sm"></label>
