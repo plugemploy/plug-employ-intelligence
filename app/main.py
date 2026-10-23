@@ -344,26 +344,27 @@ def lead_detail(lead_id: int, request: Request, db: Session = Depends(get_sessio
 
 @app.post("/leads/{lead_id}/status")
 def set_status(lead_id: int, request: Request, status: str = Form(...), reason: str = Form(""),
-               contract_end: str = Form(""), deal_value: str = Form(""),
+               mrr: str = Form(""), contract_months: str = Form(""), ad_mgmt_fee: str = Form(""),
                db: Session = Depends(get_session), account=Depends(current_account)):
     lead = get_lead(db, account, lead_id)
     if status not in STATUSES:
         raise HTTPException(400, "Unknown status")
+    now = datetime.now(timezone.utc)
     if status in OUTCOMES:
         if lead.status != status:
-            lead.outcome_at = datetime.now(timezone.utc)
+            lead.outcome_at = now
         lead.outcome_reason = reason.strip()[:500]
     else:
         lead.outcome_reason, lead.outcome_at = "", None
     lead.status = status
-    if status == "Won":
-        set_renewal(db, lead, date.fromisoformat(contract_end) if contract_end else None)
-        try:
-            lead.deal_value = max(0.0, float(deal_value.replace(",", "").replace("$", ""))) if deal_value.strip() else None
-        except ValueError:
-            pass  # keep the old value if it wasn't a number
-    else:
-        lead.deal_value = None
+    lead.reach(status, now)
+    if status == "Sold":
+        lead.mrr = money(mrr, lead.mrr)
+        lead.ad_mgmt_fee = money(ad_mgmt_fee, lead.ad_mgmt_fee)
+        months = money(contract_months, lead.contract_months)
+        lead.contract_months = int(months) if months else None
+        sold_day = (lead.sold_at or now).astimezone().date()
+        set_renewal(db, lead, add_months(sold_day, lead.contract_months) if lead.contract_months else None)
     db.commit()
     return render(request, "_status.html", db, account, lead=lead, saved=True)
 
@@ -404,6 +405,24 @@ def draft_top(db: Session = Depends(get_session), account=Depends(current_accoun
 
 RENEWAL_PREFIX = "Renewal coming up"
 RENEWAL_DAYS_BEFORE = 30
+
+
+def money(raw: str, old):
+    """A typed amount like "$1,200" as a number; blank clears it; keep the old value if it isn't a number."""
+    raw = raw.replace(",", "").replace("$", "").strip()
+    if not raw:
+        return None
+    try:
+        return max(0.0, float(raw))
+    except ValueError:
+        return old
+
+
+def add_months(day: date, months: int) -> date:
+    import calendar
+    y, m = divmod(day.month - 1 + months, 12)
+    year, month = day.year + y, m + 1
+    return date(year, month, min(day.day, calendar.monthrange(year, month)[1]))
 
 
 def set_renewal(db: Session, lead: Lead, contract_end: date | None) -> None:
@@ -817,7 +836,7 @@ def admin_page(request: Request, msg: str = "", db: Session = Depends(get_sessio
     lead_stats = {r[0]: r[1:] for r in db.execute(
         select(Lead.account_id, func.count(), func.sum(case((Lead.score >= 8, 1), else_=0)),
                func.sum(case((Lead.last_emailed_at.is_not(None), 1), else_=0)),
-               func.sum(case((Lead.status == "Won", 1), else_=0)))
+               func.sum(case((Lead.status == "Sold", 1), else_=0)))
         .where(Lead.account_id.in_(ids), Lead.deleted_at.is_(None)).group_by(Lead.account_id))}
     spend = dict(db.execute(select(ApiUsage.account_id, func.sum(ApiUsage.est_cost_usd))
                             .where(ApiUsage.account_id.in_(ids), ApiUsage.created_at >= places.month_start())
@@ -914,8 +933,8 @@ def usage_page(request: Request, db: Session = Depends(get_session), account=Dep
 def my_results(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
     ctx = {}
     if account:
-        ctx = dict(all_time=results.with_rates(results.metrics(db, [account.id])[account.id]),
-                   month=results.with_rates(results.metrics(db, [account.id], since=places.month_start())[account.id]),
+        ctx = dict(all_time=results.metrics(db, [account.id])[account.id],
+                   month=results.metrics(db, [account.id], since=places.month_start())[account.id],
                    month_name=places.month_start().strftime("%B"), started=account.created_at)
     return render(request, "results.html", db, account, **ctx)
 
@@ -962,14 +981,14 @@ def beta_results_csv(db: Session = Depends(get_session), user: User = Depends(cu
     require_owner(db, user)
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["Company", "People", "Plan", "Signed up", "Setup done", "Last sign-in", "Searches", "Leads found",
-                "Scored 8+", "Reached out", "Interested", "Won", "Not interested", "Win rate %", "Won $",
-                "Follow-ups done", "Feedback notes"])
+    w.writerow(["Company", "People", "Plan", "Signed up", "Setup done", "Last sign-in", "Leads contacted",
+                "Appointments set", "Appointments shown", "Sold", "Monthly recurring revenue $", "Contract value $",
+                "Ad Management Fees $", "Feedback notes"])
     for r in beta_rows(db):
         w.writerow([r["org"].name, r["emails"], r["plan"], r["org"].created_at.date(), "yes" if r["setup_done"] else "no",
-                    r["last_login"].date() if r["last_login"] else "", r["searches"], r["found"], r["hot"], r["reached"],
-                    r["interested"], r["won"], r["lost"], r["win_rate"] if r["win_rate"] is not None else "",
-                    round(r["value"]), r["follow_ups_done"], r["feedback"]])
+                    r["last_login"].date() if r["last_login"] else "", r["contacted"], r["appts_set"],
+                    r["appts_shown"], r["sold"], round(r["mrr"]), round(r["contract_value"]), round(r["ad_fees"]),
+                    r["feedback"]])
     return HTMLResponse(buf.getvalue(), media_type="text/csv",
                         headers={"Content-Disposition": f'attachment; filename="beta-results-{date.today()}.csv"'})
 

@@ -28,7 +28,7 @@ REDIRECT_URI = f"{APP_BASE_URL}/gmail/callback"
 FOLLOW_UP_AFTER_DAYS = 14
 FREE_MAIL = {"gmail.com", "googlemail.com", "yahoo.com", "hotmail.com", "outlook.com", "live.com", "msn.com",
              "aol.com", "icloud.com", "me.com", "comcast.net", "att.net", "bellsouth.net", "charter.net"}
-CLOSED = ("Won", "Not interested")
+CLOSED = ("Sold", "Not interested")
 
 if REDIRECT_URI.startswith(("http://127.0.0.1", "http://localhost")):
     os.environ.setdefault("OAUTHLIB_INSECURE_TRANSPORT", "1")  # plain http is fine on this Mac only

@@ -45,7 +45,7 @@ def ids():
             Lead(account_id=a.id, business_name="Top Spa", phone="865-555-0101", website="https://topspa.com", score=9, score_reason="Great fit"),
             Lead(account_id=a.id, business_name="Known Dental", phone="865-555-0102", website="https://www.knowndental.com", score=8),
             Lead(account_id=a.id, business_name="No Phone", phone="", score=10),
-            Lead(account_id=a.id, business_name="Won Already", phone="1", score=10, status="Won"),
+            Lead(account_id=a.id, business_name="Won Already", phone="1", score=10, status="Sold"),
         ])
         db.commit()
         yield a.id
@@ -84,7 +84,7 @@ def test_unknown_status_changes_nothing(ids):
     with Session(engine) as db:
         lead = db.scalars(select(Lead).where(Lead.account_id == ids, Lead.business_name == "Top Spa")).one()
         assert close_crm.apply_status(db, lead, "FACEBOOK GEN") and lead.status == "New"
-        assert close_crm.apply_status(db, lead, "Customer") and lead.status == "Won"
+        assert close_crm.apply_status(db, lead, "Customer") and lead.status == "Sold"
 
 
 def test_pages_show_close(ids, monkeypatch):

@@ -52,10 +52,10 @@
 {% endif %}
 {% if working and working.industry %}
 <details class="mb-4 bg-white rounded-xl shadow p-4 text-sm">
-  <summary class="cursor-pointer font-semibold">📈 What's working <span class="font-normal text-slate-500">(from leads you marked Won or Not interested; scoring learns from these)</span></summary>
+  <summary class="cursor-pointer font-semibold">📈 What's working <span class="font-normal text-slate-500">(from leads you marked Sold or Not interested; scoring learns from these)</span></summary>
   <div class="grid md:grid-cols-2 gap-6 mt-3">
     {% for key, title in [("industry", "By industry"), ("zip", "By ZIP")] %}
-    <table class="w-full"><thead class="text-left text-slate-500"><tr><th>{{ title }}</th><th>Won</th><th>No</th><th>Win rate</th></tr></thead>
+    <table class="w-full"><thead class="text-left text-slate-500"><tr><th>{{ title }}</th><th>Sold</th><th>No</th><th>Win rate</th></tr></thead>
       <tbody>{% for r in working[key] %}<tr class="border-t"><td class="py-1">{{ r.name }}</td><td>{{ r.won }}</td><td>{{ r.lost }}</td>
         <td class="{{ 'text-green-700 font-semibold' if r.rate >= 50 else '' }}">{{ r.rate }}%</td></tr>{% endfor %}</tbody></table>
     {% endfor %}

@@ -6,8 +6,11 @@ from datetime import date, datetime
 from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-STATUSES = ["New", "Contacted", "Interested", "Not interested", "Won"]
-OUTCOMES = ("Won", "Not interested")
+STATUSES = ["New", "Contacted", "Appointment set", "Appointment shown", "Sold", "Not interested"]
+OUTCOMES = ("Sold", "Not interested")
+# The sales steps in order. Each lead remembers when it first reached each one (see Lead.reach).
+STAGES = {"Contacted": "contacted_at", "Appointment set": "appt_set_at", "Appointment shown": "appt_shown_at",
+          "Sold": "sold_at"}
 
 
 class Base(DeclarativeBase):
@@ -73,11 +76,19 @@ class Lead(Base):
     website: Mapped[str] = mapped_column(String(300), default="")
     industry: Mapped[str] = mapped_column(String(100), default="")
     status: Mapped[str] = mapped_column(String(30), default="New")
-    # Why it was Won or Not interested; past results teach the scoring.
+    # Why it was Sold or Not interested; past results teach the scoring.
     outcome_reason: Mapped[str] = mapped_column(Text, default="", server_default="")
     outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    contract_end: Mapped[date | None] = mapped_column(Date)  # for Won leads: renewal reminder 30 days before
-    deal_value: Mapped[float | None] = mapped_column(Numeric(10, 2))  # Won leads: total contract, for results
+    contract_end: Mapped[date | None] = mapped_column(Date)  # for Sold leads: renewal reminder 30 days before
+    # When the lead first reached each sales step (kept even if it later says no), for results.
+    contacted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    appt_set_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    appt_shown_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sold_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Sold leads: monthly recurring revenue, contract length, and the one-time Ad Management Fee.
+    mrr: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    contract_months: Mapped[int | None] = mapped_column(Integer)
+    ad_mgmt_fee: Mapped[float | None] = mapped_column(Numeric(10, 2))
     draft_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Gmail draft made
     # Close CRM: where the VA calls. Status there syncs back here.
     close_lead_id: Mapped[str] = mapped_column(String(100), default="", server_default="", index=True)
@@ -113,6 +124,18 @@ class Lead(Base):
     follow_ups: Mapped[list["FollowUp"]] = relationship(
         back_populates="lead", order_by="FollowUp.due_date", cascade="all, delete-orphan"
     )
+
+    def reach(self, status: str, when: datetime) -> None:
+        """Record reaching a sales step, and the steps before it if they weren't recorded."""
+        names = list(STAGES)
+        if status in STAGES:
+            for step in names[: names.index(status) + 1]:
+                if getattr(self, STAGES[step]) is None:
+                    setattr(self, STAGES[step], when)
+
+    @property
+    def contract_value(self) -> float:
+        return float(self.mrr or 0) * (self.contract_months or 0)
 
     @property
     def next_follow_up(self):

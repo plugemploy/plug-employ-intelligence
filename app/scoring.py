@@ -36,7 +36,7 @@ manager (general, office or practice manager), give that person's name and title
 the owner over a manager. Never guess or infer a name; if none is clearly stated, return empty strings."""
 
 
-EXAMPLES_EACH = 10  # most recent Won and Not interested leads shown to Claude
+EXAMPLES_EACH = 10  # most recent Sold and Not interested leads shown to Claude
 
 
 def _example_line(lead: Lead) -> str:
@@ -48,7 +48,7 @@ def _example_line(lead: Lead) -> str:
 def past_results(db: Session, account_id: int) -> str:
     """This account's recent wins and losses, so scores lean toward what has actually worked."""
     parts = []
-    for status, label in (("Won", "Became customers"), ("Not interested", "Said no")):
+    for status, label in (("Sold", "Became customers"), ("Not interested", "Said no")):
         leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.status == status)
                            .order_by(Lead.outcome_at.desc().nulls_last(), Lead.id.desc())
                            .limit(EXAMPLES_EACH)).all()
@@ -132,14 +132,14 @@ def score_unscored(db: Session, account_id: int, limit: int = 100) -> dict:
 
 
 def whats_working(db: Session, account_id: int) -> dict:
-    """Win rate by industry and by ZIP, from leads marked Won or Not interested."""
+    """Win rate by industry and by ZIP, from leads marked Sold or Not interested."""
     from sqlalchemy import case, func
     out = {}
     for key, col in (("industry", Lead.industry), ("zip", Lead.zip_code)):
         rows = db.execute(
-            select(col, func.sum(case((Lead.status == "Won", 1), else_=0)),
+            select(col, func.sum(case((Lead.status == "Sold", 1), else_=0)),
                    func.sum(case((Lead.status == "Not interested", 1), else_=0)))
-            .where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.status.in_(["Won", "Not interested"]))
+            .where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.status.in_(["Sold", "Not interested"]))
             .group_by(col)).all()
         out[key] = sorted(({"name": n or "unknown", "won": int(w), "lost": int(l), "rate": round(100 * w / (w + l))}
                            for n, w, l in rows), key=lambda r: (-r["rate"], -r["won"]))

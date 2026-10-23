@@ -46,7 +46,9 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   new sign-ups; per-plan nightly max; no shared overall cap; Send feedback box (owner reads /feedback); secure cookies on https.
 - Premium $299 (2026-10-22): 20 ZIPs x 70 business types, shown as unlimited; limits enforced on save.
 - Live on Render + background Find leads with progress bar + newest/date-added filters + owner-only costs (2026-10-22).
-- Beta results (2026-10-22): deal value on Won leads; My results page (everyone); /beta + /beta.csv for the owner
-  (companies with at least one user, excluding the owner org). Testers sign up at /signup and must be Google test users.
+- Beta results (2026-10-22): statuses New > Contacted > Appointment set > Appointment shown > Sold (+ Not interested);
+  each step's first date kept (contacted_at..sold_at). Sold leads: MRR, contract months (sets renewal), one-time Ad
+  Management Fee. My results page (everyone); /beta + /beta.csv for the owner (companies with at least one user).
+  Testers sign up at /signup and must be Google test users.
 - Beta plan: Day 2 put it online (Render + domain), Day 3 test as a new customer and invite testers.
 - Next: Stripe test keys from Savannah, cloud hosting + domain, results tracking for beta, per-customer Close, territory lock, Google verification.

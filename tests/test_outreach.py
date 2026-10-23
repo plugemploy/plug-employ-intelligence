@@ -22,7 +22,7 @@ def ids():
         db.add(a)
         db.flush()
         leads = [Lead(account_id=a.id, business_name=f"Biz {i}", score=10 - i, zip_code="37934") for i in range(12)]
-        leads.append(Lead(account_id=a.id, business_name="Already Won", score=10, status="Won"))
+        leads.append(Lead(account_id=a.id, business_name="Already Won", score=10, status="Sold"))
         leads.append(Lead(account_id=a.id, business_name="Emailed Before", score=10, emailed_domain="old.com",
                           last_emailed_at=datetime.now(timezone.utc) - timedelta(days=20)))
         db.add_all(leads)
@@ -80,16 +80,17 @@ def test_digest_content_and_schedule(ids, fakes):
 
 
 def test_renewal_reminder(ids):
+    from app.main import add_months
     c = TestClient(app)
     login_as(c, ids["a"])
-    end = date.today() + timedelta(days=90)
-    c.post(f"/leads/{ids['first']}/status", data={"status": "Won", "contract_end": end.isoformat()})
-    c.post(f"/leads/{ids['first']}/status", data={"status": "Won", "contract_end": end.isoformat()})  # no duplicate
+    c.post(f"/leads/{ids['first']}/status", data={"status": "Sold", "contract_months": "3"})
+    c.post(f"/leads/{ids['first']}/status", data={"status": "Sold", "contract_months": "3"})  # no duplicate
+    with Session(engine) as db:
+        sold_day = db.get(Lead, ids["first"]).sold_at.astimezone().date()
+        end = add_months(sold_day, 3)
+        fus = db.scalars(select(FollowUp).where(FollowUp.lead_id == ids["first"])).all()
+        assert len(fus) == 1 and fus[0].due_date == max(date.today(), end - timedelta(days=30)) and "Renewal" in fus[0].task
+    c.post(f"/leads/{ids['first']}/status", data={"status": "Sold", "contract_months": "15"})
     with Session(engine) as db:
         fus = db.scalars(select(FollowUp).where(FollowUp.lead_id == ids["first"])).all()
-        assert len(fus) == 1 and fus[0].due_date == end - timedelta(days=30) and "Renewal" in fus[0].task
-    later = end + timedelta(days=365)
-    c.post(f"/leads/{ids['first']}/status", data={"status": "Won", "contract_end": later.isoformat()})
-    with Session(engine) as db:
-        fus = db.scalars(select(FollowUp).where(FollowUp.lead_id == ids["first"])).all()
-        assert [f.due_date for f in fus] == [later - timedelta(days=30)]
+        assert [f.due_date for f in fus] == [add_months(sold_day, 15) - timedelta(days=30)]

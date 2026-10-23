@@ -1,4 +1,4 @@
-"""Checks that Won / Not interested results are saved and teach the scoring (no cost)."""
+"""Checks that Sold / Not interested results are saved and teach the scoring (no cost)."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,7 +20,7 @@ def ids():
         db.flush()
         spa = Lead(account_id=a.id, business_name="Glow Spa", industry="Med spa", zip_code="37934", rating=4.9, review_count=200)
         gym = Lead(account_id=a.id, business_name="Iron Gym", industry="Fitness", zip_code="37919")
-        other = Lead(account_id=b.id, business_name="Secret Won", industry="Golf", status="Won")
+        other = Lead(account_id=b.id, business_name="Secret Won", industry="Golf", status="Sold")
         db.add_all([spa, gym, other])
         db.commit()
         out = {"a": a.id, "spa": spa.id, "gym": gym.id}
@@ -33,7 +33,7 @@ def ids():
 def test_outcomes_saved_and_used(ids):
     c = TestClient(app)
     login_as(c, ids["a"])
-    r = c.post(f"/leads/{ids['spa']}/status", data={"status": "Won", "reason": "Loved the event idea"})
+    r = c.post(f"/leads/{ids['spa']}/status", data={"status": "Sold", "reason": "Loved the event idea"})
     assert "Why?" in r.text
     c.post(f"/leads/{ids['gym']}/status", data={"status": "Not interested", "reason": "No budget"})
     with Session(engine) as db:
@@ -51,8 +51,8 @@ def test_outcomes_saved_and_used(ids):
 def test_moving_back_clears_reason(ids):
     c = TestClient(app)
     login_as(c, ids["a"])
-    c.post(f"/leads/{ids['spa']}/status", data={"status": "Won", "reason": "x"})
-    r = c.post(f"/leads/{ids['spa']}/status", data={"status": "Interested"})
+    c.post(f"/leads/{ids['spa']}/status", data={"status": "Sold", "reason": "x"})
+    r = c.post(f"/leads/{ids['spa']}/status", data={"status": "Appointment set"})
     assert "Why?" not in r.text
     with Session(engine) as db:
         lead = db.get(Lead, ids["spa"])

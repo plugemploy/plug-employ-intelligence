@@ -27,7 +27,7 @@ def ids():
         db.add_all([
             Lead(account_id=a.id, business_name="Farragut Dental", website="https://www.farragutdental.com/"),
             Lead(account_id=a.id, business_name="Recent Co", website="https://recent.com"),
-            Lead(account_id=a.id, business_name="Won Client", website="https://wonclient.com", status="Won"),
+            Lead(account_id=a.id, business_name="Won Client", website="https://wonclient.com", status="Sold"),
             Lead(account_id=a.id, business_name="Never Emailed", website="https://quiet.com"),
             Lead(account_id=a.id, business_name="Gmail Site", website="https://gmail.com"),
             Lead(account_id=b.id, business_name="Farragut Dental", website="https://farragutdental.com"),

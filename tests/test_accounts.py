@@ -133,10 +133,12 @@ def test_results_pages_and_beta_dashboard():
         db.flush()
         db.add_all([
             Lead(account_id=theirs.id, business_name="Hot New", score=9),
-            Lead(account_id=theirs.id, business_name="Called", score=7, status="Contacted"),
-            Lead(account_id=theirs.id, business_name="Closed One", score=8, status="Won", deal_value=3600),
-            Lead(account_id=theirs.id, business_name="Said No", score=5, status="Not interested"),
-            Lead(account_id=theirs.id, business_name="Deleted Win", status="Won", deal_value=9999, deleted_at=now),
+            Lead(account_id=theirs.id, business_name="Called", status="Contacted", contacted_at=now),
+            Lead(account_id=theirs.id, business_name="Booked", status="Appointment set", contacted_at=now, appt_set_at=now),
+            Lead(account_id=theirs.id, business_name="Closed One", status="Sold", contacted_at=now, appt_set_at=now,
+                 appt_shown_at=now, sold_at=now, mrr=300, contract_months=12, ad_mgmt_fee=500),
+            Lead(account_id=theirs.id, business_name="No Show", status="Not interested", contacted_at=now, appt_set_at=now),
+            Lead(account_id=theirs.id, business_name="Deleted Win", status="Sold", sold_at=now, mrr=9999, deleted_at=now),
         ])
         db.add(User(org_id=tester_org.id, account_id=theirs.id, email="tester@results.test", role="owner",
                     last_login_at=now))
@@ -145,7 +147,7 @@ def test_results_pages_and_beta_dashboard():
     tester = TestClient(app)
     login_as(tester, theirs_id)
     html = tester.get("/results").text
-    assert "$3,600" in html and "50% win rate" in html  # 1 won of 2 decided; deleted win not counted
+    assert "$3,600" in html and "$500" in html and "$300" in html  # contract value, ad fee, MRR; deleted sale not counted
     assert tester.get("/beta").status_code == 404 and tester.get("/beta.csv").status_code == 404
     owner = TestClient(app)
     login_as(owner, mine_id)
@@ -153,5 +155,5 @@ def test_results_pages_and_beta_dashboard():
     assert "Test: Tester Co" in html and "tester@results.test" in html and "Test: Owner Co" not in html
     csv_text = owner.get("/beta.csv").text
     line = [l for l in csv_text.splitlines() if l.startswith("Test: Tester Co")][0]
-    assert ",4,2,3,1,1,1,50,3600," in line  # leads, 8+, reached out, interested, won, lost, win rate, $
+    assert line.endswith(",4,3,1,1,300,3600,500,0")  # contacted, set, shown, sold, MRR, contract value, ad fees, feedback
 

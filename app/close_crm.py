@@ -22,12 +22,12 @@ TOP_N = 20
 # Close status (lower case) -> (app status, outcome reason, follow-up in N days or "next_year")
 STATUS_MAP = {
     "potential": ("New", "", None),
-    "qualified": ("Interested", "", None),
-    "interested": ("Interested", "", None),
+    "qualified": ("Contacted", "", None),
+    "interested": ("Contacted", "", None),
     "1-3 months": ("Contacted", "", 30),
     "3-6 months": ("Contacted", "", 90),
     "next year": ("Contacted", "", "next_year"),
-    "customer": ("Won", "", None),
+    "customer": ("Sold", "", None),
     "not interested": ("Not interested", "", None),
     "bad fit": ("Not interested", "Bad fit", None),
     "canceled": ("Not interested", "Cancelled (former customer)", None),
@@ -182,6 +182,7 @@ def apply_status(db: Session, lead: Lead, close_label: str) -> bool:
     if lead.status != status and status in OUTCOMES:
         lead.outcome_at = datetime.now(timezone.utc)
     lead.status = status
+    lead.reach(status, datetime.now(timezone.utc))
     if status in OUTCOMES:
         lead.outcome_reason = reason or lead.outcome_reason
     if follow_days is not None:

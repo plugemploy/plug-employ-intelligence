@@ -5,17 +5,25 @@
     </select>
     {% if saved %}<span class="text-xs text-green-700">Saved ✓</span>{% endif %}
   </div>
-  {% if lead.status in ("Won", "Not interested") %}
+  {% if lead.status in ("Sold", "Not interested") %}
   <label class="grid gap-1 text-xs text-slate-600">Why? (optional; teaches the scoring)
     <input name="reason" value="{{ lead.outcome_reason }}" maxlength="500"
-           placeholder="{{ 'e.g. Loved the event sponsorship idea' if lead.status == 'Won' else 'e.g. No budget until spring' }}"
+           placeholder="{{ 'e.g. Loved the event sponsorship idea' if lead.status == 'Sold' else 'e.g. No budget until spring' }}"
            class="border rounded px-2 py-1 text-sm"></label>
   {% endif %}
-  {% if lead.status == "Won" %}
-  <label class="grid gap-1 text-xs text-slate-600">Deal value, total for the contract ($)
-    <input type="number" name="deal_value" min="0" step="1" value="{{ lead.deal_value|int if lead.deal_value else '' }}"
-           placeholder="e.g. 3600" class="border rounded px-2 py-1 text-sm"></label>
-  <label class="grid gap-1 text-xs text-slate-600">Contract ends (we'll remind you 30 days before)
-    <input type="date" name="contract_end" value="{{ lead.contract_end or '' }}" class="border rounded px-2 py-1 text-sm"></label>
+  {% if lead.status == "Sold" %}
+  <div class="grid grid-cols-2 gap-2">
+    <label class="grid gap-1 text-xs text-slate-600">Monthly (MRR) $
+      <input type="number" name="mrr" min="0" step="1" value="{{ lead.mrr|int if lead.mrr else '' }}" placeholder="e.g. 450"
+             class="border rounded px-2 py-1 text-sm"></label>
+    <label class="grid gap-1 text-xs text-slate-600">Contract length (months)
+      <input type="number" name="contract_months" min="1" step="1" value="{{ lead.contract_months or '' }}" placeholder="e.g. 12"
+             class="border rounded px-2 py-1 text-sm"></label>
+  </div>
+  <label class="grid gap-1 text-xs text-slate-600">Ad Management Fee, one time $
+    <input type="number" name="ad_mgmt_fee" min="0" step="1" value="{{ lead.ad_mgmt_fee|int if lead.ad_mgmt_fee else '' }}" placeholder="e.g. 250"
+           class="border rounded px-2 py-1 text-sm"></label>
+  {% if lead.contract_value %}<p class="text-xs text-slate-600">Contract value: <b>${{ "{:,.0f}".format(lead.contract_value) }}</b>
+    {% if lead.contract_end %}· renews {{ lead.contract_end.strftime("%b %-d, %Y") }} (we'll remind you 30 days before){% endif %}</p>{% endif %}
   {% endif %}
 </form>

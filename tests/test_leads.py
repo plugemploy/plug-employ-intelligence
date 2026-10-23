@@ -44,21 +44,21 @@ def test_cannot_open_or_change_other_accounts_lead(two_accounts):
     c = client_for(two_accounts["a"])
     lb = two_accounts["lb"]
     assert c.get(f"/leads/{lb}").status_code == 404
-    assert c.post(f"/leads/{lb}/status", data={"status": "Won"}).status_code == 404
+    assert c.post(f"/leads/{lb}/status", data={"status": "Sold"}).status_code == 404
     assert c.post(f"/leads/{lb}/notes", data={"text": "hi"}).status_code == 404
 
 
 def test_status_note_and_follow_up(two_accounts):
     c = client_for(two_accounts["a"])
     la = two_accounts["la"]
-    assert c.post(f"/leads/{la}/status", data={"status": "Interested"}).status_code == 200
+    assert c.post(f"/leads/{la}/status", data={"status": "Appointment set"}).status_code == 200
     assert "Spoke with owner" in c.post(f"/leads/{la}/notes", data={"text": "Spoke with owner"}).text
     assert c.post(f"/leads/{la}/follow-ups", data={"due_date": "2026-01-01", "task": "Call"}).status_code == 200
     assert "Alpha Test Lead" in c.get("/due").text
     with Session(engine) as db:
         fu = db.query(FollowUp).filter_by(lead_id=la).one()
         assert fu.account_id == two_accounts["a"]
-        assert db.get(Lead, la).status == "Interested"
+        assert db.get(Lead, la).status == "Appointment set"
     # Account B can't mark A's follow-up done
     assert client_for(two_accounts["b"]).post(f"/follow-ups/{fu.id}/done").status_code == 404
 
@@ -216,12 +216,17 @@ def test_only_the_owner_sees_dollar_amounts(two_accounts):
     assert "spent this month" in c.get("/search").text
 
 
-def test_deal_value_saved_with_won(two_accounts):
+def test_sales_steps_and_sold_amounts(two_accounts):
     c = client_for(two_accounts["a"])
     la = two_accounts["la"]
-    c.post(f"/leads/{la}/status", data={"status": "Won", "deal_value": "$2,400"})
+    c.post(f"/leads/{la}/status", data={"status": "Appointment set"})
     with Session(engine) as db:
-        assert float(db.get(Lead, la).deal_value) == 2400
-    c.post(f"/leads/{la}/status", data={"status": "Interested"})
+        lead = db.get(Lead, la)
+        assert lead.contacted_at and lead.appt_set_at and not lead.appt_shown_at  # earlier steps filled in
+    r = c.post(f"/leads/{la}/status", data={"status": "Sold", "mrr": "$450", "contract_months": "12", "ad_mgmt_fee": "1,250"})
+    assert "Contract value: <b>$5,400</b>" in r.text
+    c.post(f"/leads/{la}/status", data={"status": "Not interested"})  # later cancelled: steps reached still count
     with Session(engine) as db:
-        assert db.get(Lead, la).deal_value is None
+        lead = db.get(Lead, la)
+        assert lead.appt_shown_at and lead.sold_at and float(lead.mrr) == 450 and lead.contract_months == 12
+        assert float(lead.ad_mgmt_fee) == 1250
