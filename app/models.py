@@ -112,6 +112,7 @@ class Lead(Base):
     # Owner or manager, only when the business's own website names them.
     contact_name: Mapped[str] = mapped_column(String(200), default="", server_default="")
     contact_title: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    founded_year: Mapped[int | None] = mapped_column(Integer)  # only when the business's own website states it
     # From the Gmail check: latest email to/from the business's website domain.
     last_emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     emailed_domain: Mapped[str] = mapped_column(String(200), default="", server_default="")

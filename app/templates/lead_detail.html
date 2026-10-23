@@ -16,6 +16,8 @@
 {% endif %}
 <div class="mt-2 mb-6">
   <h1 class="text-2xl font-bold">{{ lead.business_name }}</h1>
+  {% if lead.founded_year %}<p class="mt-1 text-sm text-slate-600">Established {{ lead.founded_year }}
+    ({{ today.year - lead.founded_year }} year{{ "s" if today.year - lead.founded_year != 1 }} in business, per their website)</p>{% endif %}
   {% if lead.contact_name %}<p class="mt-1 text-sm">👤 <b>{{ lead.contact_name }}</b>{% if lead.contact_title %}, {{ lead.contact_title }}{% endif %}
     <a href="{{ lead.website_about_url or lead.website }}" target="_blank" rel="noopener" class="text-xs text-blue-700 hover:underline ml-1">(from their website)</a></p>{% endif %}
   {% if lead.last_emailed_at %}<p class="mt-1 inline-block rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs">Emailed · last on {{ lead.last_emailed_at.astimezone().strftime("%b %-d, %Y") }} ({{ lead.emailed_domain }})</p>{% endif %}

@@ -76,3 +76,27 @@ def test_contact_saved_from_website_and_used(account_id, monkeypatch):
         from app import close_crm
         body = close_crm.lead_body(lead, "stat")
         assert body["contacts"][0]["name"] == "Dr. Sarah Lee" and body["contacts"][0]["title"] == "Owner"
+
+
+def test_founded_year_from_website_only(account_id, monkeypatch):
+    from datetime import datetime
+    answers = iter([9999, 2021])
+    monkeypatch.setattr(scoring, "ask_claude", lambda lead, system: (
+        scoring.LeadScore(score=8, reason="Fit.", contact_name="", contact_title="", founded_year=next(answers)), 0.0001))
+    with Session(engine) as db:
+        lead = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.business_name == "Unscored Biz")).one()
+        lead.website_text = "Proudly serving Farragut since 2021."
+        db.commit()
+        scoring.score_unscored(db, account_id)  # an impossible year is ignored
+        assert db.get(Lead, lead.id).founded_year is None
+        lead.score = None
+        db.commit()
+        scoring.score_unscored(db, account_id)
+        lead = db.get(Lead, lead.id)
+        assert lead.founded_year == 2021
+        assert f"Founded: 2021 (about {datetime.now().year - 2021} years ago)" in scoring.describe(lead)
+
+
+def test_rules_dont_penalize_multiple_locations():
+    assert "several locations is not a weakness" in scoring.RUBRIC
+    assert "affluent homeowners" in scoring.DEFAULT_DESCRIPTION
