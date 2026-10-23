@@ -116,3 +116,42 @@ def test_feedback_box_and_owner_page():
         assert (f.page, f.text) == ("/search", "Test: the search page confused me")
         db.delete(f)
         db.commit()
+
+
+def test_results_pages_and_beta_dashboard():
+    from datetime import datetime, timezone
+    from app.models import FollowUp
+    now = datetime.now(timezone.utc)
+    with Session(engine) as db:
+        owner_org = Organization(name="Test: Owner Co", plan="active", plan_tier="owner")
+        tester_org = Organization(name="Test: Tester Co", plan="trial", plan_tier="beta")
+        db.add_all([owner_org, tester_org])
+        db.flush()
+        mine = Account(name="Test: Owner Acct", org_id=owner_org.id, setup_done_at=now)
+        theirs = Account(name="Test: Tester Acct", org_id=tester_org.id, setup_done_at=now)
+        db.add_all([mine, theirs])
+        db.flush()
+        db.add_all([
+            Lead(account_id=theirs.id, business_name="Hot New", score=9),
+            Lead(account_id=theirs.id, business_name="Called", score=7, status="Contacted"),
+            Lead(account_id=theirs.id, business_name="Closed One", score=8, status="Won", deal_value=3600),
+            Lead(account_id=theirs.id, business_name="Said No", score=5, status="Not interested"),
+            Lead(account_id=theirs.id, business_name="Deleted Win", status="Won", deal_value=9999, deleted_at=now),
+        ])
+        db.add(User(org_id=tester_org.id, account_id=theirs.id, email="tester@results.test", role="owner",
+                    last_login_at=now))
+        db.commit()
+        mine_id, theirs_id = mine.id, theirs.id
+    tester = TestClient(app)
+    login_as(tester, theirs_id)
+    html = tester.get("/results").text
+    assert "$3,600" in html and "50% win rate" in html  # 1 won of 2 decided; deleted win not counted
+    assert tester.get("/beta").status_code == 404 and tester.get("/beta.csv").status_code == 404
+    owner = TestClient(app)
+    login_as(owner, mine_id)
+    html = owner.get("/beta").text
+    assert "Test: Tester Co" in html and "tester@results.test" in html and "Test: Owner Co" not in html
+    csv_text = owner.get("/beta.csv").text
+    line = [l for l in csv_text.splitlines() if l.startswith("Test: Tester Co")][0]
+    assert ",4,2,3,1,1,1,50,3600," in line  # leads, 8+, reached out, interested, won, lost, win rate, $
+

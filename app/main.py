@@ -14,7 +14,7 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import auth, billing, catalog, close_crm, plans, digest, gmail, nightly, outreach, places, scoring, search_jobs
+from app import auth, billing, catalog, close_crm, plans, digest, gmail, nightly, outreach, places, results, scoring, search_jobs
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
@@ -344,7 +344,8 @@ def lead_detail(lead_id: int, request: Request, db: Session = Depends(get_sessio
 
 @app.post("/leads/{lead_id}/status")
 def set_status(lead_id: int, request: Request, status: str = Form(...), reason: str = Form(""),
-               contract_end: str = Form(""), db: Session = Depends(get_session), account=Depends(current_account)):
+               contract_end: str = Form(""), deal_value: str = Form(""),
+               db: Session = Depends(get_session), account=Depends(current_account)):
     lead = get_lead(db, account, lead_id)
     if status not in STATUSES:
         raise HTTPException(400, "Unknown status")
@@ -357,6 +358,12 @@ def set_status(lead_id: int, request: Request, status: str = Form(...), reason: 
     lead.status = status
     if status == "Won":
         set_renewal(db, lead, date.fromisoformat(contract_end) if contract_end else None)
+        try:
+            lead.deal_value = max(0.0, float(deal_value.replace(",", "").replace("$", ""))) if deal_value.strip() else None
+        except ValueError:
+            pass  # keep the old value if it wasn't a number
+    else:
+        lead.deal_value = None
     db.commit()
     return render(request, "_status.html", db, account, lead=lead, saved=True)
 
@@ -899,6 +906,72 @@ def usage_page(request: Request, db: Session = Depends(get_session), account=Dep
                    overall=places.spent_this_month(db),
                    month=start.strftime("%B %Y"))
     return render(request, "usage.html", db, account, **ctx)
+
+
+# ---- Results -------------------------------------------------------------------------------
+
+@app.get("/results")
+def my_results(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    ctx = {}
+    if account:
+        ctx = dict(all_time=results.with_rates(results.metrics(db, [account.id])[account.id]),
+                   month=results.with_rates(results.metrics(db, [account.id], since=places.month_start())[account.id]),
+                   month_name=places.month_start().strftime("%B"), started=account.created_at)
+    return render(request, "results.html", db, account, **ctx)
+
+
+def beta_rows(db: Session) -> list[dict]:
+    """One row per customer company (not the owner's), with its results added up."""
+    orgs = db.scalars(select(Organization).where(Organization.plan_tier != "owner").order_by(Organization.created_at)).all()
+    accounts = db.scalars(select(Account).where(Account.org_id.in_([o.id for o in orgs] or [0]))).all()
+    per_account = results.metrics(db, [a.id for a in accounts])
+    users = db.scalars(select(User).where(User.org_id.in_([o.id for o in orgs] or [0]))).all()
+    notes = dict(db.execute(select(Feedback.account_id, func.count()).group_by(Feedback.account_id)).all())
+    rows = []
+    for o in orgs:
+        mine = [a for a in accounts if a.org_id == o.id]
+        people = [u for u in users if u.org_id == o.id]
+        if not people:  # demo companies nobody signs in to aren't testers
+            continue
+        logins = [u.last_login_at for u in people if u.last_login_at]
+        rows.append(dict(org=o, plan=plans.PLANS.get(o.plan_tier, {}).get("label", o.plan_tier),
+                         emails=", ".join(u.email for u in people),
+                         setup_done=all(a.setup_done_at for a in mine) if mine else False,
+                         last_login=max(logins) if logins else None,
+                         feedback=sum(notes.get(a.id, 0) for a in mine),
+                         **results.total([per_account[a.id] for a in mine])))
+    return rows
+
+
+def require_owner(db: Session, user: User) -> None:
+    if db.get(Organization, user.org_id).plan_tier != "owner":
+        raise HTTPException(404)
+
+
+@app.get("/beta")
+def beta_results(request: Request, db: Session = Depends(get_session), user: User = Depends(current_user)):
+    require_owner(db, user)
+    rows = beta_rows(db)
+    return render(request, "beta.html", db, None, rows=rows, totals=results.total(rows) if rows else None)
+
+
+@app.get("/beta.csv")
+def beta_results_csv(db: Session = Depends(get_session), user: User = Depends(current_user)):
+    import csv
+    import io
+    require_owner(db, user)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Company", "People", "Plan", "Signed up", "Setup done", "Last sign-in", "Searches", "Leads found",
+                "Scored 8+", "Reached out", "Interested", "Won", "Not interested", "Win rate %", "Won $",
+                "Follow-ups done", "Feedback notes"])
+    for r in beta_rows(db):
+        w.writerow([r["org"].name, r["emails"], r["plan"], r["org"].created_at.date(), "yes" if r["setup_done"] else "no",
+                    r["last_login"].date() if r["last_login"] else "", r["searches"], r["found"], r["hot"], r["reached"],
+                    r["interested"], r["won"], r["lost"], r["win_rate"] if r["win_rate"] is not None else "",
+                    round(r["value"]), r["follow_ups_done"], r["feedback"]])
+    return HTMLResponse(buf.getvalue(), media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="beta-results-{date.today()}.csv"'})
 
 
 # ---- Feedback from testers ----------------------------------------------------------------

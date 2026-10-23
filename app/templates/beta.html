@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Beta results{% endblock %}
+{% block content %}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <div><h1 class="text-2xl font-bold">Beta results</h1>
+    <p class="text-sm text-slate-500">Every customer company people have signed up for (not your own). Only you see this page.</p></div>
+  <a href="/beta.csv" class="rounded border px-3 py-1 text-sm hover:bg-slate-50">⬇ Download spreadsheet (CSV)</a>
+</div>
+{% if totals %}
+<div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-6">
+  {% for label, val in [("Testers", rows|length), ("Leads found", totals.found), ("Reached out", totals.reached),
+                        ("Won", totals.won), ("Ad sales closed", "$" ~ "{:,.0f}".format(totals.value)),
+                        ("Win rate", (totals.win_rate|string ~ "%") if totals.win_rate is not none else "—")] %}
+  <div class="bg-white rounded-xl shadow p-4"><p class="text-xs text-slate-500">{{ label }}</p><p class="text-2xl font-bold">{{ val }}</p></div>
+  {% endfor %}
+</div>
+{% endif %}
+<div class="bg-white rounded-xl shadow overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-100 text-left text-slate-600"><tr>
+      <th class="p-3">Company</th><th class="p-3">Plan</th><th class="p-3">Signed up</th><th class="p-3">Last sign-in</th>
+      <th class="p-3">Searches</th><th class="p-3">Leads</th><th class="p-3">8+</th><th class="p-3">Reached out</th>
+      <th class="p-3">Interested</th><th class="p-3">Won</th><th class="p-3">Won $</th><th class="p-3">Feedback</th></tr></thead>
+    <tbody>{% for r in rows %}<tr class="border-t align-top">
+      <td class="p-3"><b>{{ r.org.name }}</b><span class="block text-xs text-slate-500">{{ r.emails }}</span>
+        {% if not r.setup_done %}<span class="text-xs text-amber-700">setup not finished</span>{% endif %}</td>
+      <td class="p-3">{{ r.plan }}</td>
+      <td class="p-3 whitespace-nowrap">{{ r.org.created_at.astimezone().strftime("%b %-d") }}</td>
+      <td class="p-3 whitespace-nowrap">{{ r.last_login.astimezone().strftime("%b %-d") if r.last_login else "never" }}</td>
+      <td class="p-3">{{ r.searches }}</td><td class="p-3">{{ r.found }}</td><td class="p-3">{{ r.hot }}</td>
+      <td class="p-3">{{ r.reached }}</td><td class="p-3">{{ r.interested }}</td>
+      <td class="p-3 font-semibold text-green-700">{{ r.won }}</td><td class="p-3">${{ "{:,.0f}".format(r.value) }}</td>
+      <td class="p-3">{% if r.feedback %}<a href="/feedback" class="text-blue-700 hover:underline">{{ r.feedback }}</a>{% else %}0{% endif %}</td></tr>
+    {% else %}<tr><td colspan="12" class="p-6 text-center text-slate-500">No testers have signed up yet.</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endblock %}

@@ -214,3 +214,14 @@ def test_only_the_owner_sees_dollar_amounts(two_accounts):
         db.get(Organization, db.get(Account, a).org_id).plan_tier = "owner"
         db.commit()
     assert "spent this month" in c.get("/search").text
+
+
+def test_deal_value_saved_with_won(two_accounts):
+    c = client_for(two_accounts["a"])
+    la = two_accounts["la"]
+    c.post(f"/leads/{la}/status", data={"status": "Won", "deal_value": "$2,400"})
+    with Session(engine) as db:
+        assert float(db.get(Lead, la).deal_value) == 2400
+    c.post(f"/leads/{la}/status", data={"status": "Interested"})
+    with Session(engine) as db:
+        assert db.get(Lead, la).deal_value is None

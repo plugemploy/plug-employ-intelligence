@@ -12,6 +12,9 @@
            class="border rounded px-2 py-1 text-sm"></label>
   {% endif %}
   {% if lead.status == "Won" %}
+  <label class="grid gap-1 text-xs text-slate-600">Deal value, total for the contract ($)
+    <input type="number" name="deal_value" min="0" step="1" value="{{ lead.deal_value|int if lead.deal_value else '' }}"
+           placeholder="e.g. 3600" class="border rounded px-2 py-1 text-sm"></label>
   <label class="grid gap-1 text-xs text-slate-600">Contract ends (we'll remind you 30 days before)
     <input type="date" name="contract_end" value="{{ lead.contract_end or '' }}" class="border rounded px-2 py-1 text-sm"></label>
   {% endif %}

@@ -18,11 +18,13 @@
         <a href="/search" class="hover:underline">Find leads</a>
         <a href="/nightly" class="hover:underline">Nightly search</a>
         <a href="/leads/new" class="hover:underline">Add lead</a>
+        <a href="/results" class="hover:underline">My results</a>
         <a href="/usage" class="hover:underline">Usage</a>
         <a href="/business" class="hover:underline">My business</a>
       </nav>
       <div class="ml-auto flex items-center gap-3 text-sm">
-        {% if org and org.plan_tier == "owner" %}<a href="/feedback" class="hover:underline">Feedback</a>{% endif %}
+        {% if org and org.plan_tier == "owner" %}<a href="/beta" class="hover:underline">Beta results</a>
+        <a href="/feedback" class="hover:underline">Feedback</a>{% endif %}
         {% if user and user.is_admin %}
         <a href="/admin" class="hover:underline font-medium">Team</a>
         <a href="/billing" class="hover:underline">Billing</a>

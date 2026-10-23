@@ -77,6 +77,7 @@ class Lead(Base):
     outcome_reason: Mapped[str] = mapped_column(Text, default="", server_default="")
     outcome_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     contract_end: Mapped[date | None] = mapped_column(Date)  # for Won leads: renewal reminder 30 days before
+    deal_value: Mapped[float | None] = mapped_column(Numeric(10, 2))  # Won leads: total contract, for results
     draft_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Gmail draft made
     # Close CRM: where the VA calls. Status there syncs back here.
     close_lead_id: Mapped[str] = mapped_column(String(100), default="", server_default="", index=True)

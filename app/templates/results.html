@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}My results{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">My results</h1>
+<p class="text-sm text-slate-600 mb-6">What Plug Employ has found and what you've closed. Mark leads <b>Won</b> with the deal value
+  on each lead's page so your results count it.</p>
+{% macro tiles(m, with_follow_ups) %}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+  {% for label, val, note in [
+      ("Leads found", m.found, "%d searches" % m.searches),
+      ("Scored 8+", m.hot, "strongest fits"),
+      ("Reached out", m.reached, "contacted or emailed"),
+      ("Interested", m.interested, "includes won"),
+      ("Won", m.won, ("%d%% win rate" % m.win_rate) if m.win_rate is not none else "mark leads Won"),
+      ("Ad sales closed", "$" ~ "{:,.0f}".format(m.value), ("avg $" ~ "{:,}".format(m.avg_deal) ~ " per deal") if m.avg_deal else "add deal values"),
+      ("Not interested", m.lost, "teaches the scoring"),
+      ("Follow-ups done", m.follow_ups_done, "since you started") if with_follow_ups else ("", "", "")] %}
+  {% if label %}<div class="bg-white rounded-xl shadow p-4">
+    <p class="text-xs text-slate-500">{{ label }}</p>
+    <p class="text-2xl font-bold {{ 'text-green-700' if label == 'Ad sales closed' and m.value else '' }}">{{ val }}</p>
+    <p class="text-xs text-slate-400">{{ note }}</p></div>{% endif %}
+  {% endfor %}
+</div>
+{% endmacro %}
+{% if all_time %}
+<h2 class="font-semibold mb-2">Since you started{% if started %} <span class="font-normal text-slate-500 text-sm">({{ started.astimezone().strftime("%b %-d, %Y") }})</span>{% endif %}</h2>
+{{ tiles(all_time, true) }}
+<h2 class="font-semibold mt-8 mb-2">{{ month_name }} <span class="font-normal text-slate-500 text-sm">(leads added this month)</span></h2>
+{{ tiles(month, false) }}
+{% endif %}
+{% endblock %}
