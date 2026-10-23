@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
-from app import nightly, places, scoring
+from app import nightly, overture, places, scoring
 from app.db import engine
 from app.models import Account, ApiUsage, NightlyRun
 
@@ -51,7 +51,7 @@ def test_due_only_after_run_time_and_once(account_id):
 
 def test_run_records_results(account_id, monkeypatch):
     calls = []
-    monkeypatch.setattr(places, "search_and_save",
+    monkeypatch.setattr(overture, "search_and_save",
                         lambda db, aid, z, i: calls.append((z, i)) or {"added": 2})
     monkeypatch.setattr(scoring, "score_unscored", lambda db, aid, limit: {})
     with Session(engine) as db:
@@ -67,7 +67,7 @@ def test_run_records_results(account_id, monkeypatch):
 def test_run_keeps_error(account_id, monkeypatch):
     def boom(*a):
         raise places.BudgetExceeded("Monthly API budget of $50 reached.")
-    monkeypatch.setattr(places, "search_and_save", boom)
+    monkeypatch.setattr(overture, "search_and_save", boom)
     with Session(engine) as db:
         acct = db.get(Account, account_id)
         acct.target_zips, acct.industries = "37934", "Dentist"

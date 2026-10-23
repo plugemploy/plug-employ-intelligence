@@ -62,7 +62,7 @@ The prototype runs locally on a Mac and must later move to cloud hosting.
   N2 franchise data is never used in the product. Ownership questions are with an attorney.
 
 ### Plans and pricing
-- A "search" costs ~$0.039: Google $0.035 + ~$0.004 Claude scoring of the new leads (measured).
+- Leads come from Overture Maps' open data (free, storable). A search costs only Claude scoring (~$0.006). Plans count searches.
 - Standard: $99/month, $15 allowance (~380 searches), up to 20 nightly searches. **No Gmail features.**
 - Pro: $149/month, $25 (~640 searches), up to 30 nightly searches, Gmail features (Emailed tags,
   quiet follow-ups, drafts, Monday digest).

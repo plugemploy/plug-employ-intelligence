@@ -27,7 +27,8 @@ RUBRIC = """You score local businesses as sales prospects for the business descr
 Score 1-10 for how likely the business is to be a good, paying customer:
 - Fit: how well it matches the ideal customer in the description, including the audience it serves
   (for example, whether it wants to reach affluent homeowners when the description says so).
-- Reputable: strong rating backed by many reviews scores higher. Few reviews or a weak rating lowers it.
+- Established: an active website and a listed email suggest a real, active business. A Google rating, when
+  given, counts too; when no rating is given, don't lower the score for it.
 - Close: ZIPs listed first in the target area matter most; other target ZIPs slightly less.
 - Size: several locations is not a weakness; growing regional and multi-location businesses can be strong
   customers. Only national brands whose marketing is decided centrally (big-box stores, fast food) are usually
@@ -94,10 +95,11 @@ def describe(lead: Lead) -> str:
         f"Name: {lead.business_name}",
         f"Industry: {lead.industry or 'unknown'}",
         f"Address: {lead.address} (ZIP {lead.zip_code})",
-        f"Google rating: {lead.rating if lead.rating is not None else 'unknown'}"
-        f" from {lead.review_count if lead.review_count is not None else 'unknown'} reviews",
         f"Website: {'yes' if lead.website else 'no'}",
-    ] + ([f"Founded: {lead.founded_year} (about {datetime.now().year - lead.founded_year} years ago)"]
+        f"Email listed: {'yes' if lead.email else 'no'}",
+    ] + ([f"National brand: {lead.brand}"] if lead.brand else [])
+      + ([f"Google rating: {lead.rating} from {lead.review_count} reviews"] if lead.rating is not None else [])
+      + ([f"Founded: {lead.founded_year} (about {datetime.now().year - lead.founded_year} years ago)"]
          if lead.founded_year else [])
       + ([f"Contact: {lead.contact_name}" + (f" ({lead.contact_title})" if lead.contact_title else "")]
          if lead.contact_name else []) + ([f"Website text (homepage excerpt):\n<website>\n{lead.website_text}\n</website>"] if lead.website_text else []))

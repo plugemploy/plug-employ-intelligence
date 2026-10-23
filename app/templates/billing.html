@@ -27,7 +27,7 @@
       <ul class="text-sm text-slate-600 list-disc ml-5">
         {% if p.unlimited %}<li><b>Unlimited searches</b> across up to {{ p.max_zips }} ZIP codes and {{ p.max_industries }} business types,
           every one searched fresh each month, scored by Claude</li>
-        {% else %}<li>About {{ (p.allowance_usd / search_cost)|int }} searches a month, scored by Claude</li>{% endif %}
+        {% else %}<li>{{ p.searches }} searches a month, scored by Claude</li>{% endif %}
         <li>Up to {{ p.nightly_max }} automatic searches a night</li>
         {% if p.email %}<li>Gmail: see who you've already emailed, follow-up reminders, email drafts, Monday summary</li>
         {% else %}<li class="text-slate-400">No Gmail features</li>{% endif %}

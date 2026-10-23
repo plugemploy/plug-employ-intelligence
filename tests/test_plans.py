@@ -42,9 +42,17 @@ def test_allowance_by_plan(acct):
     with Session(engine) as db:
         a = db.get(Account, acct["acct"])
         u = plans.usage(db, a)
-        assert (u["limit"], u["searches_total"], u["searches_left"]) == (10.0, 256, 256)  # $10 / $0.039 per search
-        spend(db, a.id, 8.5)
-        assert plans.usage(db, a)["pct"] == pytest.approx(0.85)
+        assert (u["limit"], u["searches_total"], u["searches_left"]) == (10.0, 256, 256)  # Wholesale: 256 searches
+        for i in range(64):
+            spend(db, a.id, 0, f"Type {i} in 37934", "overture_search")
+        u = plans.usage(db, a)
+        assert (u["searches_used"], u["searches_left"], u["pct"]) == (64, 192, pytest.approx(0.25))
+        for i in range(192):
+            db.add(ApiUsage(account_id=a.id, service="overture_search", detail=f"More {i}", est_cost_usd=0))
+        db.commit()
+        with pytest.raises(places.BudgetExceeded, match="searches are used up"):
+            places.check_search(db, a.id)
+        spend(db, a.id, 8.5)  # Claude cost still has its own safety cap
         with pytest.raises(places.BudgetExceeded):
             places.check_budget(db, a.id, 1.6)
         db.get(Organization, acct["org"]).plan_tier = "personal"
@@ -57,7 +65,9 @@ def test_nightly_quota_spreads_allowance(acct):
         a = db.get(Account, acct["acct"])
         assert plans.nightly_quota(db, a, 20, today=date(2026, 10, 2)) == 9    # 256 left / 30 days
         assert plans.nightly_quota(db, a, 5, today=date(2026, 10, 2)) == 5     # never above the setting
-        spend(db, a.id, 10)
+        for i in range(256):
+            db.add(ApiUsage(account_id=a.id, service="overture_search", detail=f"T {i}", est_cost_usd=0))
+        db.commit()
         assert plans.nightly_quota(db, a, 20, today=date(2026, 10, 2)) == 0    # used up: no searches
 
 
@@ -66,14 +76,13 @@ def test_meter_shows_and_repeats_skipped(acct, monkeypatch):
     c.cookies.set(auth.SESSION_COOKIE, auth.make_session(acct["user"]))
     assert "256</b> of 256 searches left" in c.get("/leads").text
     with Session(engine) as db:
-        spend(db, acct["acct"], 0.035, "Dentist in 37934", "google_places_text_search")
+        spend(db, acct["acct"], 0.035, "Dentist in 37934", "google_places_text_search")  # an older Google search
+    assert "255</b> of 256 searches left" in c.get("/leads").text
     calls = []
-    monkeypatch.setattr(places, "GOOGLE_PLACES_API_KEY", "x")
-    import app.main as m
-    monkeypatch.setattr(m, "GOOGLE_PLACES_API_KEY", "x")
-    monkeypatch.setattr(places, "search_and_save", lambda db, aid, z, i: calls.append(i) or {
+    from app import overture
+    monkeypatch.setattr(overture, "search_and_save", lambda db, aid, z, i: calls.append(i) or {
         "zip": z, "industry": i, "requests": 1, "found": 0, "added": 0, "skipped_closed": 0,
-        "skipped_few_reviews": 0, "skipped_other_zip": 0, "skipped_duplicate": 0})
+        "skipped_unreliable": 0, "skipped_duplicate": 0, "skipped_over_limit": 0})
     from app import search_jobs
     monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: fn(*a))  # run the search right away
     r = c.post("/search", data={"zips": ["37934"], "industries": ["Dentist", "Salon"]}, follow_redirects=False)
@@ -86,8 +95,6 @@ def test_search_runs_in_background_with_bar(acct, monkeypatch):
     from app.models import SearchJob
     c = TestClient(app)
     c.cookies.set(auth.SESSION_COOKIE, auth.make_session(acct["user"]))
-    import app.main as m
-    monkeypatch.setattr(m, "GOOGLE_PLACES_API_KEY", "x")
     started = []
     monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: started.append(a))  # leave it "running"
     c.post("/search", data={"zips": ["37934"], "industries": ["Dentist", "Salon"]})
@@ -96,9 +103,10 @@ def test_search_runs_in_background_with_bar(acct, monkeypatch):
     assert "Generating new leads" in page and "Searching 0 of 2" in page
     r = c.post("/search", data={"zips": ["37934"], "industries": ["Dentist"]})
     assert "already running" in r.text and len(started) == 1  # no second search
-    monkeypatch.setattr(places, "search_and_save", lambda db, aid, z, i: {
+    from app import overture
+    monkeypatch.setattr(overture, "search_and_save", lambda db, aid, z, i: {
         "zip": z, "industry": i, "requests": 1, "found": 5, "added": 3, "skipped_closed": 0,
-        "skipped_few_reviews": 2, "skipped_other_zip": 0, "skipped_duplicate": 0})
+        "skipped_unreliable": 2, "skipped_duplicate": 0, "skipped_over_limit": 0})
     search_jobs.run(started[0][0])
     bar = c.get("/search/status").text
     assert "6 new leads added" in bar and "every 3s" not in bar  # done: stops refreshing
@@ -135,4 +143,5 @@ def test_every_plan_keeps_77_percent():
         kept = p["price"] - p["allowance_usd"] - (p["price"] * 0.036 + 0.30) - 2.50
         assert kept / p["price"] >= 0.77, tier
     prem = plans.PLANS["premium"]
-    assert prem["max_zips"] * prem["max_industries"] * plans.SEARCH_COST <= prem["allowance_usd"]
+    assert prem["max_zips"] * prem["max_industries"] == prem["searches"]  # every pair once a month
+    assert prem["searches"] * plans.SCORING_COST_PER_SEARCH <= prem["allowance_usd"]

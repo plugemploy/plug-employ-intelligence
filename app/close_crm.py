@@ -142,12 +142,14 @@ def lead_body(lead: Lead, status_id: str) -> dict:
     if lead.address or lead.zip_code:
         body["addresses"] = [{"label": "business", "address_1": lead.address.split(",")[0] if lead.address else "",
                               "zipcode": lead.zip_code, "country": "US"}]
-    if lead.phone or lead.contact_name:
+    if lead.phone or lead.contact_name or lead.email:
         contact = {"name": lead.contact_name or lead.business_name}
         if lead.contact_title:
             contact["title"] = lead.contact_title
         if lead.phone:
             contact["phones"] = [{"phone": lead.phone, "type": "office"}]
+        if lead.email:
+            contact["emails"] = [{"email": lead.email, "type": "office"}]
         body["contacts"] = [contact]
     return body
 

@@ -76,7 +76,7 @@ def draft_for_lead(db: Session, account: Account, lead: Lead, service=None) -> D
                     est_cost_usd=cost))
     db.commit()  # Claude was paid for even if saving the draft fails
     service = service or gmail.gmail_service(db, account)
-    to = gmail.last_address(service, lead.emailed_domain) if lead.emailed_domain else ""
+    to = (gmail.last_address(service, lead.emailed_domain) if lead.emailed_domain else "") or lead.email
     save_draft(service, to, email.subject, email.body)
     lead.draft_created_at = datetime.now(timezone.utc)
     db.commit()

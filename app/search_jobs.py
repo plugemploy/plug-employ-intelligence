@@ -13,7 +13,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import gmail, places, scoring
+from app import gmail, overture, places, scoring
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
@@ -69,7 +69,7 @@ def run(job_id: int) -> None:
                     if f"{ind} in {z}" in recent:
                         results.append({"zip": z, "industry": ind, "recent": True})
                     else:
-                        results.append(places.search_and_save(db, job.account_id, z, ind))
+                        results.append(overture.search_and_save(db, job.account_id, z, ind))
                     job.results = json.dumps(results)
                     db.commit()
             job.step = "reading websites"

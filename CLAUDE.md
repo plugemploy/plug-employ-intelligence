@@ -59,4 +59,10 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   /me, stored encrypted with APP_SECRET_KEY; close_crm.key_for). The .env CLOSE_API_KEY is only a fallback for the
   "Plug Employ" org. Close is on Beta/Pro/Premium (plans "close"), not Standard. Unknown Close statuses change nothing.
 - Beta plan: Day 2 put it online (Render + domain), Day 3 test as a new customer and invite testers.
+- Overture lead source (2026-10-22): Find leads + nightly search use Overture Maps' open places data (app/overture.py,
+  DuckDB reads one ZIP's area from the public S3 release; storable/shareable under CDLA-Permissive/Apache/CC0), not
+  Google Places (Google's terms only allow storing place IDs). ZIP areas from app/data/zip_centroids.csv (Census ZCTA
+  2025). Business types -> Overture categories in app/overture_types.py. Skips closed, confidence < 0.5, no phone/website,
+  duplicates (links older Google leads via overture_id); max 30 added per search, independents before brands.
+  Plans count searches (plans "searches"), not dollars; allowance_usd now only caps Claude cost.
 - Next: Stripe (after attorney/LLC), domain, territory lock, Google verification, per-account Close status mapping.
