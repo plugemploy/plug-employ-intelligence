@@ -230,3 +230,30 @@ def test_sales_steps_and_sold_amounts(two_accounts):
         lead = db.get(Lead, la)
         assert lead.appt_shown_at and lead.sold_at and float(lead.mrr) == 450 and lead.contract_months == 12
         assert float(lead.ad_mgmt_fee) == 1250
+
+
+def test_dashboard_donut_and_breakdown(two_accounts):
+    from app import dashboard
+    a = two_accounts["a"]
+    with Session(engine) as db:
+        db.add_all([Lead(account_id=a, business_name="Sold Shop", status="Sold", mrr=450, contract_months=12, ad_mgmt_fee=250),
+                    Lead(account_id=a, business_name="No Thanks", status="Not interested", outcome_reason="No budget")])
+        db.commit()
+        rows = {r["status"]: r for r in dashboard.counts(db, a)}
+    assert (rows["New"]["count"], rows["Sold"]["count"], rows["Not interested"]["count"]) == (1, 1, 1)
+    assert rows["Sold"]["pct"] == 33 and rows["Sold"]["path"] and not rows["Contacted"]["path"]
+    c = client_for(a)
+    html = c.get("/dashboard").text
+    assert "New (not contacted)" in html and "Sold: 1 lead (33%)" in html
+    part = c.get("/dashboard/breakdown?status=Sold").text
+    assert "Sold Shop" in part and "$450/mo" in part and "12 mo" in part and "$250" in part and "No Thanks" not in part
+    assert "No budget" in c.get("/dashboard?status=Not%20interested").text  # direct link opens with the breakdown
+    assert c.get("/dashboard/breakdown?status=Bogus").status_code == 404
+    other = client_for(two_accounts["b"])
+    assert "Sold Shop" not in other.get("/dashboard/breakdown?status=Sold").text  # never another account's leads
+
+
+def test_dashboard_single_status_draws_full_ring():
+    from app import dashboard
+    full = dashboard._slice(0, 1.0)
+    assert full.count("M") == 2  # two half rings

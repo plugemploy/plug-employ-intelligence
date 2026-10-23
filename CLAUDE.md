@@ -50,5 +50,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   each step's first date kept (contacted_at..sold_at). Sold leads: MRR, contract months (sets renewal), one-time Ad
   Management Fee. My results page (everyone); /beta + /beta.csv for the owner (companies with at least one user).
   Testers sign up at /signup and must be Google test users.
+- Dashboard (2026-10-22): /dashboard donut of leads by status (app/dashboard.py, colors checked for color-blind
+  readers); clicking a slice or row loads that status's leads below (/dashboard/breakdown).
 - Beta plan: Day 2 put it online (Render + domain), Day 3 test as a new customer and invite testers.
 - Next: Stripe test keys from Savannah, cloud hosting + domain, results tracking for beta, per-customer Close, territory lock, Google verification.

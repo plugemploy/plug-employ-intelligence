@@ -1,0 +1,24 @@
+{# Leads in one status, shown under the dashboard donut. Needs: status, label, color, b_leads, b_total. #}
+<section class="bg-white rounded-xl shadow">
+  <div class="flex flex-wrap items-center justify-between gap-2 p-4 border-b">
+    <h2 class="font-semibold flex items-center gap-2"><span class="inline-block h-3 w-3 rounded-sm" style="background: {{ color }}"></span>
+      {{ label }} <span class="font-normal text-slate-500">({{ b_total }})</span></h2>
+    <a href="/leads?status={{ status|urlencode }}&sort=score" class="text-sm text-blue-700 hover:underline">Open in Leads list →</a>
+  </div>
+  <div class="overflow-x-auto"><table class="w-full text-sm">
+    <thead class="text-left text-slate-500"><tr><th class="p-3 font-normal">Business</th><th class="p-3 font-normal">Industry</th>
+      <th class="p-3 font-normal">ZIP</th><th class="p-3 font-normal">Score</th>
+      <th class="p-3 font-normal">{{ "Monthly · months · fee" if status == "Sold" else "Last update" }}</th></tr></thead>
+    <tbody>{% for l in b_leads %}<tr class="border-t">
+      <td class="p-3"><a href="/leads/{{ l.id }}" class="font-medium text-blue-700 hover:underline">{{ l.business_name }}</a>
+        {% if l.outcome_reason %}<span class="block text-xs text-slate-500">{{ l.outcome_reason }}</span>{% endif %}</td>
+      <td class="p-3">{{ l.industry }}</td><td class="p-3">{{ l.zip_code }}</td><td class="p-3">{{ l.score or "" }}</td>
+      <td class="p-3 text-slate-600 whitespace-nowrap">{% if status == "Sold" %}
+        {{ "$" ~ "{:,.0f}".format(l.mrr) ~ "/mo" if l.mrr else "—" }} · {{ l.contract_months ~ " mo" if l.contract_months else "—" }}
+        · {{ "$" ~ "{:,.0f}".format(l.ad_mgmt_fee) if l.ad_mgmt_fee else "—" }}
+        {% else %}{{ l.updated_at.astimezone().strftime("%b %-d") }}{% endif %}</td></tr>
+    {% else %}<tr><td colspan="5" class="p-6 text-center text-slate-500">No leads here.</td></tr>{% endfor %}</tbody>
+  </table></div>
+  {% if b_total > b_leads|length %}<p class="p-3 text-xs text-slate-500 border-t">Showing the {{ b_leads|length }} most recently updated.
+    <a href="/leads?status={{ status|urlencode }}&sort=score" class="text-blue-700 hover:underline">See all {{ b_total }}</a></p>{% endif %}
+</section>

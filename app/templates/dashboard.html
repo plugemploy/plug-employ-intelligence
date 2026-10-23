@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Dashboard</h1>
+<p class="text-sm text-slate-600 mb-6">Where your leads are right now. Click a slice or a row to see those leads.</p>
+{% if total %}
+<div class="bg-white rounded-xl shadow p-6 flex flex-wrap items-center gap-8">
+  <svg viewBox="0 0 {{ size }} {{ size }}" class="w-60 h-60 shrink-0" role="img" aria-label="Leads by status">
+    {% for r in rows if r.count %}
+    <a href="/dashboard?status={{ r.status|urlencode }}" hx-get="/dashboard/breakdown?status={{ r.status|urlencode }}"
+       hx-target="#breakdown" hx-push-url="/dashboard?status={{ r.status|urlencode }}" class="slice">
+      <path d="{{ r.path }}" fill="{{ r.color }}" stroke="#fff" stroke-width="2"
+            class="cursor-pointer transition-opacity hover:opacity-80 {{ 'opacity-40' if chosen and chosen != r.status }}">
+        <title>{{ r.label }}: {{ r.count }} lead{{ "s" if r.count != 1 }} ({{ r.pct }}%)</title></path>
+    </a>
+    {% endfor %}
+    <text x="50%" y="47%" text-anchor="middle" class="fill-slate-800" style="font: 700 32px system-ui">{{ total }}</text>
+    <text x="50%" y="60%" text-anchor="middle" class="fill-slate-500" style="font: 13px system-ui">leads</text>
+  </svg>
+  <table class="text-sm min-w-[18rem]">
+    <thead class="text-left text-slate-500"><tr><th class="pb-2 font-normal">Status</th>
+      <th class="pb-2 font-normal text-right pl-6">Leads</th><th class="pb-2 font-normal text-right pl-4">Share</th></tr></thead>
+    <tbody>{% for r in rows %}
+      <tr class="border-t {{ 'bg-slate-50 font-semibold' if chosen == r.status }}">
+        <td class="py-2"><a href="/dashboard?status={{ r.status|urlencode }}" hx-get="/dashboard/breakdown?status={{ r.status|urlencode }}"
+            hx-target="#breakdown" hx-push-url="/dashboard?status={{ r.status|urlencode }}" class="flex items-center gap-2 hover:underline">
+          <span class="inline-block h-3 w-3 rounded-sm" style="background: {{ r.color }}"></span>{{ r.label }}</a></td>
+        <td class="py-2 text-right pl-6 tabular-nums">{{ r.count }}</td>
+        <td class="py-2 text-right pl-4 tabular-nums text-slate-500">{{ r.pct }}%</td></tr>
+    {% endfor %}</tbody>
+  </table>
+</div>
+<div id="breakdown" class="mt-6">{% if chosen %}{% include "_breakdown.html" %}{% endif %}</div>
+{% else %}
+<p class="text-slate-500">No leads yet. <a href="/search" class="text-blue-700 hover:underline">Find leads</a> to get started.</p>
+{% endif %}
+<script>
+  // Dim the slices that weren't picked, so the chosen one stands out.
+  document.body.addEventListener("htmx:afterRequest", e => {
+    const url = e.detail.pathInfo && e.detail.pathInfo.requestPath || "";
+    if (!url.startsWith("/dashboard/breakdown")) return;
+    const picked = new URLSearchParams(url.split("?")[1]).get("status");
+    document.querySelectorAll("a.slice").forEach(a => a.querySelector("path").classList.toggle(
+      "opacity-40", new URLSearchParams(a.getAttribute("href").split("?")[1]).get("status") !== picked));
+  });
+</script>
+{% endblock %}

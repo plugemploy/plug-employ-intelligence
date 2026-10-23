@@ -14,7 +14,7 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import auth, billing, catalog, close_crm, plans, digest, gmail, nightly, outreach, places, results, scoring, search_jobs
+from app import auth, billing, catalog, close_crm, dashboard, plans, digest, gmail, nightly, outreach, places, results, scoring, search_jobs
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
@@ -925,6 +925,31 @@ def usage_page(request: Request, db: Session = Depends(get_session), account=Dep
                    overall=places.spent_this_month(db),
                    month=start.strftime("%B %Y"))
     return render(request, "usage.html", db, account, **ctx)
+
+
+# ---- Dashboard -----------------------------------------------------------------------------
+
+@app.get("/dashboard")
+def dashboard_page(request: Request, status: str = "", db: Session = Depends(get_session), account=Depends(current_account)):
+    rows = dashboard.counts(db, account.id) if account else []
+    chosen = status if status in STATUSES else ""
+    ctx = dict(rows=rows, total=sum(r["count"] for r in rows), size=dashboard.SIZE, chosen=chosen)
+    if chosen:
+        ctx.update(breakdown_ctx(db, account, chosen))
+    return render(request, "dashboard.html", db, account, **ctx)
+
+
+@app.get("/dashboard/breakdown")
+def dashboard_breakdown(request: Request, status: str = "", db: Session = Depends(get_session), account=Depends(current_account)):
+    if account is None or status not in STATUSES:
+        raise HTTPException(404)
+    return templates.TemplateResponse(request, "_breakdown.html", breakdown_ctx(db, account, status))
+
+
+def breakdown_ctx(db: Session, account: Account, status: str) -> dict:
+    leads, total = dashboard.leads_in(db, account.id, status)
+    return dict(status=status, label=dashboard.LABELS.get(status, status), color=dashboard.COLORS[status],
+                b_leads=leads, b_total=total)
 
 
 # ---- Results -------------------------------------------------------------------------------
