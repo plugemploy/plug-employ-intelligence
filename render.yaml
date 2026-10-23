@@ -2,7 +2,7 @@
 # Keys are not stored here: Render asks for each "sync: false" value when the Blueprint is created.
 databases:
   - name: plug-employ-db
-    plan: basic-256mb
+    # No plan line: the database size is set in Render's dashboard and kept as it is.
     region: ohio
     postgresMajorVersion: "17"
 
