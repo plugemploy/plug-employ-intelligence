@@ -19,7 +19,7 @@ from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admi
 from app import setup as setup_mod
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, COOKIE_SECURE, GOOGLE_PLACES_API_KEY
-from app.models import OUTCOMES, STATUSES, Account, Feedback, FollowUp, Lead, LeadNote, NightlyRun, Organization, User
+from app.models import OUTCOMES, STATUSES, Account, Feedback, FollowUp, Lead, LeadNote, NightlyRun, Organization, SearchJob, User
 
 INDUSTRIES = places.INDUSTRIES
 
@@ -47,14 +47,22 @@ def render(request, name, db, account, **ctx):
     accounts = auth.visible_accounts(db, user) if user else []
     org = db.get(Organization, user.org_id) if user else None
     job = search_jobs.for_bar(db, account.id) if account else None
+    show_costs = bool(org and org.plan_tier == "owner")  # dollar amounts are for the app owner only
     return templates.TemplateResponse(
         request, name,
         {"account": account, "accounts": accounts, "user": user, "org": org, "statuses": STATUSES,
-         "today": date.today(), "search_job": job, **ctx},
+         "today": date.today(), "search_job": job, "show_costs": show_costs, **ctx},
     )
 
 
 LEADS_FILTER_COOKIE = "leads_filters"
+
+
+def parse_day(raw: str) -> date | None:
+    try:
+        return date.fromisoformat(raw) if raw else None
+    except ValueError:
+        return None
 
 
 def can_draft(db: Session, account: Account | None) -> bool:
@@ -134,13 +142,13 @@ def switch_account(account_id: int = Form(...), db: Session = Depends(get_sessio
 
 @app.get("/leads")
 def leads_list(request: Request, text: str = Query("", alias="q"), status: str = "", zip_code: str = "", industry: str = "", sort: str = "follow_up", new: str = "",
-               hide_contacted: str = "",
+               hide_contacted: str = "", search: int | None = None, added_from: str = "", added_to: str = "",
                db: Session = Depends(get_session), account=Depends(current_account)):
     if account and account.setup_done_at is None:
         return RedirectResponse("/setup", status_code=303)
     # Remember the filters so coming back from a lead shows the same list.
     from urllib.parse import urlencode
-    filter_keys = ("q", "status", "zip_code", "industry", "sort", "new", "hide_contacted")
+    filter_keys = ("q", "status", "zip_code", "industry", "sort", "new", "hide_contacted", "added_from", "added_to")
     chosen = {k: v for k, v in request.query_params.items() if k in filter_keys and v}
     saved = request.cookies.get(LEADS_FILTER_COOKIE, "")
     if "clear" in request.query_params:
@@ -149,7 +157,7 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
         return resp
     if not request.query_params and saved:
         return RedirectResponse(f"/leads?{saved}", status_code=303)
-    leads, last_run = [], None
+    leads, last_run, from_search = [], None, None
     if account:
         last_run = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
                               .order_by(NightlyRun.started_at.desc())).first()
@@ -172,9 +180,22 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
             q = q.where(Lead.last_emailed_at.is_(None))
         if new and last_run:
             q = q.where(Lead.created_at >= last_run.started_at)
+        if search:  # "Show them" after a Find leads search: only the leads it added
+            from_search = db.get(SearchJob, search)
+            if from_search is None or from_search.account_id != account.id:
+                raise HTTPException(404, "Search not found")
+            q = q.where(Lead.created_at >= from_search.started_at)
+            if from_search.finished_at:
+                q = q.where(Lead.created_at <= from_search.finished_at)
+        if day := parse_day(added_from):
+            q = q.where(Lead.created_at >= datetime.combine(day, datetime.min.time()).astimezone())
+        if day := parse_day(added_to):
+            q = q.where(Lead.created_at < datetime.combine(day + timedelta(days=1), datetime.min.time()).astimezone())
         leads = list(db.scalars(q.order_by(Lead.business_name)))
         if sort == "score":
             leads.sort(key=lambda l: -(l.score or 0))
+        elif sort == "newest":
+            leads.sort(key=lambda l: l.created_at, reverse=True)
         elif sort == "industry":
             leads.sort(key=lambda l: ((l.industry or "~").lower(), -(l.score or 0)))
         elif sort == "follow_up":
@@ -187,6 +208,7 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
         Lead.account_id == account.id, Lead.deleted_at.is_not(None))) if account else 0
     resp = render(request, "leads.html", db, account, leads=leads, n_deleted=n_deleted, zips=zips, industries=industries, has_filters=bool(chosen),
                   f_q=text, f_status=status, f_zip=zip_code, f_industry=industry, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
+                  from_search=from_search, f_from=added_from, f_to=added_to,
                   working=scoring.whats_working(db, account.id) if account else {},
                   allow=plans.usage(db, account) if account else None,
                   has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.enabled_for(db, account), can_draft=can_draft(db, account), message=request.query_params.get("msg", ""))
@@ -207,7 +229,9 @@ def score_leads(db: Session = Depends(get_session), account=Depends(current_acco
     else:
         try:
             s = scoring.score_unscored(db, account.id)
-            msg = f"Scored {s['scored']} leads for about ${s['cost']:.3f}."
+            msg = f"Scored {s['scored']} leads."
+            if plans.plan_for(db, account)["label"] == "Owner":
+                msg = f"Scored {s['scored']} leads for about ${s['cost']:.3f}."
             if s["failed"]:
                 msg += f" {s['failed']} couldn't be scored; try again later."
         except places.BudgetExceeded as exc:
@@ -489,7 +513,7 @@ def search_ctx(db, account):
 def search_form(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
     job = search_jobs.latest(db, account.id) if account else None
     done = job if job and job.status != "running" else None
-    return render(request, "search.html", db, account, results=done.result_list if done else None,
+    return render(request, "search.html", db, account, results=done.result_list if done else None, last_job=done,
                   error=done.error if done else None, running=job if job and job.status == "running" else None,
                   **search_ctx(db, account))
 
@@ -791,15 +815,21 @@ def admin_page(request: Request, msg: str = "", db: Session = Depends(get_sessio
     spend = dict(db.execute(select(ApiUsage.account_id, func.sum(ApiUsage.est_cost_usd))
                             .where(ApiUsage.account_id.in_(ids), ApiUsage.created_at >= places.month_start())
                             .group_by(ApiUsage.account_id)).all())
+    searches = dict(db.execute(select(ApiUsage.account_id, func.count())
+                               .where(ApiUsage.account_id.in_(ids), ApiUsage.created_at >= places.month_start(),
+                                      ApiUsage.service == "google_places_text_search")
+                               .group_by(ApiUsage.account_id)).all())
     users = db.scalars(select(User).where(User.org_id == user.org_id).order_by(User.email)).all()
     rows = []
     for a in accounts:
         total, hot, emailed, won = lead_stats.get(a.id, (0, 0, 0, 0))
         rows.append(dict(account=a, users=[u for u in users if u.account_id == a.id], leads=total or 0,
-                         hot=hot or 0, emailed=emailed or 0, won=won or 0, spend=float(spend.get(a.id, 0) or 0)))
+                         hot=hot or 0, emailed=emailed or 0, won=won or 0, spend=float(spend.get(a.id, 0) or 0),
+                         searches=searches.get(a.id, 0)))
     return render(request, "admin.html", db, None, rows=rows, users=users, message=msg,
                   totals=dict(leads=sum(r["leads"] for r in rows), hot=sum(r["hot"] for r in rows),
-                              won=sum(r["won"] for r in rows), spend=sum(r["spend"] for r in rows)))
+                              won=sum(r["won"] for r in rows), spend=sum(r["spend"] for r in rows),
+                              searches=sum(r["searches"] for r in rows)))
 
 
 @app.post("/admin/publishers")
@@ -858,7 +888,12 @@ def usage_page(request: Request, db: Session = Depends(get_session), account=Dep
             select(day, f.sum(ApiUsage.est_cost_usd))
             .where(ApiUsage.account_id == account.id, ApiUsage.created_at >= start)
             .group_by(day).order_by(day.desc())).all()
-        ctx = dict(by_service=by_service, by_day=by_day,
+        searches_by_day = db.execute(
+            select(day, f.count())
+            .where(ApiUsage.account_id == account.id, ApiUsage.created_at >= start,
+                   ApiUsage.service == "google_places_text_search")
+            .group_by(day).order_by(day.desc())).all()
+        ctx = dict(by_service=by_service, by_day=by_day, searches_by_day=searches_by_day,
                    spent=places.spent_this_month(db, account.id), limit=plans.monthly_limit(db, account),
                    allow=plans.usage(db, account),
                    overall=places.spent_this_month(db),

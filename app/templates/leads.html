@@ -22,13 +22,24 @@
       <option value="score" {% if sort == "score" %}selected{% endif %}>Sort: best score</option>
       <option value="industry" {% if sort == "industry" %}selected{% endif %}>Sort: industry</option>
       <option value="name" {% if sort == "name" %}selected{% endif %}>Sort: name</option>
+      <option value="newest" {% if sort == "newest" %}selected{% endif %}>Sort: newest added</option>
     </select>
+    <label class="flex items-center gap-1 text-slate-600">Added
+      <input type="date" name="added_from" value="{{ f_from }}" class="border rounded px-1 py-0.5" aria-label="Added from"> to
+      <input type="date" name="added_to" value="{{ f_to }}" class="border rounded px-1 py-0.5" aria-label="Added to"></label>
     <label class="flex items-center gap-1"><input type="checkbox" name="hide_contacted" value="1" {% if f_hide %}checked{% endif %}> Hide already emailed</label>
     {% if f_new %}<input type="hidden" name="new" value="1">{% endif %}
     <button class="rounded bg-slate-800 text-white px-3 py-1">Apply</button>
     {% if has_filters %}<a href="/leads?clear=1" class="self-center text-slate-500 hover:underline">Clear filters</a>{% endif %}
   </form>
 </div>
+{% if from_search %}
+<div class="mb-4 rounded bg-green-50 border border-green-200 p-3 text-sm text-green-900 flex flex-wrap gap-2 justify-between">
+  <span>Showing the <b>{{ leads|length }}</b> lead{{ "s" if leads|length != 1 }} added by your search on
+    {{ from_search.started_at.astimezone().strftime("%b %-d, %-I:%M %p") }}.</span>
+  <a href="/leads?clear=1" class="text-blue-700 hover:underline">Show all leads</a>
+</div>
+{% endif %}
 {% include "_allowance.html" %}
 {% if last_run and last_run.finished_at %}
 <div class="mb-4 rounded bg-green-50 border border-green-200 p-3 text-sm text-green-900 flex flex-wrap gap-2 justify-between">
@@ -78,7 +89,7 @@
   <table class="w-full text-sm">
     <thead class="bg-slate-100 text-left text-slate-600">
       <tr><th class="p-3">Score</th><th class="p-3">Business</th><th class="p-3">Industry</th><th class="p-3">ZIP</th><th class="p-3">Rating</th>
-          <th class="p-3">Status</th><th class="p-3">Next follow-up</th><th class="p-3">Last note</th></tr>
+          <th class="p-3">Status</th><th class="p-3">Next follow-up</th><th class="p-3">Last note</th><th class="p-3">Added</th></tr>
     </thead>
     <tbody>
     {% for l in leads %}
@@ -97,9 +108,10 @@
         <td class="p-3 {% if fu and fu.due_date <= today %}text-red-700 font-medium{% endif %}">
           {{ fu.due_date.strftime("%b %-d") if fu else "—" }}</td>
         <td class="p-3 text-slate-600 max-w-xs truncate">{{ l.last_note.text if l.last_note else "" }}</td>
+        <td class="p-3 text-slate-500 whitespace-nowrap">{{ l.created_at.astimezone().strftime("%b %-d") }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="8" class="p-6 text-center text-slate-500">No leads match.</td></tr>
+      <tr><td colspan="9" class="p-6 text-center text-slate-500">No leads match.</td></tr>
     {% endfor %}
     </tbody>
   </table>

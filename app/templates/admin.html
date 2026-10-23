@@ -5,7 +5,7 @@
 <p class="text-sm text-slate-600 mb-4">Plan: <b>{{ org.plan|capitalize }}</b> · {{ rows|length }} publisher account{{ "s" if rows|length != 1 }}</p>
 {% if message %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">{{ message }}</p>{% endif %}
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-  {% for label, val in [("Leads found", totals.leads), ("Scored 8+", totals.hot), ("Won", totals.won), ("API cost this month", "$%.2f"|format(totals.spend))] %}
+  {% for label, val in [("Leads found", totals.leads), ("Scored 8+", totals.hot), ("Won", totals.won), ("API cost this month", "$%.2f"|format(totals.spend)) if show_costs else ("Searches this month", totals.searches)] %}
   <div class="bg-white rounded-xl shadow p-4"><p class="text-xs text-slate-500">{{ label }}</p><p class="text-2xl font-bold">{{ val }}</p></div>
   {% endfor %}
 </div>
@@ -13,7 +13,7 @@
   <table class="w-full text-sm">
     <thead class="bg-slate-100 text-left text-slate-600"><tr>
       <th class="p-3">Publisher account</th><th class="p-3">People</th><th class="p-3">ZIP codes</th><th class="p-3">Leads</th>
-      <th class="p-3">8+</th><th class="p-3">Emailed</th><th class="p-3">Won</th><th class="p-3">Cost</th><th class="p-3">Gmail</th></tr></thead>
+      <th class="p-3">8+</th><th class="p-3">Emailed</th><th class="p-3">Won</th><th class="p-3">{{ "Cost" if show_costs else "Searches" }}</th><th class="p-3">Gmail</th></tr></thead>
     <tbody>{% for r in rows %}<tr class="border-t align-top">
       <td class="p-3 font-medium">{{ r.account.name }}</td>
       <td class="p-3">{% for u in r.users %}<div>{{ u.email }} <span class="text-xs text-slate-400">{{ u.role }}{% if not u.last_login_at %} · not signed in yet{% endif %}</span>
@@ -24,7 +24,7 @@
         <input name="zips" value="{{ r.account.zip_list|join(', ') }}" class="border rounded px-2 py-1 w-44 text-xs">
         <button class="text-xs rounded border px-2 hover:bg-slate-50">Save</button></form></td>
       <td class="p-3">{{ r.leads }}</td><td class="p-3">{{ r.hot }}</td><td class="p-3">{{ r.emailed }}</td>
-      <td class="p-3 font-semibold text-green-700">{{ r.won }}</td><td class="p-3">${{ "%.2f"|format(r.spend) }}</td>
+      <td class="p-3 font-semibold text-green-700">{{ r.won }}</td><td class="p-3">{% if show_costs %}${{ "%.2f"|format(r.spend) }}{% else %}{{ r.searches }}{% endif %}</td>
       <td class="p-3">{{ "✓" if r.account.gmail_token_enc else "—" }}</td></tr>{% endfor %}</tbody>
   </table>
 </div>

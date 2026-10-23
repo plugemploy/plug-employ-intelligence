@@ -15,8 +15,9 @@
       </select></label>
     <label class="grid gap-1">Searches per night
       <input type="number" name="searches_per_night" min="1" max="{{ nightly_max }}" value="{{ st.searches_per_night }}" class="border rounded px-2 py-1 w-24"></label>
-    <p class="self-end text-slate-600">≈ ${{ "%.2f"|format(st.searches_per_night * cost_each) }} a night,
+    <p class="self-end text-slate-600">{% if show_costs %}≈ ${{ "%.2f"|format(st.searches_per_night * cost_each) }} a night,
       ${{ "%.0f"|format(st.searches_per_night * cost_each * 30) }} a month (Google), plus a few cents for Claude.
+      {% else %}Uses up to {{ st.searches_per_night }} of your searches a night, paced so they last the month.{% endif %}
       Your plan allows up to {{ nightly_max }} a night.</p>
   </div>
   <p class="text-sm text-slate-600">ZIP codes and industries come from <a href="/business" class="text-blue-700 hover:underline">My business</a>.</p>

@@ -7,7 +7,7 @@
     <b>{{ st.searches_per_night }}</b> each night at {{ (st.run_hour % 12) or 12 }} {{ "am" if st.run_hour < 12 else "pm" }}, so it covers everything in about
     <b>{{ nights }}</b> night{{ "s" if nights != 1 }}, then starts again to catch new businesses.</p>
   <p class="text-sm text-slate-700">Want leads right now? We'll run your first <b>{{ n }}</b> searches and score the results
-    (about <b>${{ "%.2f"|format(cost) }}</b>; takes a minute or two).</p>
+    ({% if show_costs %}about <b>${{ "%.2f"|format(cost) }}</b>{% else %}uses {{ n }} of your searches{% endif %}; takes a minute or two).</p>
   <form method="post" action="/setup/first" class="flex flex-wrap gap-3 items-center"
         onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Finding your leads…'">
     <button class="rounded-lg bg-green-700 text-white px-5 py-2 font-medium">Find my first leads</button>

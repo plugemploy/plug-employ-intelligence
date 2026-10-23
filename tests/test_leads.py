@@ -167,3 +167,50 @@ def test_shared_domains_are_not_duplicates(two_accounts):
         db.commit()
     c.post("/leads/new", data={"business_name": "Page Two", "website": "https://www.facebook.com/pagetwo"})
     assert _count(two_accounts["a"], "Page Two") == 1
+
+
+def test_search_leads_dates_and_newest(two_accounts):
+    import json
+    from datetime import datetime, timedelta, timezone
+    from app.models import SearchJob
+    from tests.conftest import on_plan
+    a = two_accounts["a"]
+    on_plan(a, "pro")
+    now = datetime.now(timezone.utc)
+    with Session(engine) as db:
+        old = Lead(account_id=a, business_name="Old Lead", zip_code="37934", created_at=now - timedelta(days=10))
+        new1 = Lead(account_id=a, business_name="From Search One", zip_code="37934", created_at=now - timedelta(minutes=5))
+        new2 = Lead(account_id=a, business_name="From Search Two", zip_code="37934", created_at=now - timedelta(minutes=4))
+        job = SearchJob(account_id=a, status="done", results=json.dumps([{"added": 2}]),
+                        started_at=now - timedelta(minutes=6), finished_at=now - timedelta(minutes=3))
+        other = SearchJob(account_id=two_accounts["b"], status="done")
+        db.add_all([old, new1, new2, job, other])
+        db.commit()
+        job_id, other_id = job.id, other.id
+    c = client_for(a)
+    html = c.get(f"/leads?search={job_id}").text
+    assert "From Search One" in html and "From Search Two" in html and "Old Lead" not in html
+    assert "Showing the <b>2</b> leads added by your search" in html
+    assert c.get(f"/leads?search={other_id}").status_code == 404  # another company's search
+    day = (now - timedelta(days=10)).astimezone().date().isoformat()
+    html = c.get(f"/leads?added_from={day}&added_to={day}").text
+    assert "Old Lead" in html and "From Search One" not in html
+    html = c.get("/leads?sort=newest").text
+    assert html.index("From Search Two") < html.index("From Search One") < html.index("Old Lead")
+    assert 'href="/leads?clear=1"' in html  # the logo clears filters
+
+
+def test_only_the_owner_sees_dollar_amounts(two_accounts):
+    from tests.conftest import on_plan
+    a = two_accounts["a"]
+    on_plan(a, "pro")
+    c = client_for(a)
+    for page in ("/search", "/usage", "/nightly"):
+        html = c.get(page).text
+        assert "$" not in html.split("<main", 1)[1], page
+    assert "Searches by day" in c.get("/usage").text
+    with Session(engine) as db:
+        from app.models import Organization, Account
+        db.get(Organization, db.get(Account, a).org_id).plan_tier = "owner"
+        db.commit()
+    assert "spent this month" in c.get("/search").text

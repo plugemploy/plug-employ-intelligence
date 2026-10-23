@@ -4,8 +4,8 @@
 <h1 class="text-2xl font-bold mb-1">Find leads</h1>
 <p class="text-sm text-slate-600 mb-4">Searches Google Places. Skips closed businesses, ones with fewer than
   {{ min_reviews }} reviews, ones outside the ZIP, and ones already in your list.</p>
-<p class="text-sm mb-4">About ${{ cost_each }} per ZIP × industry search{% if allow %} · spent this month (estimated, at full price):
-  <b>${{ "%.2f"|format(allow.spent) }}</b> of ${{ "%.0f"|format(allow.limit) }}{% endif %}.</p>
+<p class="text-sm mb-4">Each ZIP × industry you pick is one search.{% if show_costs %} About ${{ cost_each }} each{% if allow %} · spent this month (estimated, at full price):
+  <b>${{ "%.2f"|format(allow.spent) }}</b> of ${{ "%.0f"|format(allow.limit) }}{% endif %}.{% endif %}</p>
 {% include "_allowance.html" %}
 {% if not has_key %}<p class="mb-4 rounded bg-red-50 border border-red-300 p-3 text-red-800 text-sm">No Google key in .env yet.</p>{% endif %}
 {% if running %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">A search is running now.
@@ -24,7 +24,7 @@
       <td class="p-3 text-slate-500">{{ r.skipped_closed }} closed · {{ r.skipped_few_reviews }} few reviews ·
         {{ r.skipped_other_zip }} other ZIP · {{ r.skipped_duplicate }} already had</td>{% endif %}</tr>{% endfor %}</tbody>
   </table>
-  <p class="p-3 text-sm text-slate-500">Your last search. <a href="/leads?sort=score" class="text-blue-700 hover:underline">See your leads →</a></p>
+  <p class="p-3 text-sm text-slate-500">Your last search. <a href="/leads?search={{ last_job.id }}&sort=score" class="text-blue-700 hover:underline">See the leads it added →</a></p>
 </div>
 {% endif %}
 <form method="post" class="bg-white rounded-xl shadow p-6 grid gap-6 max-w-2xl"

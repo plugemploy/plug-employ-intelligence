@@ -16,7 +16,7 @@
   <div class="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center gap-3">
     <b>✓ {{ j.added }} new lead{{ "s" if j.added != 1 }} added</b>
     <span class="text-green-100">from {{ j.total }} search{{ "es" if j.total != 1 }}, scored and ready.</span>
-    <form method="post" action="/search/dismiss"><input type="hidden" name="next" value="/leads?sort=score">
+    <form method="post" action="/search/dismiss"><input type="hidden" name="next" value="/leads?search={{ j.id }}&sort=score">
       <button class="rounded bg-white text-green-800 px-2 py-0.5 font-medium">Show them</button></form>
     <a href="/search" class="underline text-green-100">Details</a>
     <button hx-post="/search/dismiss" hx-target="#search-bar" hx-swap="outerHTML" class="ml-auto text-green-100 hover:text-white" aria-label="Dismiss">✕</button>
