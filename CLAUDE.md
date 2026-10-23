@@ -20,6 +20,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 
 ## Commands
 - Live app (since 2026-10-22): https://plug-employ-leads.onrender.com (Render, Blueprint in render.yaml, deploys on push to main).
+  Render web service is Standard (2 GB) since 2026-10-23: one Overture/DuckDB search peaks near 500 MB.
   GitHub: plugemploy/plug-employ-intelligence (private). The Mac copy is for testing changes only; nightly search is off there.
 - Start app on the Mac (testing): `./start.sh`, then open http://127.0.0.1:8000
 - psql: /Applications/Postgres.app/Contents/Versions/latest/bin/psql -h localhost plug_employ_dev
