@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Lead
 
-KEYS = ("contacted", "appts_set", "appts_shown", "sold", "mrr", "contract_value", "ad_fees")
+KEYS = ("contacted", "appts_set", "appts_shown", "sold", "mrr", "contract_value", "ad_fees", "found_only")
 
 
 def metrics(db: Session, account_ids: list[int], since: datetime | None = None) -> dict[int, dict]:
@@ -35,6 +35,7 @@ def metrics(db: Session, account_ids: list[int], since: datetime | None = None) 
         func.coalesce(func.sum(case((sold, Lead.mrr), else_=0)), 0),
         func.coalesce(func.sum(case((sold, Lead.mrr * func.coalesce(Lead.contract_months, 0)), else_=0)), 0),
         func.coalesce(func.sum(case((sold, Lead.ad_mgmt_fee), else_=0)), 0),
+        func.sum(case((sold & (Lead.found_elsewhere == "no"), 1), else_=0)),  # sales they wouldn't have found otherwise
     ).where(Lead.account_id.in_(ids), Lead.deleted_at.is_(None)).group_by(Lead.account_id))
     found = {r[0]: r[1:] for r in rows}
     out = {}

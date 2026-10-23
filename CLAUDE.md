@@ -52,5 +52,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   Testers sign up at /signup and must be Google test users.
 - Dashboard (2026-10-22): /dashboard donut of leads by status (app/dashboard.py, colors checked for color-blind
   readers); clicking a slice or row loads that status's leads below (/dashboard/breakdown).
+- Sale pop-up + beta survey (2026-10-22): marking Sold pops up "Log this sale" (MRR, months, fee, found_elsewhere);
+  Dashboard reminds about sales missing amounts. Beta orgs get a one-time survey pop-up from day 25 (would pay/plan,
+  0-10 recommend, hours saved, quote + permission; "Ask me later" = 3 days); preview at /survey. All on /beta + CSV.
 - Beta plan: Day 2 put it online (Render + domain), Day 3 test as a new customer and invite testers.
 - Next: Stripe test keys from Savannah, cloud hosting + domain, results tracking for beta, per-customer Close, territory lock, Google verification.

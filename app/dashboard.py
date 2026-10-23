@@ -51,3 +51,10 @@ def leads_in(db: Session, account_id: int, status: str, limit: int = 50) -> tupl
     total = db.scalar(select(func.count()).select_from(q.subquery()))
     leads = db.scalars(q.order_by(Lead.updated_at.desc()).limit(limit)).all()
     return leads, total
+
+
+def sales_missing_amounts(db: Session, account_id: int) -> int:
+    """Sold leads without a monthly amount or contract length, so results would undercount them."""
+    return db.scalar(select(func.count()).select_from(Lead).where(
+        Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.status == "Sold",
+        (Lead.mrr.is_(None)) | (Lead.contract_months.is_(None)))) or 0

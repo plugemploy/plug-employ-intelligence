@@ -23,7 +23,39 @@
   <label class="grid gap-1 text-xs text-slate-600">Ad Management Fee, one time $
     <input type="number" name="ad_mgmt_fee" min="0" step="1" value="{{ lead.ad_mgmt_fee|int if lead.ad_mgmt_fee else '' }}" placeholder="e.g. 250"
            class="border rounded px-2 py-1 text-sm"></label>
+  <label class="grid gap-1 text-xs text-slate-600">Would you have found this business without Plug Employ?
+    <select name="found_elsewhere" class="border rounded px-2 py-1 text-sm">
+      <option value="">—</option>
+      {% for v, t in [("no", "No, only through Plug Employ"), ("yes", "Yes"), ("unsure", "Not sure")] %}
+      <option value="{{ v }}" {% if lead.found_elsewhere == v %}selected{% endif %}>{{ t }}</option>{% endfor %}
+    </select></label>
   {% if lead.contract_value %}<p class="text-xs text-slate-600">Contract value: <b>${{ "{:,.0f}".format(lead.contract_value) }}</b>
     {% if lead.contract_end %}· renews {{ lead.contract_end.strftime("%b %-d, %Y") }} (we'll remind you 30 days before){% endif %}</p>{% endif %}
   {% endif %}
 </form>
+{% if ask_sale %}
+{# Pops up right after a lead is marked Sold. Saving posts the same status form with the amounts. #}
+<div id="sale-modal" class="fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4">
+  <form hx-post="/leads/{{ lead.id }}/status" hx-target="#status" class="w-full max-w-md bg-white rounded-xl shadow-xl p-6 grid gap-4">
+    <input type="hidden" name="status" value="Sold">
+    <div><h2 class="text-lg font-bold">🎉 Log this sale</h2>
+      <p class="text-sm text-slate-600">{{ lead.business_name }}. These numbers go into your results.</p></div>
+    <div class="grid grid-cols-2 gap-3">
+      <label class="grid gap-1 text-sm">Monthly (MRR) $
+        <input type="number" name="mrr" min="0" step="1" required placeholder="e.g. 450" class="border rounded px-3 py-2" autofocus></label>
+      <label class="grid gap-1 text-sm">Contract length (months)
+        <input type="number" name="contract_months" min="1" step="1" required placeholder="e.g. 12" class="border rounded px-3 py-2"></label>
+    </div>
+    <label class="grid gap-1 text-sm">Ad Management Fee, one time $ <span class="text-xs text-slate-500">(leave blank if none)</span>
+      <input type="number" name="ad_mgmt_fee" min="0" step="1" placeholder="e.g. 250" class="border rounded px-3 py-2"></label>
+    <fieldset class="grid gap-1 text-sm"><legend class="mb-1">Would you have found this business without Plug Employ?</legend>
+      <div class="flex flex-wrap gap-4">{% for v, t in [("no", "No"), ("yes", "Yes"), ("unsure", "Not sure")] %}
+        <label class="flex items-center gap-1"><input type="radio" name="found_elsewhere" value="{{ v }}" required> {{ t }}</label>{% endfor %}</div>
+    </fieldset>
+    <div class="flex items-center gap-3">
+      <button class="rounded bg-emerald-600 text-white px-4 py-2 font-medium">Save sale</button>
+      <button type="button" onclick="document.getElementById('sale-modal').remove()" class="text-sm text-slate-500 hover:underline">Skip for now</button>
+    </div>
+  </form>
+</div>
+{% endif %}

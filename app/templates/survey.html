@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Beta survey{% endblock %}
+{% block content %}
+<div class="max-w-xl bg-white rounded-xl shadow p-6">
+  <h1 class="text-xl font-bold mb-1">Quick beta survey</h1>
+  <p class="text-sm text-slate-600 mb-4">Four questions, about a minute. Thank you for testing Plug Employ!</p>
+  {% include "_survey_form.html" %}
+</div>
+{% endblock %}

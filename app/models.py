@@ -89,6 +89,8 @@ class Lead(Base):
     mrr: Mapped[float | None] = mapped_column(Numeric(10, 2))
     contract_months: Mapped[int | None] = mapped_column(Integer)
     ad_mgmt_fee: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    # Asked when marking Sold: would they have found this business without the app? "yes", "no" or "unsure".
+    found_elsewhere: Mapped[str | None] = mapped_column(String(10))
     draft_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Gmail draft made
     # Close CRM: where the VA calls. Status there syncs back here.
     close_lead_id: Mapped[str] = mapped_column(String(100), default="", server_default="", index=True)
@@ -242,6 +244,25 @@ class SearchJob(Base):
     @property
     def added(self) -> int:
         return sum(r.get("added", 0) for r in self.result_list)
+
+
+WOULD_PAY = {"personal": "Yes, Standard ($99)", "pro": "Yes, Pro ($149)", "premium": "Yes, Premium ($299)",
+             "unsure": "Not sure yet", "no": "No"}
+
+
+class BetaSurvey(Base):
+    """End-of-beta answers, asked once per account around day 25. The owner reads them on Beta results."""
+
+    __tablename__ = "beta_surveys"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    would_pay: Mapped[str] = mapped_column(String(20), default="", server_default="")  # a WOULD_PAY key
+    recommend: Mapped[int | None] = mapped_column(Integer)  # 0-10
+    hours_saved: Mapped[float | None] = mapped_column(Numeric(5, 1))  # per week
+    quote: Mapped[str] = mapped_column(Text, default="", server_default="")
+    quote_ok: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # may we quote it
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Feedback(Base):

@@ -13,7 +13,7 @@
   <div class="bg-white rounded-xl shadow p-4"><p class="text-xs text-slate-500">{{ label }}</p><p class="text-2xl font-bold">{{ val }}</p></div>
   {% endfor %}
 </div>
-<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+<div class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
   <div class="bg-white rounded-xl shadow p-4"><p class="text-xs text-slate-500">Testers</p><p class="text-2xl font-bold">{{ rows|length }}</p></div>
   {% for label, val in [("Monthly recurring revenue", totals.mrr), ("Contract value", totals.contract_value),
                         ("Ad Management Fees", totals.ad_fees)] %}
@@ -21,13 +21,23 @@
     <p class="text-2xl font-bold {{ 'text-green-700' if val else '' }}">${{ "{:,.0f}".format(val) }}</p></div>
   {% endfor %}
 </div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+  <div class="bg-white rounded-xl shadow p-4"><p class="text-xs text-slate-500">Sales they wouldn't have found otherwise</p>
+    <p class="text-2xl font-bold">{{ totals.found_only }} <span class="text-base font-normal text-slate-500">of {{ totals.sold }}</span></p></div>
+  <div class="bg-white rounded-xl shadow p-4"><p class="text-xs text-slate-500">Would pay (survey)</p>
+    <p class="text-2xl font-bold">{{ survey.would_pay }} <span class="text-base font-normal text-slate-500">of {{ survey.answered }} answered</span></p></div>
+  <div class="bg-white rounded-xl shadow p-4"><p class="text-xs text-slate-500">Recommend score (0-10)</p>
+    <p class="text-2xl font-bold">{{ survey.avg_recommend if survey.avg_recommend is not none else "—" }}</p></div>
+  <div class="bg-white rounded-xl shadow p-4"><p class="text-xs text-slate-500">Hours saved a week (avg)</p>
+    <p class="text-2xl font-bold">{{ survey.avg_hours if survey.avg_hours is not none else "—" }}</p></div>
+</div>
 {% endif %}
 <div class="bg-white rounded-xl shadow overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-100 text-left text-slate-600"><tr>
       <th class="p-3">Company</th><th class="p-3">Plan</th><th class="p-3">Signed up</th><th class="p-3">Last sign-in</th>
       <th class="p-3">Contacted</th><th class="p-3">Appts set</th><th class="p-3">Shown</th><th class="p-3">Sold</th>
-      <th class="p-3">MRR</th><th class="p-3">Contract value</th><th class="p-3">Ad Mgmt Fees</th><th class="p-3">Feedback</th></tr></thead>
+      <th class="p-3">MRR</th><th class="p-3">Contract value</th><th class="p-3">Ad Mgmt Fees</th><th class="p-3">Only via app</th><th class="p-3">Survey</th><th class="p-3">Feedback</th></tr></thead>
     <tbody>{% for r in rows %}<tr class="border-t align-top">
       <td class="p-3"><b>{{ r.org.name }}</b><span class="block text-xs text-slate-500">{{ r.emails }}</span>
         {% if not r.setup_done %}<span class="text-xs text-amber-700">setup not finished</span>{% endif %}</td>
@@ -38,8 +48,19 @@
       <td class="p-3 font-semibold text-green-700">{{ r.sold }}</td>
       <td class="p-3">${{ "{:,.0f}".format(r.mrr) }}</td><td class="p-3">${{ "{:,.0f}".format(r.contract_value) }}</td>
       <td class="p-3">${{ "{:,.0f}".format(r.ad_fees) }}</td>
+      <td class="p-3">{{ r.found_only }}</td>
+      <td class="p-3 text-xs">{% if r.survey %}{{ would_pay.get(r.survey.would_pay, "") }}<br>Recommend {{ r.survey.recommend }}/10
+        {% else %}<span class="text-slate-400">not yet</span>{% endif %}</td>
       <td class="p-3">{% if r.feedback %}<a href="/feedback" class="text-blue-700 hover:underline">{{ r.feedback }}</a>{% else %}0{% endif %}</td></tr>
-    {% else %}<tr><td colspan="12" class="p-6 text-center text-slate-500">No testers have signed up yet.</td></tr>{% endfor %}</tbody>
+    {% else %}<tr><td colspan="14" class="p-6 text-center text-slate-500">No testers have signed up yet.</td></tr>{% endfor %}</tbody>
   </table>
 </div>
+{% if survey and survey.quotes %}
+<section class="mt-6 bg-white rounded-xl shadow p-4">
+  <h2 class="font-semibold mb-3">What testers said</h2>
+  <ul class="grid gap-3">{% for company, s in survey.quotes %}
+    <li class="text-sm"><p class="italic">“{{ s.quote }}”</p>
+      <p class="text-xs text-slate-500">{{ company }} · {{ "OK to quote" if s.quote_ok else "not for quoting" }}</p></li>{% endfor %}</ul>
+</section>
+{% endif %}
 {% endblock %}

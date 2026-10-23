@@ -257,3 +257,18 @@ def test_dashboard_single_status_draws_full_ring():
     from app import dashboard
     full = dashboard._slice(0, 1.0)
     assert full.count("M") == 2  # two half rings
+
+
+def test_log_this_sale_popup_and_reminder(two_accounts):
+    c = client_for(two_accounts["a"])
+    la = two_accounts["la"]
+    r = c.post(f"/leads/{la}/status", data={"status": "Sold"})
+    assert "Log this sale" in r.text  # pops up the first time
+    assert "1 sale needs amounts" in c.get("/dashboard").text
+    r = c.post(f"/leads/{la}/status", data={"status": "Sold", "mrr": "300", "contract_months": "6",
+                                            "ad_mgmt_fee": "", "found_elsewhere": "no"})
+    assert "Log this sale" not in r.text  # saved: no pop-up again
+    with Session(engine) as db:
+        lead = db.get(Lead, la)
+        assert (float(lead.mrr), lead.contract_months, lead.ad_mgmt_fee, lead.found_elsewhere) == (300, 6, None, "no")
+    assert "need amounts" not in c.get("/dashboard").text and "needs amounts" not in c.get("/dashboard").text

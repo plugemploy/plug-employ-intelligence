@@ -21,6 +21,8 @@
     <p class="text-xs text-slate-400">{{ note }}</p></div>
   {% endfor %}
 </div>
+{% if m.sold %}<p class="mt-3 text-sm text-slate-600"><b>{{ m.found_only }}</b> of your {{ m.sold }} sale{{ "s" if m.sold != 1 }}
+  came from businesses you wouldn't have found without Plug Employ.</p>{% endif %}
 {% endmacro %}
 {% if all_time %}
 <h2 class="font-semibold mb-2">Since you started{% if started %} <span class="font-normal text-slate-500 text-sm">({{ started.astimezone().strftime("%b %-d, %Y") }})</span>{% endif %}</h2>

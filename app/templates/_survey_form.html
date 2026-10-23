@@ -1,0 +1,23 @@
+{# End-of-beta survey form. Used by the pop-up and the /survey page. #}
+<form method="post" action="/survey" class="grid gap-4">
+  <input type="hidden" name="next" value="{{ '/leads' if request.url.path == '/survey' else request.url.path }}">
+  <fieldset class="grid gap-1 text-sm"><legend class="font-medium mb-1">After your beta, would you pay for Plug Employ? Which plan?</legend>
+    {% for v, t in would_pay.items() %}<label class="flex items-center gap-2"><input type="radio" name="would_pay" value="{{ v }}" required> {{ t }}</label>{% endfor %}
+  </fieldset>
+  <fieldset class="grid gap-1 text-sm"><legend class="font-medium mb-1">How likely are you to recommend it to another publisher? (0 = not at all, 10 = definitely)</legend>
+    <div class="flex flex-wrap gap-1">{% for n in range(11) %}
+      <label class="cursor-pointer"><input type="radio" name="recommend" value="{{ n }}" required class="peer sr-only">
+        <span class="grid place-items-center h-8 w-8 rounded border text-sm peer-checked:bg-slate-800 peer-checked:text-white peer-focus-visible:ring-2">{{ n }}</span></label>{% endfor %}</div>
+  </fieldset>
+  <label class="grid gap-1 text-sm font-medium">About how many hours a week did it save you?
+    <input type="number" name="hours_saved" min="0" step="0.5" placeholder="e.g. 3" class="border rounded px-3 py-2 font-normal w-32"></label>
+  <label class="grid gap-1 text-sm font-medium">In a sentence or two, how has it helped you?
+    <textarea name="quote" rows="3" placeholder="e.g. I booked 4 appointments my first week from businesses I'd never heard of."
+              class="border rounded px-3 py-2 font-normal"></textarea></label>
+  <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="quote_ok" value="1"> You may quote me (first name and company)</label>
+  <div class="flex items-center gap-3">
+    <button class="rounded bg-slate-800 text-white px-4 py-2 font-medium">Send</button>
+    {% if in_popup %}<button type="button" hx-post="/survey/later" hx-target="#survey-modal" hx-swap="outerHTML"
+        class="text-sm text-slate-500 hover:underline">Ask me later</button>{% endif %}
+  </div>
+</form>

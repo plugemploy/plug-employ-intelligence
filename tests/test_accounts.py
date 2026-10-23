@@ -155,5 +155,47 @@ def test_results_pages_and_beta_dashboard():
     assert "Test: Tester Co" in html and "tester@results.test" in html and "Test: Owner Co" not in html
     csv_text = owner.get("/beta.csv").text
     line = [l for l in csv_text.splitlines() if l.startswith("Test: Tester Co")][0]
-    assert line.endswith(",4,3,1,1,300,3600,500,0")  # contacted, set, shown, sold, MRR, contract value, ad fees, feedback
+    # contacted, set, shown, sold, MRR, contract value, ad fees, found only via app, feedback, then 5 empty survey cells
+    assert line.endswith(",4,3,1,1,300,3600,500,0,0,,,,,")
 
+
+
+def test_beta_survey_due_saved_and_reported():
+    from datetime import datetime, timedelta, timezone
+    from app.models import BetaSurvey
+    now = datetime.now(timezone.utc)
+    with Session(engine) as db:
+        owner_org = Organization(name="Test: Survey Owner", plan="active", plan_tier="owner")
+        old_org = Organization(name="Test: Day 26 Co", plan="trial", plan_tier="beta", created_at=now - timedelta(days=26))
+        new_org = Organization(name="Test: Day 5 Co", plan="trial", plan_tier="beta", created_at=now - timedelta(days=5))
+        db.add_all([owner_org, old_org, new_org])
+        db.flush()
+        accts = [Account(name=f"Test: {o.name}", org_id=o.id, setup_done_at=now) for o in (owner_org, old_org, new_org)]
+        db.add_all(accts)
+        db.flush()
+        db.add(Lead(account_id=accts[1].id, business_name="Only Here", status="Sold", sold_at=now, mrr=200,
+                    contract_months=6, found_elsewhere="no"))
+        db.commit()
+        mine, old_id, new_id = (a.id for a in accts)
+    c_old, c_new = TestClient(app), TestClient(app)
+    login_as(c_old, old_id)
+    login_as(c_new, new_id)
+    assert "Your beta is almost over" in c_old.get("/leads").text
+    assert "Your beta is almost over" not in c_new.get("/leads").text  # too early
+    later = c_old.post("/survey/later")
+    assert "survey_later" in later.headers.get("set-cookie", "")
+    c_old.cookies.clear()
+    login_as(c_old, old_id)
+    r = c_old.post("/survey", data={"would_pay": "pro", "recommend": "9", "hours_saved": "3.5",
+                                    "quote": "Booked 4 appointments my first week.", "quote_ok": "1", "next": "/dashboard"},
+                   follow_redirects=False)
+    assert r.headers["location"].startswith("/dashboard?msg=")
+    assert "Your beta is almost over" not in c_old.get("/leads").text  # answered: never again
+    owner = TestClient(app)
+    login_as(owner, mine)
+    html = owner.get("/beta").text
+    assert "Booked 4 appointments my first week." in html and "OK to quote" in html
+    assert "Yes, Pro ($149)" in html and "Recommend 9/10" in html
+    line = [l for l in owner.get("/beta.csv").text.splitlines() if l.startswith("Test: Day 26 Co")][0]
+    assert line.endswith(',1,0,"Yes, Pro ($149)",9,3.5,Booked 4 appointments my first week.,yes')  # found only here, feedback, survey
+    assert "<b>1</b> of your 1 sale" in c_old.get("/results").text

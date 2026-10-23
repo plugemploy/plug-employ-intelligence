@@ -19,7 +19,7 @@ from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admi
 from app import setup as setup_mod
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, COOKIE_SECURE, GOOGLE_PLACES_API_KEY
-from app.models import OUTCOMES, STATUSES, Account, Feedback, FollowUp, Lead, LeadNote, NightlyRun, Organization, SearchJob, User
+from app.models import OUTCOMES, STATUSES, WOULD_PAY, Account, BetaSurvey, Feedback, FollowUp, Lead, LeadNote, NightlyRun, Organization, SearchJob, User
 
 INDUSTRIES = places.INDUSTRIES
 
@@ -48,14 +48,27 @@ def render(request, name, db, account, **ctx):
     org = db.get(Organization, user.org_id) if user else None
     job = search_jobs.for_bar(db, account.id) if account else None
     show_costs = bool(org and org.plan_tier == "owner")  # dollar amounts are for the app owner only
+    survey_due = bool(user and account and org and survey_is_due(db, org, account, request))
     return templates.TemplateResponse(
         request, name,
         {"account": account, "accounts": accounts, "user": user, "org": org, "statuses": STATUSES,
-         "today": date.today(), "search_job": job, "show_costs": show_costs, **ctx},
+         "today": date.today(), "search_job": job, "show_costs": show_costs, "survey_due": survey_due,
+         "would_pay": WOULD_PAY, **ctx},
     )
 
 
 LEADS_FILTER_COOKIE = "leads_filters"
+SURVEY_AFTER_DAYS = 25  # the beta lasts 30 days; ask a few days before it ends
+SURVEY_LATER_COOKIE = "survey_later"
+
+
+def survey_is_due(db: Session, org: Organization, account: Account, request: Request) -> bool:
+    """Beta companies get the survey once per account, from day 25, unless they said "later" recently."""
+    if org.plan_tier != "beta" or org.created_at is None or request.cookies.get(SURVEY_LATER_COOKIE):
+        return False
+    if datetime.now(timezone.utc) < org.created_at + timedelta(days=SURVEY_AFTER_DAYS):
+        return False
+    return not db.scalar(select(func.count()).select_from(BetaSurvey).where(BetaSurvey.account_id == account.id))
 
 
 def parse_day(raw: str) -> date | None:
@@ -345,11 +358,13 @@ def lead_detail(lead_id: int, request: Request, db: Session = Depends(get_sessio
 @app.post("/leads/{lead_id}/status")
 def set_status(lead_id: int, request: Request, status: str = Form(...), reason: str = Form(""),
                mrr: str = Form(""), contract_months: str = Form(""), ad_mgmt_fee: str = Form(""),
+               found_elsewhere: str = Form(""),
                db: Session = Depends(get_session), account=Depends(current_account)):
     lead = get_lead(db, account, lead_id)
     if status not in STATUSES:
         raise HTTPException(400, "Unknown status")
     now = datetime.now(timezone.utc)
+    just_sold = status == "Sold" and lead.status != "Sold"
     if status in OUTCOMES:
         if lead.status != status:
             lead.outcome_at = now
@@ -359,6 +374,8 @@ def set_status(lead_id: int, request: Request, status: str = Form(...), reason: 
     lead.status = status
     lead.reach(status, now)
     if status == "Sold":
+        if found_elsewhere in ("yes", "no", "unsure"):
+            lead.found_elsewhere = found_elsewhere
         lead.mrr = money(mrr, lead.mrr)
         lead.ad_mgmt_fee = money(ad_mgmt_fee, lead.ad_mgmt_fee)
         months = money(contract_months, lead.contract_months)
@@ -366,7 +383,7 @@ def set_status(lead_id: int, request: Request, status: str = Form(...), reason: 
         sold_day = (lead.sold_at or now).astimezone().date()
         set_renewal(db, lead, add_months(sold_day, lead.contract_months) if lead.contract_months else None)
     db.commit()
-    return render(request, "_status.html", db, account, lead=lead, saved=True)
+    return render(request, "_status.html", db, account, lead=lead, saved=True, ask_sale=just_sold)
 
 
 @app.post("/leads/{lead_id}/draft")
@@ -933,7 +950,8 @@ def usage_page(request: Request, db: Session = Depends(get_session), account=Dep
 def dashboard_page(request: Request, status: str = "", db: Session = Depends(get_session), account=Depends(current_account)):
     rows = dashboard.counts(db, account.id) if account else []
     chosen = status if status in STATUSES else ""
-    ctx = dict(rows=rows, total=sum(r["count"] for r in rows), size=dashboard.SIZE, chosen=chosen)
+    ctx = dict(rows=rows, total=sum(r["count"] for r in rows), size=dashboard.SIZE, chosen=chosen,
+               missing=dashboard.sales_missing_amounts(db, account.id) if account else 0)
     if chosen:
         ctx.update(breakdown_ctx(db, account, chosen))
     return render(request, "dashboard.html", db, account, **ctx)
@@ -971,6 +989,9 @@ def beta_rows(db: Session) -> list[dict]:
     per_account = results.metrics(db, [a.id for a in accounts])
     users = db.scalars(select(User).where(User.org_id.in_([o.id for o in orgs] or [0]))).all()
     notes = dict(db.execute(select(Feedback.account_id, func.count()).group_by(Feedback.account_id)).all())
+    surveys = {}
+    for s in db.scalars(select(BetaSurvey).order_by(BetaSurvey.created_at)):  # latest answer per account wins
+        surveys[s.account_id] = s
     rows = []
     for o in orgs:
         mine = [a for a in accounts if a.org_id == o.id]
@@ -983,8 +1004,16 @@ def beta_rows(db: Session) -> list[dict]:
                          setup_done=all(a.setup_done_at for a in mine) if mine else False,
                          last_login=max(logins) if logins else None,
                          feedback=sum(notes.get(a.id, 0) for a in mine),
+                         survey=next((surveys[a.id] for a in mine if a.id in surveys), None),
                          **results.total([per_account[a.id] for a in mine])))
     return rows
+
+
+def survey_cells(s: BetaSurvey | None) -> list:
+    if s is None:
+        return ["", "", "", "", ""]
+    return [WOULD_PAY.get(s.would_pay, ""), "" if s.recommend is None else s.recommend,
+            "" if s.hours_saved is None else float(s.hours_saved), s.quote, "yes" if s.quote_ok else "no"]
 
 
 def require_owner(db: Session, user: User) -> None:
@@ -996,7 +1025,14 @@ def require_owner(db: Session, user: User) -> None:
 def beta_results(request: Request, db: Session = Depends(get_session), user: User = Depends(current_user)):
     require_owner(db, user)
     rows = beta_rows(db)
-    return render(request, "beta.html", db, None, rows=rows, totals=results.total(rows) if rows else None)
+    answered = [r["survey"] for r in rows if r["survey"]]
+    scores = [s.recommend for s in answered if s.recommend is not None]
+    hours = [float(s.hours_saved) for s in answered if s.hours_saved is not None]
+    survey = dict(answered=len(answered), avg_recommend=round(sum(scores) / len(scores), 1) if scores else None,
+                  would_pay=sum(1 for s in answered if s.would_pay in ("personal", "pro", "premium")),
+                  avg_hours=round(sum(hours) / len(hours), 1) if hours else None,
+                  quotes=[(r["org"].name, r["survey"]) for r in rows if r["survey"] and r["survey"].quote])
+    return render(request, "beta.html", db, None, rows=rows, totals=results.total(rows) if rows else None, survey=survey)
 
 
 @app.get("/beta.csv")
@@ -1008,14 +1044,46 @@ def beta_results_csv(db: Session = Depends(get_session), user: User = Depends(cu
     w = csv.writer(buf)
     w.writerow(["Company", "People", "Plan", "Signed up", "Setup done", "Last sign-in", "Leads contacted",
                 "Appointments set", "Appointments shown", "Sold", "Monthly recurring revenue $", "Contract value $",
-                "Ad Management Fees $", "Feedback notes"])
+                "Ad Management Fees $", "Sales found only with Plug Employ", "Feedback notes", "Would pay",
+                "Recommend (0-10)", "Hours saved per week", "Quote", "OK to quote"])
     for r in beta_rows(db):
         w.writerow([r["org"].name, r["emails"], r["plan"], r["org"].created_at.date(), "yes" if r["setup_done"] else "no",
                     r["last_login"].date() if r["last_login"] else "", r["contacted"], r["appts_set"],
                     r["appts_shown"], r["sold"], round(r["mrr"]), round(r["contract_value"]), round(r["ad_fees"]),
-                    r["feedback"]])
+                    r["found_only"], r["feedback"]] + survey_cells(r["survey"]))
     return HTMLResponse(buf.getvalue(), media_type="text/csv",
                         headers={"Content-Disposition": f'attachment; filename="beta-results-{date.today()}.csv"'})
+
+
+# ---- End-of-beta survey ---------------------------------------------------------------------
+
+@app.get("/survey")
+def survey_page(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    """The survey as a page (the pop-up shows the same form). Handy for previewing it."""
+    return render(request, "survey.html", db, account)
+
+
+@app.post("/survey")
+def survey_save(would_pay: str = Form(""), recommend: str = Form(""), hours_saved: str = Form(""), quote: str = Form(""),
+                quote_ok: str = Form(""), next: str = Form("/leads"), db: Session = Depends(get_session),
+                user: User = Depends(current_user), account=Depends(current_account)):
+    if account is None:
+        raise HTTPException(400, "Create an account first")
+    score = money(recommend, None)
+    db.add(BetaSurvey(account_id=account.id, user_id=user.id, would_pay=would_pay if would_pay in WOULD_PAY else "",
+                      recommend=min(10, int(score)) if score is not None else None,
+                      hours_saved=money(hours_saved, None), quote=quote.strip()[:2000], quote_ok=bool(quote_ok)))
+    db.commit()
+    from urllib.parse import quote as q
+    target = next if next.startswith("/") else "/leads"
+    return RedirectResponse(f"{target}{'&' if '?' in target else '?'}msg={q('Thank you for the feedback!')}", status_code=303)
+
+
+@app.post("/survey/later")
+def survey_later():
+    resp = HTMLResponse("")
+    resp.set_cookie(SURVEY_LATER_COOKIE, "1", max_age=3 * 86400, httponly=True, samesite="lax", secure=COOKIE_SECURE)
+    return resp
 
 
 # ---- Feedback from testers ----------------------------------------------------------------

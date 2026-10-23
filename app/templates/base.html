@@ -51,6 +51,15 @@
       {% block content %}{% endblock %}
     {% endif %}
   </main>
+  {% if survey_due %}
+  <div id="survey-modal" class="fixed inset-0 z-40 grid place-items-center bg-slate-900/40 p-4">
+    <div class="w-full max-w-xl bg-white rounded-xl shadow-xl p-6 max-h-[90vh] overflow-y-auto">
+      <h2 class="text-xl font-bold mb-1">Your beta is almost over 🙌</h2>
+      <p class="text-sm text-slate-600 mb-4">Four quick questions, about a minute. Your answers help shape Plug Employ.</p>
+      {% with in_popup=true %}{% include "_survey_form.html" %}{% endwith %}
+    </div>
+  </div>
+  {% endif %}
   {% if user %}
   <details class="fixed bottom-4 right-4 w-72 rounded-xl bg-white shadow-lg border text-sm">
     <summary class="cursor-pointer px-4 py-2 font-medium">💬 Send feedback</summary>
