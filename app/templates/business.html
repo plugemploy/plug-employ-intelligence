@@ -61,4 +61,28 @@
     <p class="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded p-3">Not set up yet: the Google sign-in values need to be added to .env.</p>
   {% endif %}
 </section>
+<section class="bg-white rounded-xl shadow p-6 max-w-3xl mt-6">
+  <h2 class="font-semibold mb-1">Close CRM</h2>
+  <p class="text-sm text-slate-600 mb-3">Send your best leads into Close for you or your VA to call, and statuses changed in Close
+    (like Customer or Not interested) come back here every night.</p>
+  {% if not close_plan %}
+    <p class="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded p-3">The Close connection is included in the
+      <b>Pro</b> plan. <a href="/billing" class="text-blue-700 hover:underline">See plans</a></p>
+  {% elif close_on and not close_shared %}
+    <p class="text-sm mb-3">Connected{% if account.close_org_name %} to <b>{{ account.close_org_name }}</b>{% endif %}.
+      Use <b>Send top 20 to Close</b> on your Leads page, or <b>Send to Close</b> on any lead.</p>
+    <form method="post" action="/close/disconnect"><button class="rounded border px-3 py-1 text-sm hover:bg-slate-50">Disconnect</button></form>
+  {% else %}
+    {% if close_shared %}<p class="text-xs text-slate-500 mb-2">Using the company Close key from the server settings. Connect below to use your own.</p>{% endif %}
+    <ol class="text-sm text-slate-600 list-decimal ml-5 mb-3 grid gap-1">
+      <li>In Close, go to <b>Settings → Developer → API Keys</b> and click <b>+ New API Key</b>. Name it "Plug Employ".</li>
+      <li>Copy the key and paste it here. It's stored encrypted and never shown again.</li>
+    </ol>
+    <form method="post" action="/close/connect" class="flex flex-wrap gap-2 items-center">
+      <input type="password" name="api_key" required autocomplete="off" placeholder="Close API key"
+             class="border rounded px-3 py-2 text-sm w-80" aria-label="Close API key">
+      <button class="rounded bg-emerald-700 text-white px-3 py-2 text-sm">Connect Close</button>
+    </form>
+  {% endif %}
+</section>
 {% endblock %}

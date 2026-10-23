@@ -466,7 +466,7 @@ def close_send_top(db: Session = Depends(get_session), account=Depends(current_a
     if not close_crm.enabled_for(db, account):
         return back_to_leads("Close isn't connected for this account.")
     try:
-        s = close_crm.send_leads(db, close_crm.top_unsent(db, account.id))
+        s = close_crm.send_leads(db, close_crm.top_unsent(db, account.id), close_crm.client_for(db, account))
     except Exception as exc:
         return back_to_leads(f"Close error: {str(exc).splitlines()[0]}")
     return back_to_leads(f"Sent {s['sent']} leads to Close as Potential. {s['already_in_close']} were already in Close."
@@ -478,7 +478,7 @@ def close_sync(db: Session = Depends(get_session), account=Depends(current_accou
     if not close_crm.enabled_for(db, account):
         return back_to_leads("Close isn't connected for this account.")
     try:
-        s = close_crm.sync_back(db, account.id)
+        s = close_crm.sync_back(db, account.id, close_crm.client_for(db, account))
     except Exception as exc:
         return back_to_leads(f"Close error: {str(exc).splitlines()[0]}")
     return back_to_leads(f"Synced from Close: {s['updated']} leads updated.")
@@ -492,11 +492,33 @@ def close_send_one(lead_id: int, db: Session = Depends(get_session), account=Dep
     if not close_crm.enabled_for(db, account):
         return HTMLResponse('<span class="text-sm text-red-700">Close isn\'t connected for this account.</span>')
     try:
-        s = close_crm.send_leads(db, [lead])
+        s = close_crm.send_leads(db, [lead], close_crm.client_for(db, account))
     except Exception as exc:
         return HTMLResponse(f'<span class="text-sm text-red-700">{escape(str(exc).splitlines()[0])}</span>')
     msg = "Sent to Close as Potential ✓" if s["sent"] else "Already in Close ✓" if s["already_in_close"] else "Couldn't send."
     return HTMLResponse(f'<span class="text-sm text-green-700">{msg}</span>')
+
+
+@app.post("/close/connect")
+def close_connect(api_key: str = Form(""), db: Session = Depends(get_session), account=Depends(current_account)):
+    if account is None:
+        raise HTTPException(400, "Create an account first")
+    if not plans.has_close(db, account):
+        return back_to_business("The Close CRM connection is included in the Pro plan. Upgrade on the Billing page.")
+    try:
+        org_name = close_crm.connect(db, account, api_key)
+    except ValueError as exc:
+        return back_to_business(str(exc))
+    except httpx.HTTPError as exc:
+        return back_to_business(f"Couldn't reach Close: {str(exc).splitlines()[0]}")
+    return back_to_business(f"Connected to Close{f' ({org_name})' if org_name else ''}. Send leads from your Leads page.")
+
+
+@app.post("/close/disconnect")
+def close_disconnect(db: Session = Depends(get_session), account=Depends(current_account)):
+    if account:
+        close_crm.disconnect(db, account)
+    return back_to_business("Close disconnected. Its key was deleted from this app.")
 
 
 @app.post("/close/settings")
@@ -643,6 +665,8 @@ def business_page(request: Request, db: Session = Depends(get_session), account=
                   default_desc=scoring.DEFAULT_DESCRIPTION, n_emailed=n_emailed,
                   gmail_ready=gmail.configured(), can_compose=bool(account and gmail.can_compose(account)),
                   has_email=bool(account and plans.has_email(db, account)), plan=plans.plan_for(db, account) if account else {},
+                  close_plan=bool(account and plans.has_close(db, account)), close_on=close_crm.enabled_for(db, account),
+                  close_shared=bool(account and not account.close_key_enc and close_crm.key_for(db, account)),
                   message=request.query_params.get("msg", ""))
 
 

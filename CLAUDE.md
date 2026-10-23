@@ -55,5 +55,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Sale pop-up + beta survey (2026-10-22): marking Sold pops up "Log this sale" (MRR, months, fee, found_elsewhere);
   Dashboard reminds about sales missing amounts. Beta orgs get a one-time survey pop-up from day 25 (would pay/plan,
   0-10 recommend, hours saved, quote + permission; "Ask me later" = 3 days); preview at /survey. All on /beta + CSV.
+- Close per account (2026-10-22): each account pastes its own Close API key on My business (verified with Close
+  /me, stored encrypted with APP_SECRET_KEY; close_crm.key_for). The .env CLOSE_API_KEY is only a fallback for the
+  "Plug Employ" org. Close is on Beta/Pro/Premium (plans "close"), not Standard. Unknown Close statuses change nothing.
 - Beta plan: Day 2 put it online (Render + domain), Day 3 test as a new customer and invite testers.
-- Next: Stripe test keys from Savannah, cloud hosting + domain, results tracking for beta, per-customer Close, territory lock, Google verification.
+- Next: Stripe (after attorney/LLC), domain, territory lock, Google verification, per-account Close status mapping.

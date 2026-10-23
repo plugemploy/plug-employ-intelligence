@@ -90,13 +90,13 @@ def test_invite_and_sign_up(two_companies):
         assert (org.name, org.plan, owner.role) == ("Test: Gamma Living", "trial", "owner") and owner.account_id
 
 
-def test_close_only_for_owner_company(two_companies, monkeypatch):
-    monkeypatch.setattr(close_crm, "configured", lambda: True)
+def test_owner_close_key_only_for_owner_company(two_companies, monkeypatch):
+    monkeypatch.setattr(close_crm, "CLOSE_API_KEY", "api_owner_env")
     with Session(engine) as db:
-        assert not close_crm.enabled_for(db, db.get(Account, two_companies["a1"]))
+        assert close_crm.key_for(db, db.get(Account, two_companies["a1"])) == ""
         monkeypatch.setattr(close_crm, "OWNER_ORG", "Test: Alpha Media")
-        assert close_crm.enabled_for(db, db.get(Account, two_companies["a1"]))
-        assert not close_crm.enabled_for(db, db.get(Account, two_companies["b1"]))
+        assert close_crm.key_for(db, db.get(Account, two_companies["a1"])) == "api_owner_env"
+        assert close_crm.key_for(db, db.get(Account, two_companies["b1"])) == ""
 
 
 def test_feedback_box_and_owner_page():

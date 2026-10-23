@@ -93,3 +93,65 @@ def test_pages_show_close(ids, monkeypatch):
     login_as(c, ids)
     assert "Send top 20 to Close" in c.get("/leads").text
     assert "send new leads scored 9+ to Close" in c.get("/nightly").text
+
+
+class FakeMe(FakeClose):
+    def __init__(self, org="Brentwood Media", status=200):
+        super().__init__(existing=[])
+        self.org, self.status = org, status
+
+    def me(self):
+        import httpx
+        if self.status != 200:
+            req = httpx.Request("GET", "https://api.close.com/api/v1/me/")
+            raise httpx.HTTPStatusError("bad key", request=req, response=httpx.Response(self.status, request=req))
+        return {"organizations": [{"name": self.org}]}
+
+
+def test_each_account_connects_its_own_close(ids, monkeypatch):
+    from app.gmail import _fernet
+    from tests.conftest import on_plan
+    on_plan(ids, "pro")
+    with Session(engine) as db:
+        a = db.get(Account, ids)
+        assert not close_crm.enabled_for(db, a)  # nothing connected yet
+        with pytest.raises(ValueError, match="didn't accept"):
+            close_crm.connect(db, a, "bad_key", FakeMe(status=401))
+        assert close_crm.connect(db, a, "  api_tester_123 ", FakeMe()) == "Brentwood Media"
+        assert "api_tester_123" not in a.close_key_enc  # stored encrypted
+        assert _fernet().decrypt(a.close_key_enc.encode()).decode() == "api_tester_123"
+        assert close_crm.key_for(db, a) == "api_tester_123" and close_crm.enabled_for(db, a)
+    monkeypatch.setattr(close_crm, "CloseClient", lambda key: FakeMe(org="Via Page"))
+    c = TestClient(app)
+    login_as(c, ids)
+    page = c.get("/business").text
+    assert "Connected to <b>Brentwood Media</b>" in page and "api_tester_123" not in page
+    assert "Disconnected" not in c.post("/close/disconnect").text
+    with Session(engine) as db:
+        a = db.get(Account, ids)
+        assert (a.close_key_enc, a.close_org_name) == ("", "") and not close_crm.enabled_for(db, a)
+    assert "Connected to Close (Via Page)" in c.post("/close/connect", data={"api_key": "api_new"}).text
+
+
+def test_close_needs_a_plan_with_it_and_owner_key_stays_with_owner(ids, monkeypatch):
+    from tests.conftest import on_plan
+    from app.models import Organization
+    on_plan(ids, "personal")  # Standard: no Close
+    c = TestClient(app)
+    login_as(c, ids)
+    assert "included in the" in c.post("/close/connect", data={"api_key": "x"}).text
+    monkeypatch.setattr(close_crm, "CLOSE_API_KEY", "api_owner_env")
+    with Session(engine) as db:
+        a = db.get(Account, ids)
+        assert close_crm.key_for(db, a) == ""  # a customer never gets the owner's key
+        db.get(Organization, a.org_id).name = close_crm.OWNER_ORG
+        db.commit()
+        assert close_crm.key_for(db, a) == "api_owner_env"
+
+
+def test_send_uses_first_status_when_potential_was_renamed(ids):
+    fake = FakeClose(existing=[])
+    fake.statuses = lambda: {"new lead": "stat_new"}
+    with Session(engine) as db:
+        close_crm.send_leads(db, close_crm.top_unsent(db, ids, limit=1), fake)
+    assert fake.created[0]["status_id"] == "stat_new"

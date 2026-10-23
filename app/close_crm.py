@@ -36,28 +36,62 @@ STATUS_MAP = {
 }
 
 
-# The Close key in .env is the owner's own Close account. Until each customer connects their own,
-# only accounts in this organization may use it.
+# Each account connects its own Close (My business page): its API key is stored encrypted on the account.
+# The key in .env is the owner's own Close; accounts in this organization fall back to it.
 OWNER_ORG = "Plug Employ"
 
 
-def configured() -> bool:
-    return bool(CLOSE_API_KEY)
+def key_for(db: Session, account) -> str:
+    """The Close API key this account uses, or "" when it has none."""
+    from app.gmail import _fernet
+    from app.models import Organization
+    if account is None:
+        return ""
+    if account.close_key_enc:
+        return _fernet().decrypt(account.close_key_enc.encode()).decode()
+    org = db.get(Organization, account.org_id) if account.org_id else None
+    return CLOSE_API_KEY if (CLOSE_API_KEY and org and org.name == OWNER_ORG) else ""
 
 
 def enabled_for(db: Session, account) -> bool:
-    from app.models import Organization
-    if not (configured() and account and account.org_id):
-        return False
-    org = db.get(Organization, account.org_id)
-    return bool(org and org.name == OWNER_ORG)
+    from app.plans import has_close
+    return bool(account and has_close(db, account) and key_for(db, account))
+
+
+def client_for(db: Session, account) -> "CloseClient":
+    return CloseClient(key_for(db, account))
+
+
+def connect(db: Session, account, api_key: str, client: "CloseClient | None" = None) -> str:
+    """Check the key with Close, then save it encrypted. Returns the Close organization's name."""
+    from app.gmail import _fernet
+    api_key = api_key.strip()
+    if not api_key:
+        raise ValueError("Paste your Close API key first.")
+    client = client or CloseClient(api_key)
+    try:
+        orgs = client.me().get("organizations", [])
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in (401, 403):
+            raise ValueError("Close didn't accept that key. Copy it again from Close: Settings > Developer > API Keys.")
+        raise
+    account.close_key_enc = _fernet().encrypt(api_key.encode()).decode()
+    account.close_org_name = (orgs[0].get("name", "") if orgs else "")[:200]
+    db.commit()
+    return account.close_org_name
+
+
+def disconnect(db: Session, account) -> None:
+    """Forget this account's key. Leads keep their Close links in case it reconnects."""
+    account.close_key_enc, account.close_org_name, account.close_auto_send = "", "", False
+    db.commit()
 
 
 class CloseClient:
     """Thin wrapper over Close's REST API. Kept separate so tests can replace it."""
 
-    def __init__(self):
-        self.http = httpx.Client(base_url=BASE_URL, auth=(CLOSE_API_KEY, ""), timeout=30)
+    def __init__(self, api_key: str):
+        self.http = httpx.Client(base_url=BASE_URL, auth=(api_key, ""), timeout=30)
 
     def _call(self, method: str, path: str, **kw) -> dict:
         for _ in range(5):
@@ -69,6 +103,10 @@ class CloseClient:
             return r.json()
         r.raise_for_status()
         return {}
+
+    def me(self) -> dict:
+        """The signed-in Close user, with the organizations the key opens."""
+        return self._call("GET", "me/")
 
     def statuses(self) -> dict[str, str]:
         """label (lower case) -> status id"""
@@ -129,13 +167,14 @@ def note_text(lead: Lead) -> str:
     return "\n".join(lines)
 
 
-def send_leads(db: Session, leads: list[Lead], client: CloseClient | None = None) -> dict:
+def send_leads(db: Session, leads: list[Lead], client: CloseClient) -> dict:
     """Create these leads in Close as Potential, skipping ones already there."""
     stats = {"sent": 0, "already_in_close": 0, "failed": 0}
     if not leads:
         return stats
-    client = client or CloseClient()
-    status_id = client.statuses()[NEW_STATUS.lower()]
+    statuses = client.statuses()
+    # Close starts every org with "Potential"; an org that renamed it gets its first status instead.
+    status_id = statuses.get(NEW_STATUS.lower()) or next(iter(statuses.values()))
     existing = client.all_leads()
     by_domain = {site_domain(c["url"]): c for c in existing if c.get("url")}
     by_name = {_norm(c.get("display_name", "")): c for c in existing}
@@ -191,13 +230,12 @@ def apply_status(db: Session, lead: Lead, close_label: str) -> bool:
     return True
 
 
-def sync_back(db: Session, account_id: int, client: CloseClient | None = None) -> dict:
+def sync_back(db: Session, account_id: int, client: CloseClient) -> dict:
     """Read the VA's status changes in Close and update the matching leads here."""
     stats = {"updated": 0}
     leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.close_lead_id != "")).all()
     if not leads:
         return stats
-    client = client or CloseClient()
     labels = {c["id"]: c.get("status_label", "") for c in client.all_leads()}
     for lead in leads:
         if lead.close_lead_id in labels and apply_status(db, lead, labels[lead.close_lead_id]):

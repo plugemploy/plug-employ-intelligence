@@ -63,11 +63,12 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
             website.check_unchecked(db, account_id, limit=1000)
             if ANTHROPIC_API_KEY:
                 scoring.score_unscored(db, account_id, limit=1000)
-            if close_crm.enabled_for(db, db.get(Account, account_id)):
+            if close_crm.enabled_for(db, account):
                 try:
-                    close_crm.sync_back(db, account_id)
-                    if db.get(Account, account_id).close_auto_send:
-                        close_crm.send_leads(db, close_crm.top_unsent(db, account_id, min_score=9, limit=50))
+                    client = close_crm.client_for(db, account)
+                    close_crm.sync_back(db, account_id, client)
+                    if account.close_auto_send:
+                        close_crm.send_leads(db, close_crm.top_unsent(db, account_id, min_score=9, limit=50), client)
                 except Exception:  # a Close hiccup shouldn't stop the lead search
                     log.exception("Close sync failed")
                     db.rollback()
