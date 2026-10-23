@@ -213,7 +213,7 @@ def test_only_the_owner_sees_dollar_amounts(two_accounts):
         from app.models import Organization, Account
         db.get(Organization, db.get(Account, a).org_id).plan_tier = "owner"
         db.commit()
-    assert "spent this month" in c.get("/search").text
+    assert "Claude cost this month" in c.get("/search").text
 
 
 def test_sales_steps_and_sold_amounts(two_accounts):

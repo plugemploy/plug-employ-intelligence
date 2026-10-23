@@ -13,26 +13,27 @@ from sqlalchemy.orm import Session
 from app.config import MONTHLY_API_BUDGET_USD
 from app.models import Account, Organization
 
-# allowance_usd: Google + Claude cost included each month. nightly_max: most searches per night.
+# searches: ZIP x business-type searches a month (None = no count). allowance_usd: a cap on the Claude cost
+# (scoring, drafts) each month, as a safety net. nightly_max: most searches per night.
 # email: Gmail features (Emailed tags, quiet follow-ups, drafts, Monday digest). close: Close CRM connection.
 # max_zips / max_industries: territory size. On Premium these make searches "unlimited": every ZIP +
 # business type is searched once a month, and 20 x 70 = 1,400 searches (~$55) still keeps a 77% margin at $299.
 PLANS = {
-    "beta": {"label": "Beta", "price": 0, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True},
-    "personal": {"label": "Standard", "price": 99, "allowance_usd": 15.0, "nightly_max": 20, "email": False, "close": False},
-    "pro": {"label": "Pro", "price": 149, "allowance_usd": 25.0, "nightly_max": 30, "email": True, "close": True},
-    "premium": {"label": "Premium", "price": 299, "allowance_usd": 55.0, "nightly_max": 50, "email": True, "close": True,
+    "beta": {"label": "Beta", "price": 0, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True},
+    "personal": {"label": "Standard", "price": 99, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": False, "close": False},
+    "pro": {"label": "Pro", "price": 149, "searches": 640, "allowance_usd": 25.0, "nightly_max": 30, "email": True, "close": True},
+    "premium": {"label": "Premium", "price": 299, "searches": 1400, "allowance_usd": 55.0, "nightly_max": 50, "email": True, "close": True,
                 "max_zips": 20, "max_industries": 70, "unlimited": True},
     # Earlier plans, kept for companies already on them. Not offered on the Billing page.
-    "founding": {"label": "Founding member", "price": 79, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True},
-    "wholesale": {"label": "Wholesale (per publisher)", "price": 60, "allowance_usd": 10.0, "nightly_max": 20, "email": True, "close": True},
-    "owner": {"label": "Owner", "price": 0, "allowance_usd": None, "nightly_max": 100, "email": True, "close": True},  # only the .env cap applies
+    "founding": {"label": "Founding member", "price": 79, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True},
+    "wholesale": {"label": "Wholesale (per publisher)", "price": 60, "searches": 256, "allowance_usd": 10.0, "nightly_max": 20, "email": True, "close": True},
+    "owner": {"label": "Owner", "price": 0, "searches": None, "allowance_usd": None, "nightly_max": 100, "email": True, "close": True},  # only the .env cap applies
 }
 EMAIL_PLAN_MSG = "Gmail features are included in the Pro plan. Upgrade on the Billing page."
 TRIAL_DAYS = 30  # a company that hasn't subscribed gets this long, then searches pause
-# One search as customers see it: Google ($0.035, places.COST_PER_REQUEST_USD) plus Claude scoring
-# the new leads it finds (~$0.004, measured).
-SEARCH_COST = 0.039
+# Searches come from Overture's free open data; what a search costs is Claude scoring the leads it adds.
+SCORING_COST_PER_SEARCH = 0.006  # measured ~$0.004 for Google's 20 results; Overture adds up to 30
+SEARCH_SERVICES = ("google_places_text_search", "overture_search")  # api_usage rows that count as a search
 WARN_AT = 0.8
 
 
@@ -85,15 +86,28 @@ def monthly_limit(db: Session, account: Account) -> float:
     return MONTHLY_API_BUDGET_USD if allowance is None else allowance
 
 
+def searches_this_month(db: Session, account_id: int) -> int:
+    from sqlalchemy import func, select
+    from app.models import ApiUsage
+    from app.places import month_start
+    return db.scalar(select(func.count()).select_from(ApiUsage).where(
+        ApiUsage.account_id == account_id, ApiUsage.service.in_(SEARCH_SERVICES),
+        ApiUsage.created_at >= month_start())) or 0
+
+
 def usage(db: Session, account: Account) -> dict:
-    """What the account has used and has left this month, in dollars and in searches."""
+    """What the account has used and has left this month: searches, and the Claude cost (owner only sees $)."""
     from app.places import spent_this_month
+    plan, org = plan_for(db, account), _org(db, account)
     limit, spent = monthly_limit(db, account), spent_this_month(db, account.id)
-    left = max(0.0, limit - spent)
-    return {"limit": limit, "spent": spent, "left": left, "pct": (spent / limit) if limit else 1.0,
-            "searches_total": int(limit // SEARCH_COST), "searches_left": int(left // SEARCH_COST),
-            "plan": plan_for(db, account), "trial_over": trial_over(_org(db, account)),
-            "trial_ends": trial_ends(_org(db, account)) if _org(db, account) else None}
+    paused = bool(org and (org.plan == "cancelled" or trial_over(org)))
+    total = None if plan["searches"] is None else (0 if paused else plan["searches"])
+    used = searches_this_month(db, account.id)
+    left = None if total is None else max(0, total - used)
+    return {"limit": limit, "spent": spent, "left": max(0.0, limit - spent),
+            "pct": (used / total if total else 1.0) if total is not None else 0.0,
+            "searches_total": total, "searches_used": used, "searches_left": left,
+            "plan": plan, "trial_over": trial_over(org), "trial_ends": trial_ends(org) if org else None}
 
 
 def nightly_quota(db: Session, account: Account, per_night: int, today: date | None = None) -> int:
@@ -102,4 +116,7 @@ def nightly_quota(db: Session, account: Account, per_night: int, today: date | N
     next_month = date(today.year + (today.month == 12), today.month % 12 + 1, 1)
     days_left = max(1, (next_month - today).days)
     per_night = min(per_night, plan_for(db, account)["nightly_max"])
-    return max(0, min(per_night, math.ceil(usage(db, account)["searches_left"] / days_left)))
+    left = usage(db, account)["searches_left"]
+    if left is None:  # no monthly count (owner)
+        return per_night
+    return max(0, min(per_night, math.ceil(left / days_left)))

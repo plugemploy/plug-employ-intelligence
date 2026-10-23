@@ -62,6 +62,19 @@ def check_budget(db: Session, account_id: int, next_cost: float) -> None:
         raise BudgetExceeded("This month's search allowance is used up. Searches resume on the 1st.")
 
 
+def check_search(db: Session, account_id: int) -> None:
+    """Stop before a search the plan has no room for."""
+    from app.plans import trial_over, usage
+    account = db.get(Account, account_id)
+    if account is None:
+        raise BudgetExceeded("No account.")
+    if trial_over(db.get(Organization, account.org_id) if account.org_id else None):
+        raise BudgetExceeded("Your free trial has ended. Choose a plan on the Billing page to keep searching.")
+    left = usage(db, account)["searches_left"]
+    if left is not None and left <= 0:
+        raise BudgetExceeded("This month's searches are used up. Searches resume on the 1st.")
+
+
 RESEARCH_AFTER_DAYS = 31  # a ZIP + industry search isn't repeated within this many days (so at most once a month)
 
 
@@ -70,7 +83,7 @@ def recently_searched(db: Session, account_id: int) -> set[str]:
     from datetime import timedelta
     since = datetime.now(timezone.utc) - timedelta(days=RESEARCH_AFTER_DAYS)
     return set(db.scalars(select(ApiUsage.detail).where(
-        ApiUsage.account_id == account_id, ApiUsage.service == "google_places_text_search",
+        ApiUsage.account_id == account_id, ApiUsage.service.in_(("google_places_text_search", "overture_search")),
         ApiUsage.created_at >= since)))
 
 

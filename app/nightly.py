@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import billing, close_crm, digest, gmail, places, plans, scoring, website
+from app import billing, close_crm, digest, gmail, overture, places, plans, scoring, website
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
 from app.models import Account, ApiUsage, Lead, NightlyRun, NightlySettings
@@ -51,9 +51,10 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
             if max_searches is None:  # nightly: spread the plan's allowance over the month
                 limit = plans.nightly_quota(db, account, s.searches_per_night)
             else:  # starter search: as many as asked, within what's left
-                limit = min(max_searches, plans.usage(db, account)["searches_left"])
+                left = plans.usage(db, account)["searches_left"]
+                limit = max_searches if left is None else min(max_searches, left)
             for z, ind in next_pairs(db, s)[:limit]:
-                stats = places.search_and_save(db, account_id, z, ind)
+                stats = overture.search_and_save(db, account_id, z, ind)
                 run.searches += 1
                 run.added += stats["added"]
             try:

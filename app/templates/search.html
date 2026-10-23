@@ -2,12 +2,11 @@
 {% block title %}Find leads{% endblock %}
 {% block content %}
 <h1 class="text-2xl font-bold mb-1">Find leads</h1>
-<p class="text-sm text-slate-600 mb-4">Searches Google Places. Skips closed businesses, ones with fewer than
-  {{ min_reviews }} reviews, ones outside the ZIP, and ones already in your list.</p>
-<p class="text-sm mb-4">Each ZIP × industry you pick is one search.{% if show_costs %} About ${{ cost_each }} each{% if allow %} · spent this month (estimated, at full price):
-  <b>${{ "%.2f"|format(allow.spent) }}</b> of ${{ "%.0f"|format(allow.limit) }}{% endif %}.{% endif %}</p>
+<p class="text-sm text-slate-600 mb-4">Searches Overture's open business listings. Skips closed businesses, listings that
+  look unreliable or have no phone or website, and ones already in your list. Adds up to {{ max_added }} new leads per search, best first.</p>
+<p class="text-sm mb-4">Each ZIP × industry you pick is one search.{% if show_costs and allow %} Claude cost this month:
+  <b>${{ "%.2f"|format(allow.spent) }}</b> of ${{ "%.0f"|format(allow.limit) }} (searches themselves are free).{% endif %}</p>
 {% include "_allowance.html" %}
-{% if not has_key %}<p class="mb-4 rounded bg-red-50 border border-red-300 p-3 text-red-800 text-sm">No Google key in .env yet.</p>{% endif %}
 {% if running %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">A search is running now.
   You can keep working; the bar at the top shows when it's done.</p>{% endif %}
 {% if error %}<p class="mb-4 rounded bg-red-50 border border-red-300 p-3 text-red-800 text-sm">{{ error }}</p>{% endif %}
@@ -21,8 +20,9 @@
       {% if r.recent %}<td class="p-3 text-slate-500" colspan="3">Already searched in the last month, skipped (no charge)</td>
       {% else %}<td class="p-3">{{ r.found }}</td>
       <td class="p-3 font-semibold text-green-700">{{ r.added }}</td>
-      <td class="p-3 text-slate-500">{{ r.skipped_closed }} closed · {{ r.skipped_few_reviews }} few reviews ·
-        {{ r.skipped_other_zip }} other ZIP · {{ r.skipped_duplicate }} already had</td>{% endif %}</tr>{% endfor %}</tbody>
+      <td class="p-3 text-slate-500">{% if r.skipped_unreliable is defined %}{{ r.skipped_closed }} closed · {{ r.skipped_unreliable }} unreliable ·
+        {{ r.skipped_duplicate }} already had{% if r.skipped_over_limit %} · {{ r.skipped_over_limit }} over the {{ max_added }}-lead limit{% endif %}
+        {% else %}{{ r.skipped_closed }} closed · {{ r.skipped_few_reviews }} few reviews · {{ r.skipped_other_zip }} other ZIP · {{ r.skipped_duplicate }} already had{% endif %}</td>{% endif %}</tr>{% endfor %}</tbody>
   </table>
   <p class="p-3 text-sm text-slate-500">Your last search. <a href="/leads?search={{ last_job.id }}&sort=score" class="text-blue-700 hover:underline">See the leads it added →</a></p>
 </div>

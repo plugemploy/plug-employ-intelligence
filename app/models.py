@@ -99,6 +99,11 @@ class Lead(Base):
     close_lead_id: Mapped[str] = mapped_column(String(100), default="", server_default="", index=True)
     close_status: Mapped[str] = mapped_column(String(100), default="", server_default="")
     google_place_id: Mapped[str | None] = mapped_column(String(200), index=True)
+    # From Overture Maps' open places data (overturemaps.org), which may be stored and shared.
+    overture_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    email: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    brand: Mapped[str] = mapped_column(String(200), default="", server_default="")  # set when it's a chain
+    source_confidence: Mapped[float | None] = mapped_column(Float)  # Overture's 0-1 confidence the place is real
     rating: Mapped[float | None] = mapped_column(Float)
     review_count: Mapped[int | None] = mapped_column(Integer)
     score: Mapped[int | None] = mapped_column(Integer, index=True)

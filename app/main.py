@@ -14,11 +14,12 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import auth, billing, catalog, close_crm, dashboard, plans, digest, gmail, nightly, outreach, places, results, scoring, search_jobs
+from app import auth, billing, catalog, close_crm, dashboard, plans, digest, gmail, nightly, outreach, overture, places, results, scoring, search_jobs
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
-from app.config import ANTHROPIC_API_KEY, COOKIE_SECURE, GOOGLE_PLACES_API_KEY
+from app.config import ANTHROPIC_API_KEY, COOKIE_SECURE
+from app.dedupe import find_duplicate
 from app.models import OUTCOMES, STATUSES, WOULD_PAY, Account, BetaSurvey, Feedback, FollowUp, Lead, LeadNote, NightlyRun, Organization, SearchJob, User
 
 INDUSTRIES = places.INDUSTRIES
@@ -264,40 +265,6 @@ def due_today(request: Request, db: Session = Depends(get_session), account=Depe
             .options(selectinload(FollowUp.lead)).order_by(FollowUp.due_date)
         ).all()
     return render(request, "due.html", db, account, items=items)
-
-
-NAME_FILLER = {"the", "llc", "inc", "co", "company", "corp", "ltd", "and"}
-# Sites many businesses share, so a matching domain doesn't mean the same business.
-SHARED_DOMAINS = {"facebook.com", "instagram.com", "google.com", "business.site", "yelp.com", "linktr.ee",
-                  "sites.google.com", "squareup.com", "square.site", "wixsite.com"}
-
-
-def _name_key(name: str) -> str:
-    import re
-    words = re.sub(r"[^a-z0-9 ]", " ", name.lower().replace("&", " and ")).split()
-    return " ".join(w for w in words if w not in NAME_FILLER)
-
-
-def _phone_key(phone: str) -> str:
-    digits = "".join(c for c in phone if c.isdigit())
-    return digits[-10:] if len(digits) >= 7 else ""
-
-
-def find_duplicate(db: Session, account_id: int, business_name: str, zip_code: str, phone: str, website: str) -> Lead | None:
-    """An existing lead (deleted ones too) that looks like the same business: same phone, same website,
-    or same name in the same ZIP."""
-    name, zip_code, phone = _name_key(business_name), zip_code.strip(), _phone_key(phone)
-    domain = gmail.site_domain(website.strip().lower()) if website.strip() else ""
-    if domain in SHARED_DOMAINS:
-        domain = ""
-    for lead in db.scalars(select(Lead).where(Lead.account_id == account_id).order_by(Lead.deleted_at.nulls_first(), Lead.id)):
-        if phone and _phone_key(lead.phone) == phone:
-            return lead
-        if domain and lead.website and gmail.site_domain(lead.website.lower()) == domain:
-            return lead
-        if name and _name_key(lead.business_name) == name and (not zip_code or not lead.zip_code or lead.zip_code == zip_code):
-            return lead
-    return None
 
 
 @app.get("/leads/new")
@@ -570,8 +537,7 @@ def follow_up_done(fu_id: int, request: Request, db: Session = Depends(get_sessi
 
 def search_ctx(db, account):
     return dict(allow=plans.usage(db, account) if account else None,zips=account.zip_list if account else [], industries=account.industry_list if account else [],
-                cost_each=places.COST_PER_REQUEST_USD,
-                min_reviews=places.MIN_REVIEWS, has_key=bool(GOOGLE_PLACES_API_KEY))
+                min_confidence=overture.MIN_CONFIDENCE, max_added=overture.MAX_ADDED)
 
 
 @app.get("/search")
@@ -589,9 +555,7 @@ def run_search(request: Request, zips: list[str] = Form(default=[]), industries:
     if account is None:
         raise HTTPException(400, "Create an account first")
     error = None
-    if not GOOGLE_PLACES_API_KEY:
-        error = "No Google key in .env yet."
-    elif not zips or not industries:
+    if not zips or not industries:
         error = "Pick at least one ZIP and one industry."
     elif search_jobs.latest(db, account.id) and search_jobs.latest(db, account.id).status == "running":
         error = "A search is already running. It'll show at the top of the page when it's done."
@@ -630,7 +594,7 @@ def nightly_page(request: Request, db: Session = Depends(get_session), account=D
         runs = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
                           .order_by(NightlyRun.started_at.desc()).limit(10)).all()
         ctx = dict(st=st, runs=runs, upcoming=nightly.next_pairs(db, st),
-                   cost_each=places.COST_PER_REQUEST_USD, nightly_max=plans.plan_for(db, account)["nightly_max"], has_close=close_crm.enabled_for(db, account), saved=request.query_params.get("saved"))
+                   cost_each=plans.SCORING_COST_PER_SEARCH, nightly_max=plans.plan_for(db, account)["nightly_max"], has_close=close_crm.enabled_for(db, account), saved=request.query_params.get("saved"))
     return render(request, "nightly.html", db, account, **ctx)
 
 
@@ -804,7 +768,7 @@ def setup_first(request: Request, db: Session = Depends(get_session), account=De
     pairs = len(account.zip_list) * len(account.industry_list)
     n = min(setup_mod.STARTER_SEARCHES, pairs)
     return render(request, "setup_first.html", db, account, n=n, pairs=pairs, st=st,
-                  cost=n * places.COST_PER_REQUEST_USD, nights=-(-pairs // max(st.searches_per_night, 1)))
+                  cost=n * plans.SCORING_COST_PER_SEARCH, nights=-(-pairs // max(st.searches_per_night, 1)))
 
 
 @app.post("/setup/first")
@@ -828,7 +792,7 @@ def billing_page(request: Request, msg: str = "", db: Session = Depends(get_sess
     offers = [(t, plans.PLANS[t]) for t in billing.SELLABLE]
     return render(request, "billing.html", db, None, offers=offers, seats=billing.seats(db, org),
                   ready=billing.configured(), message=msg, current=plans.PLANS.get(org.plan_tier, {}),
-                  trial_ends=plans.trial_ends(org), now=datetime.now(timezone.utc), search_cost=plans.SEARCH_COST)
+                  trial_ends=plans.trial_ends(org), now=datetime.now(timezone.utc))
 
 
 @app.post("/billing/checkout")
@@ -884,7 +848,7 @@ def admin_page(request: Request, msg: str = "", db: Session = Depends(get_sessio
                             .group_by(ApiUsage.account_id)).all())
     searches = dict(db.execute(select(ApiUsage.account_id, func.count())
                                .where(ApiUsage.account_id.in_(ids), ApiUsage.created_at >= places.month_start(),
-                                      ApiUsage.service == "google_places_text_search")
+                                      ApiUsage.service.in_(plans.SEARCH_SERVICES))
                                .group_by(ApiUsage.account_id)).all())
     users = db.scalars(select(User).where(User.org_id == user.org_id).order_by(User.email)).all()
     rows = []
@@ -958,7 +922,7 @@ def usage_page(request: Request, db: Session = Depends(get_session), account=Dep
         searches_by_day = db.execute(
             select(day, f.count())
             .where(ApiUsage.account_id == account.id, ApiUsage.created_at >= start,
-                   ApiUsage.service == "google_places_text_search")
+                   ApiUsage.service.in_(plans.SEARCH_SERVICES))
             .group_by(day).order_by(day.desc())).all()
         ctx = dict(by_service=by_service, by_day=by_day, searches_by_day=searches_by_day,
                    spent=places.spent_this_month(db, account.id), limit=plans.monthly_limit(db, account),
