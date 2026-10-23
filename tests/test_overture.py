@@ -40,7 +40,7 @@ def test_search_filters_dedupes_and_counts(acct, monkeypatch):
               websites=("https://brightsmiles.com",)),
         place("o2", "Old Google Dental", phones=("865-555-0199",), websites=()),       # already a lead (from Google)
         place("o3", "Closed Dental", status="permanently_closed", phones=("+18655550103",)),
-        place("o4", "Ghost Dental", confidence=0.2, phones=("+18655550104",)),           # unreliable
+        place("o4", "Ghost Dental", confidence=0.1, phones=("+18655550104",)),           # unreliable
         place("o5", "No Contact Dental", phones=(), websites=()),                         # can't be reached
         place("o6", "Corner Pizza", category="pizza_restaurant", basic="restaurant", phones=("+18655550106",)),
         place("o7", "Chain Dental", brand="Aspen Dental", phones=("+18655550107",),

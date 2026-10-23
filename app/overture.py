@@ -29,7 +29,7 @@ from app.places import check_search
 SERVICE = "overture_search"  # how a search is logged in api_usage (it costs nothing)
 BUCKET = "https://overturemaps-us-west-2.s3.amazonaws.com"
 MAX_ADDED = 30  # most new leads one search adds (independents first), so lists and scoring stay manageable
-MIN_CONFIDENCE = 0.5  # Overture's 0-1 confidence that the place is real and current
+MIN_CONFIDENCE = 0.2  # Overture's 0-1 confidence the place is real; many real small businesses sit at 0.3-0.4
 CLOSED = {"permanently_closed", "temporarily_closed", "closed"}
 SOCIAL = {"facebook.com", "instagram.com", "twitter.com", "x.com", "linkedin.com", "youtube.com", "tiktok.com",
           "yelp.com", "google.com", "linktr.ee"}
@@ -79,7 +79,8 @@ def _connect():
 
 
 def fetch_places(zip_code: str) -> list[dict]:
-    """Every Overture place whose address is in this ZIP code. Kept separate so tests can replace it."""
+    """Every Overture place whose address is in this ZIP code. Kept separate so tests can replace it.
+    `brand` is set only for chains: a brand with a Wikidata entry (Overture also names brands of single shops)."""
     box = zip_box(zip_code)
     if box is None:
         return []
@@ -93,7 +94,8 @@ def fetch_places(zip_code: str) -> list[dict]:
         path = f"s3://overturemaps-us-west-2/release/{release}/theme=places/type=place/*.parquet"
         rows = _connect().execute(f"""
             SELECT id, names.primary, taxonomy.primary, basic_category, confidence, operating_status,
-                   phones, websites, emails, brand.names.primary, addresses[1].freeform
+                   phones, websites, emails, CASE WHEN brand.wikidata IS NOT NULL THEN brand.names.primary END,
+                   addresses[1].freeform
             FROM read_parquet('{path}')
             WHERE bbox.xmin BETWEEN ? AND ? AND bbox.ymin BETWEEN ? AND ?
               AND left(addresses[1].postcode, 5) = ?""", [west, east, south, north, zip_code]).fetchall()

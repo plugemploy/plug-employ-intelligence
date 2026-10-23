@@ -24,8 +24,9 @@ RUBRIC = """You score local businesses as sales prospects for the business descr
 
 Score 1-10 for how likely the business is to be a good, paying customer:
 - Fit: how well it matches the ideal customer in the description.
-- Established: an active website, a listed email and a high listing confidence suggest a real, active business.
-  A Google rating, when given, counts too. A listed chain or franchise usually scores lower than an independent.
+- Established: an active website and a listed email suggest a real, active business. A Google rating, when
+  given, counts too; when no rating is given, don't lower the score for it. A listed chain or franchise usually
+  scores lower than an independent.
 - Close: ZIPs listed first in the target area matter most; other target ZIPs slightly less.
 - If website text is given, use it: signs of a national chain or franchise lower the score;
   an independent local owner, community involvement, events, sponsorships, or promotions raise it.
@@ -85,8 +86,7 @@ def describe(lead: Lead) -> str:
         f"Email listed: {'yes' if lead.email else 'no'}",
         f"Chain or franchise: {lead.brand if lead.brand else 'not listed as one'}",
     ] + ([f"Google rating: {lead.rating} from {lead.review_count} reviews"] if lead.rating is not None else [])
-      + ([f"Listing confidence: {lead.source_confidence:.2f} (0-1, how sure the open data is that it's real and current)"]
-         if lead.source_confidence is not None else []) + ([f"Contact: {lead.contact_name}" + (f" ({lead.contact_title})" if lead.contact_title else "")]
+ + ([f"Contact: {lead.contact_name}" + (f" ({lead.contact_title})" if lead.contact_title else "")]
          if lead.contact_name else []) + ([f"Website text (homepage excerpt):\n<website>\n{lead.website_text}\n</website>"] if lead.website_text else []))
 
 
