@@ -1,0 +1,33 @@
+{# Find leads progress bar on every page. Needs: search_job. Polls /search/status while running. #}
+{% set j = search_job %}
+{% if j.status == "running" %}
+<div id="search-bar" hx-get="/search/status" hx-trigger="every 3s" hx-swap="outerHTML"
+     class="bg-blue-600 text-white text-sm">
+  <div class="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center gap-3">
+    <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".3"/><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3"/></svg>
+    <b>Generating new leads…</b>
+    <span class="text-blue-100">
+      {% if j.step %}{{ j.step|capitalize }}{% else %}Searching {{ j.result_list|length }} of {{ j.total }}{% endif %}
+      · {{ j.added }} new so far. You can keep working.</span>
+  </div>
+</div>
+{% elif j.status == "done" %}
+<div id="search-bar" class="bg-green-600 text-white text-sm">
+  <div class="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center gap-3">
+    <b>✓ {{ j.added }} new lead{{ "s" if j.added != 1 }} added</b>
+    <span class="text-green-100">from {{ j.total }} search{{ "es" if j.total != 1 }}, scored and ready.</span>
+    <form method="post" action="/search/dismiss"><input type="hidden" name="next" value="/leads?sort=score">
+      <button class="rounded bg-white text-green-800 px-2 py-0.5 font-medium">Show them</button></form>
+    <a href="/search" class="underline text-green-100">Details</a>
+    <button hx-post="/search/dismiss" hx-target="#search-bar" hx-swap="outerHTML" class="ml-auto text-green-100 hover:text-white" aria-label="Dismiss">✕</button>
+  </div>
+</div>
+{% else %}
+<div id="search-bar" class="bg-red-600 text-white text-sm">
+  <div class="max-w-6xl mx-auto px-4 py-2 flex flex-wrap items-center gap-3">
+    <b>Search stopped:</b> <span>{{ j.error }}</span>
+    {% if j.added %}<span class="text-red-100">({{ j.added }} new leads were added before it stopped.)</span>{% endif %}
+    <button hx-post="/search/dismiss" hx-target="#search-bar" hx-swap="outerHTML" class="ml-auto text-red-100 hover:text-white" aria-label="Dismiss">✕</button>
+  </div>
+</div>
+{% endif %}

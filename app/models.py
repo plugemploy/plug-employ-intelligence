@@ -1,5 +1,6 @@
 """Database tables. Every table with customer data has account_id."""
 
+import json
 from datetime import date, datetime
 
 from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, func
@@ -180,6 +181,43 @@ class NightlyRun(Base):
     high_scores: Mapped[int] = mapped_column(Integer, default=0)
     error: Mapped[str] = mapped_column(Text, default="")
 
+
+
+class SearchJob(Base):
+    """One Find leads search, run in the background. The bar at the top of every page shows it."""
+
+    __tablename__ = "search_jobs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(20), default="running", server_default="running")  # running, done, error
+    step: Mapped[str] = mapped_column(String(50), default="", server_default="")  # what it's doing after searching
+    zips: Mapped[str] = mapped_column(Text, default="[]", server_default="[]")  # JSON lists
+    industries: Mapped[str] = mapped_column(Text, default="[]", server_default="[]")
+    results: Mapped[str] = mapped_column(Text, default="[]", server_default="[]")  # one dict per search done
+    error: Mapped[str] = mapped_column(Text, default="", server_default="")
+    seen: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # bar dismissed
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def zip_list(self) -> list[str]:
+        return json.loads(self.zips or "[]")
+
+    @property
+    def industry_list(self) -> list[str]:
+        return json.loads(self.industries or "[]")
+
+    @property
+    def result_list(self) -> list[dict]:
+        return json.loads(self.results or "[]")
+
+    @property
+    def total(self) -> int:
+        return len(self.zip_list) * len(self.industry_list)
+
+    @property
+    def added(self) -> int:
+        return sum(r.get("added", 0) for r in self.result_list)
 
 
 class Feedback(Base):

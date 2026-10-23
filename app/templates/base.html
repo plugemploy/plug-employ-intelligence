@@ -40,6 +40,7 @@
       </div>
     </div>
   </header>
+  {% if search_job %}{% include "_search_bar.html" %}{% endif %}
   <main class="max-w-6xl mx-auto px-4 py-6">
     {% if not account and not (user and user.is_admin) %}
       <p class="text-slate-600">Your account isn't set up yet. Ask your company admin to add you.</p>

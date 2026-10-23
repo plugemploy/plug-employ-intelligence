@@ -14,7 +14,7 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import auth, billing, catalog, close_crm, plans, digest, gmail, nightly, outreach, places, scoring
+from app import auth, billing, catalog, close_crm, plans, digest, gmail, nightly, outreach, places, scoring, search_jobs
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
@@ -46,10 +46,11 @@ def render(request, name, db, account, **ctx):
     user = getattr(request.state, "user", None)
     accounts = auth.visible_accounts(db, user) if user else []
     org = db.get(Organization, user.org_id) if user else None
+    job = search_jobs.for_bar(db, account.id) if account else None
     return templates.TemplateResponse(
         request, name,
         {"account": account, "accounts": accounts, "user": user, "org": org, "statuses": STATUSES,
-         "today": date.today(), **ctx},
+         "today": date.today(), "search_job": job, **ctx},
     )
 
 
@@ -486,40 +487,50 @@ def search_ctx(db, account):
 
 @app.get("/search")
 def search_form(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
-    return render(request, "search.html", db, account, results=None, error=None, **search_ctx(db, account))
+    job = search_jobs.latest(db, account.id) if account else None
+    done = job if job and job.status != "running" else None
+    return render(request, "search.html", db, account, results=done.result_list if done else None,
+                  error=done.error if done else None, running=job if job and job.status == "running" else None,
+                  **search_ctx(db, account))
 
 
 @app.post("/search")
 def run_search(request: Request, zips: list[str] = Form(default=[]), industries: list[str] = Form(default=[]),
                db: Session = Depends(get_session), account=Depends(current_account)):
-    results, error = [], None
     if account is None:
         raise HTTPException(400, "Create an account first")
+    error = None
     if not GOOGLE_PLACES_API_KEY:
         error = "No Google key in .env yet."
     elif not zips or not industries:
         error = "Pick at least one ZIP and one industry."
-    else:
-        try:
-            recent = places.recently_searched(db, account.id)
-            for z in zips:
-                for ind in industries:
-                    if f"{ind} in {z}" in recent:
-                        results.append({"zip": z, "industry": ind, "recent": True})
-                        continue
-                    results.append(places.search_and_save(db, account.id, z, ind))
-            if account.gmail_token_enc:
-                gmail.check_account(db, account.id)
-            site_check.check_unchecked(db, account.id)
-            if ANTHROPIC_API_KEY:
-                scoring.score_unscored(db, account.id)
-        except places.BudgetExceeded as exc:
-            error = str(exc) + " Search stopped."
-        except anthropic.APIError as exc:
-            error = f"Claude returned an error: {exc}"
-        except httpx.HTTPError as exc:
-            error = f"Google returned an error: {str(exc).splitlines()[0]}"
-    return render(request, "search.html", db, account, results=results, error=error, **search_ctx(db, account))
+    elif search_jobs.latest(db, account.id) and search_jobs.latest(db, account.id).status == "running":
+        error = "A search is already running. It'll show at the top of the page when it's done."
+    if error:
+        return render(request, "search.html", db, account, results=None, error=error, running=None,
+                      **search_ctx(db, account))
+    search_jobs.start(db, account.id, zips, industries)
+    return RedirectResponse("/leads?sort=score", status_code=303)
+
+
+@app.get("/search/status")
+def search_status(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    """The progress bar, refreshed every few seconds while a search runs."""
+    job = search_jobs.for_bar(db, account.id) if account else None
+    if job is None:
+        return HTMLResponse("")
+    return templates.TemplateResponse(request, "_search_bar.html", {"search_job": job})
+
+
+@app.post("/search/dismiss")
+def search_dismiss(next: str = Form(""), db: Session = Depends(get_session), account=Depends(current_account)):
+    job = search_jobs.latest(db, account.id) if account else None
+    if job and job.status != "running":
+        job.seen = True
+        db.commit()
+    if next.startswith("/"):
+        return RedirectResponse(next, status_code=303)
+    return HTMLResponse("")
 
 
 @app.get("/nightly")

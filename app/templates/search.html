@@ -8,6 +8,8 @@
   <b>${{ "%.2f"|format(allow.spent) }}</b> of ${{ "%.0f"|format(allow.limit) }}{% endif %}.</p>
 {% include "_allowance.html" %}
 {% if not has_key %}<p class="mb-4 rounded bg-red-50 border border-red-300 p-3 text-red-800 text-sm">No Google key in .env yet.</p>{% endif %}
+{% if running %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">A search is running now.
+  You can keep working; the bar at the top shows when it's done.</p>{% endif %}
 {% if error %}<p class="mb-4 rounded bg-red-50 border border-red-300 p-3 text-red-800 text-sm">{{ error }}</p>{% endif %}
 {% if results %}
 <div class="bg-white rounded-xl shadow mb-6 overflow-x-auto">
@@ -22,11 +24,11 @@
       <td class="p-3 text-slate-500">{{ r.skipped_closed }} closed · {{ r.skipped_few_reviews }} few reviews ·
         {{ r.skipped_other_zip }} other ZIP · {{ r.skipped_duplicate }} already had</td>{% endif %}</tr>{% endfor %}</tbody>
   </table>
-  <p class="p-3 text-sm"><a href="/leads?status=New" class="text-blue-700 hover:underline">See new leads →</a></p>
+  <p class="p-3 text-sm text-slate-500">Your last search. <a href="/leads?sort=score" class="text-blue-700 hover:underline">See your leads →</a></p>
 </div>
 {% endif %}
 <form method="post" class="bg-white rounded-xl shadow p-6 grid gap-6 max-w-2xl"
-      onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Searching…'">
+      onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Starting…'">
   <fieldset><legend class="font-semibold mb-2">ZIP codes</legend>
     <div class="flex flex-wrap gap-3 text-sm">{% for z in zips %}
       <label class="flex items-center gap-1"><input type="checkbox" name="zips" value="{{ z }}"> {{ z }}</label>{% endfor %}</div>
@@ -37,5 +39,6 @@
   </fieldset>
   <p class="text-sm text-slate-500">Change your ZIP codes and industries on <a href="/business" class="text-blue-700 hover:underline">My business</a>.</p>
   <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Search Google</button>
+  <p class="text-xs text-slate-500 -mt-4">The search runs in the background. You'll go to your leads, and a bar at the top shows when the new ones are ready.</p>
 </form>
 {% endblock %}

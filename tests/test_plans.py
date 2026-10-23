@@ -74,8 +74,39 @@ def test_meter_shows_and_repeats_skipped(acct, monkeypatch):
     monkeypatch.setattr(places, "search_and_save", lambda db, aid, z, i: calls.append(i) or {
         "zip": z, "industry": i, "requests": 1, "found": 0, "added": 0, "skipped_closed": 0,
         "skipped_few_reviews": 0, "skipped_other_zip": 0, "skipped_duplicate": 0})
-    r = c.post("/search", data={"zips": ["37934"], "industries": ["Dentist", "Salon"]})
-    assert calls == ["Salon"] and "skipped (no charge)" in r.text
+    from app import search_jobs
+    monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: fn(*a))  # run the search right away
+    r = c.post("/search", data={"zips": ["37934"], "industries": ["Dentist", "Salon"]}, follow_redirects=False)
+    assert r.headers["location"] == "/leads?sort=score"
+    assert calls == ["Salon"] and "skipped (no charge)" in c.get("/search").text
+
+
+def test_search_runs_in_background_with_bar(acct, monkeypatch):
+    from app import search_jobs
+    from app.models import SearchJob
+    c = TestClient(app)
+    c.cookies.set(auth.SESSION_COOKIE, auth.make_session(acct["user"]))
+    import app.main as m
+    monkeypatch.setattr(m, "GOOGLE_PLACES_API_KEY", "x")
+    started = []
+    monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: started.append(a))  # leave it "running"
+    c.post("/search", data={"zips": ["37934"], "industries": ["Dentist", "Salon"]})
+    assert len(started) == 1
+    page = c.get("/leads").text
+    assert "Generating new leads" in page and "Searching 0 of 2" in page
+    r = c.post("/search", data={"zips": ["37934"], "industries": ["Dentist"]})
+    assert "already running" in r.text and len(started) == 1  # no second search
+    monkeypatch.setattr(places, "search_and_save", lambda db, aid, z, i: {
+        "zip": z, "industry": i, "requests": 1, "found": 5, "added": 3, "skipped_closed": 0,
+        "skipped_few_reviews": 2, "skipped_other_zip": 0, "skipped_duplicate": 0})
+    search_jobs.run(started[0][0])
+    bar = c.get("/search/status").text
+    assert "6 new leads added" in bar and "every 3s" not in bar  # done: stops refreshing
+    assert "6 new leads added" in c.get("/due").text  # the bar shows on every page
+    c.post("/search/dismiss")
+    assert "new leads added" not in c.get("/leads").text
+    with Session(engine) as db:
+        assert db.get(SearchJob, started[0][0]).status == "done"
 
 
 def test_premium_territory_limits_and_unlimited_meter(acct):
