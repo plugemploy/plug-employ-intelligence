@@ -162,7 +162,8 @@ class Lead(Base):
 SIGNAL_KINDS = {"opening": ("🎉", "Grand opening"), "new_location": ("📍", "New location"),
                 "event": ("📅", "Event"), "anniversary": ("🎂", "Anniversary"), "hiring": ("🧑‍💼", "Hiring"),
                 "new_service": ("✨", "New service"), "promotion": ("🏷️", "Promotion"), "award": ("🏆", "Award"),
-                "expansion": ("🏗️", "Expansion")}
+                "expansion": ("🏗️", "Expansion"), "ribbon_cutting": ("🎀", "Ribbon cutting"),
+                "new_member": ("🤝", "New chamber member"), "new_in_area": ("🆕", "New in your territory")}
 
 
 class LeadSignal(Base):
@@ -187,6 +188,39 @@ class LeadSignal(Base):
     @property
     def label(self) -> str:
         return SIGNAL_KINDS.get(self.kind, ("", "News"))[1]
+
+
+class WatchedPage(Base):
+    """A local page an account asked us to watch weekly (Chamber ribbon cuttings, new members, local business news)."""
+
+    __tablename__ = "watched_pages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
+    url: Mapped[str] = mapped_column(String(500))
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_status: Mapped[str] = mapped_column(String(100), default="", server_default="")  # e.g. "ok: 3 businesses"
+
+
+class OvertureSnapshot(Base):
+    """Which Overture places were in a ZIP code in one release, to spot businesses that newly appear.
+    Public open data, not customer data, so no account_id."""
+
+    __tablename__ = "overture_snapshots"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    zip_code: Mapped[str] = mapped_column(String(10), index=True)
+    release: Mapped[str] = mapped_column(String(20))
+    place_ids: Mapped[str] = mapped_column(Text)  # comma-separated Overture ids
+    taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class NewInAreaCheck(Base):
+    """The Overture release each account has already been shown new businesses from, per ZIP code."""
+
+    __tablename__ = "new_in_area_checks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
+    zip_code: Mapped[str] = mapped_column(String(10))
+    release: Mapped[str] = mapped_column(String(20))
 
 
 class LeadNote(Base):

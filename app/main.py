@@ -14,13 +14,13 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import auth, billing, catalog, close_crm, dashboard, plans, digest, gmail, nightly, outreach, overture, places, results, scoring, search_jobs, signals
+from app import auth, billing, catalog, close_crm, dashboard, plans, digest, gmail, local_pages, nightly, outreach, overture, places, results, scoring, search_jobs, signals
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, COOKIE_SECURE
 from app.dedupe import find_duplicate
-from app.models import OUTCOMES, STATUSES, WOULD_PAY, Account, BetaSurvey, Feedback, FollowUp, Lead, LeadNote, LeadSignal, NightlyRun, Organization, SearchJob, User
+from app.models import OUTCOMES, STATUSES, WOULD_PAY, Account, BetaSurvey, Feedback, FollowUp, Lead, LeadNote, LeadSignal, NightlyRun, Organization, SearchJob, User, WatchedPage
 
 INDUSTRIES = places.INDUSTRIES
 
@@ -636,13 +636,15 @@ def business_page(request: Request, db: Session = Depends(get_session), account=
                   gmail_ready=gmail.configured(), can_compose=bool(account and gmail.can_compose(account)),
                   has_email=bool(account and plans.has_email(db, account)), plan=plans.plan_for(db, account) if account else {},
                   close_plan=bool(account and plans.has_close(db, account)), close_on=close_crm.enabled_for(db, account),
+                  watched=db.scalars(select(WatchedPage).where(WatchedPage.account_id == account.id).order_by(WatchedPage.id)).all() if account else [],
                   close_shared=bool(account and not account.close_key_enc and close_crm.key_for(db, account)),
                   message=request.query_params.get("msg", ""))
 
 
 @app.post("/business")
 def save_business(description: str = Form(""), zips: str = Form(""), industries: list[str] = Form(default=[]),
-                  extra_industries: str = Form(""), db: Session = Depends(get_session), account=Depends(current_account)):
+                  extra_industries: str = Form(""), watch_pages: str = Form(""),
+                  db: Session = Depends(get_session), account=Depends(current_account)):
     if account is None:
         raise HTTPException(400, "Create an account first")
     zip_list = [z for z in clean_list(zips) if z.isdigit() and len(z) == 5]
@@ -652,6 +654,7 @@ def save_business(description: str = Form(""), zips: str = Form(""), industries:
     account.business_description = description.strip()[:3000]
     account.target_zips, account.industries = ",".join(zip_list), ",".join(inds)
     db.commit()
+    local_pages.set_pages(db, account.id, watch_pages.splitlines())
     return RedirectResponse("/business?msg=Saved%20%E2%9C%93", status_code=303)
 
 
@@ -989,6 +992,30 @@ def signals_check_now(db: Session = Depends(get_session), account=Depends(curren
     from urllib.parse import quote
     return RedirectResponse(f"/dashboard?msg={quote('Checking your top leads’ websites for news. New reasons show up here over the next few minutes.')}",
                             status_code=303)
+
+
+@app.post("/local-pages/check")
+def local_pages_check_now(db: Session = Depends(get_session), account=Depends(current_account)):
+    """Read the watched local pages now (in the background) instead of waiting for the weekly check."""
+    if account and account.id not in _checking_news:
+        _checking_news.add(account.id)
+
+        def run(account_id: int):
+            from app.db import engine as eng
+            try:
+                with Session(eng) as s:
+                    for page in s.scalars(select(WatchedPage).where(WatchedPage.account_id == account_id)):
+                        page.last_checked_at = None
+                    s.commit()
+                    local_pages.check_account(s, account_id)
+                    site_check.check_unchecked(s, account_id, limit=200)
+                    if ANTHROPIC_API_KEY:
+                        scoring.score_unscored(s, account_id, limit=200)
+            finally:
+                _checking_news.discard(account_id)
+        search_jobs.spawn(run, account.id)
+    return back_to_business("Reading your local pages now. Businesses they mention show up on your Dashboard "
+                            "under Reasons to reach out within a few minutes.")
 
 
 @app.post("/signals/{signal_id}/done")

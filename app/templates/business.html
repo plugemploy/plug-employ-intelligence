@@ -13,10 +13,19 @@
     <input name="zips" value="{{ account.zip_list|join(', ') }}" class="border rounded px-3 py-2 text-sm"></label>
   <div><p class="font-semibold mb-2">Industries to search</p>
     {% with selected=account.industry_list, zip_count=account.zip_list|length %}{% include "_industry_picker.html" %}{% endwith %}</div>
+  <label class="grid gap-1"><span class="font-semibold">🎀 Local pages to watch <span class="font-normal text-slate-500">(optional)</span></span>
+    <span class="text-xs text-slate-500">Your Chamber of Commerce's ribbon-cutting or new-member page, or a local "new businesses" column.
+      One web address per line, up to 5. Checked weekly; businesses they mention show up on your Dashboard, and new ones are added as leads.</span>
+    <textarea name="watch_pages" rows="3" class="border rounded px-3 py-2 text-sm font-mono">{% for p in watched %}{{ p.url }}
+{% endfor %}</textarea>
+    {% for p in watched %}{% if p.last_checked_at %}<span class="text-xs text-slate-500">{{ p.url }}: last read
+      {{ p.last_checked_at.astimezone().strftime("%b %-d") }}, {{ p.last_status }}</span>{% endif %}{% endfor %}</label>
   {% if plan.max_zips %}<p class="text-xs text-slate-500">Your {{ plan.label }} plan covers up to {{ plan.max_zips }} ZIP codes
     and {{ plan.max_industries }} business types.</p>{% endif %}
   <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save</button>
 </form>
+{% if watched %}<form method="post" action="/local-pages/check" class="max-w-3xl mb-2 -mt-3 text-sm">
+  <button class="rounded border px-3 py-1 hover:bg-slate-50">🎀 Check my local pages now</button></form>{% endif %}
 <form method="post" action="/leads/rescore" class="max-w-3xl mb-6 -mt-3 flex flex-wrap items-center gap-3 text-sm"
       onsubmit="return confirm('Re-score all your leads with this description? It takes a few minutes.')">
   <button class="rounded border px-3 py-1 hover:bg-slate-50">↻ Re-score all my leads</button>

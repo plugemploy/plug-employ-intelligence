@@ -65,4 +65,11 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   2025). Business types -> Overture categories in app/overture_types.py. Skips closed, confidence < 0.5, no phone/website,
   duplicates (links older Google leads via overture_id); max 30 added per search, independents before brands.
   Plans count searches (plans "searches"), not dollars; allowance_usd now only caps Claude cost.
+- Launch bundle (2026-10-23): Overture is the live lead source (Google Places no longer called; older Google leads
+  keep their stored data pending attorney). Reasons to reach out (app/signals.py: nightly re-read of top 40 leads'
+  sites + News/Events page, Claude lists timely items; LeadSignal; Dashboard card, lead box, 🔔 badge/filter).
+  Like your customers card (dashboard.like_your_customers). Local pages to watch (app/local_pages.py: up to 5 URLs on
+  My business, weekly, ribbon cuttings/new members -> signals or new leads). New in your territory
+  (app/new_in_area.py: per-ZIP Overture id snapshots per release; first release is a baseline). Scoring: affluent
+  homeowners, multi-location OK, founded_year from site, full 1-10 range; Re-score all my leads button.
 - Next: Stripe (after attorney/LLC), domain, territory lock, Google verification, per-account Close status mapping.

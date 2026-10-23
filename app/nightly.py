@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import billing, close_crm, digest, gmail, overture, places, plans, scoring, signals, website
+from app import billing, close_crm, digest, gmail, local_pages, new_in_area, overture, places, plans, scoring, signals, website
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
 from app.models import Account, ApiUsage, Lead, NightlyRun, NightlySettings
@@ -75,6 +75,11 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
                     db.rollback()
             try:
                 if max_searches is None:  # nightly only; a starter search shouldn't wait on this
+                    local_pages.check_account(db, account_id)  # ribbon cuttings, new chamber members (weekly)
+                    new_in_area.check_account(db, account)  # businesses new in Overture's latest release (monthly)
+                    website.check_unchecked(db, account_id, limit=1000)  # leads those pages added
+                    if ANTHROPIC_API_KEY:
+                        scoring.score_unscored(db, account_id, limit=1000)
                     signals.check_account(db, account_id)  # reasons to reach out, from websites
             except Exception:
                 log.exception("Reasons-to-reach-out check failed")
