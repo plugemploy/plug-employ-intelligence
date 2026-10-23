@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import anthropic
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.config import ANTHROPIC_API_KEY
@@ -148,6 +148,26 @@ def score_unscored(db: Session, account_id: int, limit: int = 100) -> dict:
         stats["scored"] += 1
         stats["cost"] += cost
     return stats
+
+
+_rescoring: set[int] = set()  # accounts being re-scored right now
+
+
+def rescore_all(account_id: int) -> None:
+    """Clear and redo every score for one account (after its description changed). Runs in the background."""
+    from app.db import engine
+    from app.places import BudgetExceeded
+    try:
+        with Session(engine) as db:
+            db.execute(update(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None))
+                       .values(score=None, scored_at=None))
+            db.commit()
+            try:
+                score_unscored(db, account_id, limit=10_000)
+            except BudgetExceeded:
+                pass  # the rest stay unscored; the Score button picks them up later
+    finally:
+        _rescoring.discard(account_id)
 
 
 def whats_working(db: Session, account_id: int) -> dict:

@@ -17,6 +17,11 @@
     and {{ plan.max_industries }} business types.</p>{% endif %}
   <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save</button>
 </form>
+<form method="post" action="/leads/rescore" class="max-w-3xl mb-6 -mt-3 flex flex-wrap items-center gap-3 text-sm"
+      onsubmit="return confirm('Re-score all your leads with this description? It takes a few minutes.')">
+  <button class="rounded border px-3 py-1 hover:bg-slate-50">↻ Re-score all my leads</button>
+  <span class="text-xs text-slate-500">After changing your description, so every lead is judged the new way.</span>
+</form>
 <section class="bg-white rounded-xl shadow p-6 max-w-3xl">
   <h2 class="font-semibold mb-1">Gmail: already emailed?</h2>
   <p class="text-sm text-slate-600 mb-3">Connect Gmail (read-only) and the app checks whether you've emailed each lead's business,

@@ -100,3 +100,27 @@ def test_founded_year_from_website_only(account_id, monkeypatch):
 def test_rules_dont_penalize_multiple_locations():
     assert "several locations is not a weakness" in scoring.RUBRIC
     assert "affluent homeowners" in scoring.DEFAULT_DESCRIPTION
+
+
+def test_rescore_all_button(account_id, monkeypatch):
+    from fastapi.testclient import TestClient
+    from app import search_jobs
+    from app.main import app
+    import app.main as m
+    from tests.conftest import login_as
+    monkeypatch.setattr(m, "ANTHROPIC_API_KEY", "x")
+    monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: fn(*a))
+    monkeypatch.setattr(scoring, "ask_claude", lambda lead, system: (
+        scoring.LeadScore(score=6, reason="Rescored.", contact_name="", contact_title=""), 0.0001))
+    with Session(engine) as db:
+        for l in db.scalars(select(Lead).where(Lead.account_id == account_id)):
+            l.score, l.score_reason = 9, "Old rules."
+        db.commit()
+    c = TestClient(app)
+    login_as(c, account_id)
+    r = c.post("/leads/rescore")
+    assert "Re-scoring your" in r.text
+    with Session(engine) as db:
+        leads = db.scalars(select(Lead).where(Lead.account_id == account_id)).all()
+        assert leads and all((l.score, l.score_reason) == (6, "Rescored.") for l in leads)
+    assert account_id not in scoring._rescoring

@@ -685,6 +685,21 @@ def save_business(description: str = Form(""), zips: str = Form(""), industries:
     return RedirectResponse("/business?msg=Saved%20%E2%9C%93", status_code=303)
 
 
+@app.post("/leads/rescore")
+def rescore_leads(db: Session = Depends(get_session), account=Depends(current_account)):
+    if account is None:
+        raise HTTPException(400, "Create an account first")
+    if not ANTHROPIC_API_KEY:
+        return back_to_business("Scoring isn't set up on this server.")
+    if account.id in scoring._rescoring:
+        return back_to_business("Your leads are already being re-scored. Give it a few minutes.")
+    n = db.scalar(select(func.count()).select_from(Lead).where(Lead.account_id == account.id, Lead.deleted_at.is_(None)))
+    scoring._rescoring.add(account.id)
+    search_jobs.spawn(scoring.rescore_all, account.id)
+    return back_to_business(f"Re-scoring your {n} leads with your current description. Scores fill in over the next "
+                            "few minutes; until then, those leads show no score.")
+
+
 def back_to_business(msg: str):
     from urllib.parse import quote
     return RedirectResponse(f"/business?msg={quote(msg)}", status_code=303)
