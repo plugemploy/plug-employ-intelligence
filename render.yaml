@@ -10,7 +10,7 @@ services:
   - type: web
     name: plug-employ-leads
     runtime: python
-    plan: starter  # always on, so the 2am nightly search runs
+    plan: standard  # 2 GB: an Overture search peaks near 500 MB (starter has 512 MB); always on for the 2am run
     region: ohio
     buildCommand: pip install -r requirements.txt
     preDeployCommand: alembic upgrade head
