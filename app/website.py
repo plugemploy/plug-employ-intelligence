@@ -21,6 +21,8 @@ MAX_BYTES = 500_000
 MAX_TEXT = 6000  # characters kept per site (homepage + About page); keeps Claude costs tiny
 
 
+NEWS_WORDS = ("news", "events", "event", "blog", "announcement", "whats-new", "what-s-new", "press", "calendar",
+              "specials", "promotions", "updates")
 ABOUT_WORDS = ("about", "team", "our-story", "ourstory", "meet", "staff", "leadership", "owner", "who-we-are", "doctor")
 
 
@@ -63,8 +65,9 @@ def html_to_text(html: str) -> str:
     return re.sub(r"\s+", " ", text).strip()[:MAX_TEXT]
 
 
-def find_about_link(html: str, page_url: str) -> str:
-    """The site's own About / Team page, if the homepage links to one (same website only)."""
+def find_about_link(html: str, page_url: str, words: tuple[str, ...] = ABOUT_WORDS) -> str:
+    """The site's own About / Team page (or another page whose address has one of `words`), if the homepage
+    links to one (same website only)."""
     from urllib.parse import urljoin, urlsplit
     p = _TextOnly()
     p.feed(html)
@@ -73,7 +76,7 @@ def find_about_link(html: str, page_url: str) -> str:
         full = urljoin(page_url, href.split("#")[0])
         parts = urlsplit(full)
         if parts.scheme in ("http", "https") and (parts.hostname or "").removeprefix("www.") == home.removeprefix("www.") \
-                and any(w in parts.path.lower() for w in ABOUT_WORDS) and full.rstrip("/") != page_url.rstrip("/"):
+                and any(w in parts.path.lower() for w in words) and full.rstrip("/") != page_url.rstrip("/"):
             return full
     return ""
 
@@ -122,6 +125,34 @@ def fetch_site(url: str) -> tuple[str, str, str]:
             except httpx.HTTPError:
                 pass
         return "ok", text, ""
+
+
+def fetch_news(url: str) -> tuple[str, str]:
+    """Returns (text, news_url): the homepage plus its News / Events / Blog page when linked and allowed, for
+    spotting timely reasons to reach out. Same rules as fetch_site. Kept separate so tests can replace it."""
+    if not url.startswith(("http://", "https://")):
+        return "", ""
+    with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=10, follow_redirects=True) as client:
+        if not robots_allows(url, client):
+            return "", ""
+        try:
+            r = client.get(url)
+            r.raise_for_status()
+        except httpx.HTTPError:
+            return "", ""
+        if "html" not in r.headers.get("content-type", ""):
+            return "", ""
+        html = r.text[:MAX_BYTES]
+        text = html_to_text(html)
+        news = find_about_link(html, str(r.url), NEWS_WORDS)
+        if text and news and robots_allows(news, client):
+            try:
+                n = client.get(news)
+                if n.status_code == 200 and "html" in n.headers.get("content-type", ""):
+                    return (text[: MAX_TEXT // 2] + "\n[News/Events page] " + html_to_text(n.text[:MAX_BYTES]))[:MAX_TEXT], news
+            except httpx.HTTPError:
+                pass
+        return text, ""
 
 
 def check_unchecked(db: Session, account_id: int, limit: int = 100) -> dict:

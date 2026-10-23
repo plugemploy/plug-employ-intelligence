@@ -113,6 +113,7 @@ class Lead(Base):
     contact_name: Mapped[str] = mapped_column(String(200), default="", server_default="")
     contact_title: Mapped[str] = mapped_column(String(100), default="", server_default="")
     founded_year: Mapped[int | None] = mapped_column(Integer)  # only when the business's own website states it
+    signals_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # last look for news
     # From the Gmail check: latest email to/from the business's website domain.
     last_emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     emailed_domain: Mapped[str] = mapped_column(String(200), default="", server_default="")
@@ -151,6 +152,36 @@ class Lead(Base):
     @property
     def last_note(self):
         return self.notes[0] if self.notes else None
+
+
+SIGNAL_KINDS = {"opening": ("🎉", "Grand opening"), "new_location": ("📍", "New location"),
+                "event": ("📅", "Event"), "anniversary": ("🎂", "Anniversary"), "hiring": ("🧑‍💼", "Hiring"),
+                "new_service": ("✨", "New service"), "promotion": ("🏷️", "Promotion"), "award": ("🏆", "Award"),
+                "expansion": ("🏗️", "Expansion")}
+
+
+class LeadSignal(Base):
+    """A timely reason to reach out, spotted on the business's own website (see app/signals.py)."""
+
+    __tablename__ = "lead_signals"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"), index=True)
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))  # a SIGNAL_KINDS key
+    text: Mapped[str] = mapped_column(String(300))
+    event_date: Mapped[date | None] = mapped_column(Date)  # when the site gives one
+    source_url: Mapped[str] = mapped_column(String(500), default="", server_default="")
+    found_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # handled or dismissed
+    lead: Mapped["Lead"] = relationship()
+
+    @property
+    def icon(self) -> str:
+        return SIGNAL_KINDS.get(self.kind, ("🔔", ""))[0]
+
+    @property
+    def label(self) -> str:
+        return SIGNAL_KINDS.get(self.kind, ("", "News"))[1]
 
 
 class LeadNote(Base):

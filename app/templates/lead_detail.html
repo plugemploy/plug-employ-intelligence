@@ -26,6 +26,12 @@
     {% if lead.phone %} · {{ lead.phone }}{% endif %}
     {% if lead.website %} · <a href="{{ lead.website }}" target="_blank" rel="noopener" class="text-blue-700 hover:underline">website</a>{% endif %}</p>
 </div>
+{% if reasons %}
+<section class="mb-6 rounded-xl bg-amber-50 border border-amber-200 p-4">
+  <h2 class="font-semibold text-sm mb-1">🔔 Reasons to reach out</h2>
+  <ul class="divide-y divide-amber-200">{% for r in reasons %}{% with show_lead=false %}{% include "_reason.html" %}{% endwith %}{% endfor %}</ul>
+</section>
+{% endif %}
 {% if lead.score %}
 <div class="mb-6 rounded-xl bg-white shadow p-4 flex gap-4 items-start">
   <span class="text-3xl font-bold {{ 'text-green-700' if lead.score >= 8 else 'text-amber-700' if lead.score >= 5 else 'text-slate-500' }}">{{ lead.score }}<span class="text-base text-slate-400">/10</span></span>

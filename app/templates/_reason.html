@@ -1,0 +1,13 @@
+{# One reason to reach out. Needs: r (LeadSignal), show_lead (bool). #}
+<li id="reason-{{ r.id }}" class="flex items-start gap-3 py-2">
+  <span class="text-lg leading-6" aria-hidden="true">{{ r.icon }}</span>
+  <div class="flex-1 text-sm">
+    {% if show_lead %}<a href="/leads/{{ r.lead.id }}" class="font-medium text-blue-700 hover:underline">{{ r.lead.business_name }}</a>
+      <span class="text-xs text-slate-500">· {{ r.lead.industry }}{% if r.lead.score %} · score {{ r.lead.score }}{% endif %}</span><br>{% endif %}
+    <span class="text-xs font-semibold uppercase tracking-wide text-slate-500">{{ r.label }}{% if r.event_date %} · {{ r.event_date.strftime("%b %-d") }}{% endif %}</span>
+    <p>{{ r.text }}</p>
+    {% if r.source_url %}<a href="{{ r.source_url }}" target="_blank" rel="noopener" class="text-xs text-blue-700 hover:underline">from their website</a>{% endif %}
+  </div>
+  <button hx-post="/signals/{{ r.id }}/done" hx-target="#reason-{{ r.id }}" hx-swap="outerHTML"
+          class="rounded border px-2 py-0.5 text-xs hover:bg-slate-50" title="Handled or not useful">Done</button>
+</li>

@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import billing, close_crm, digest, gmail, places, plans, scoring, website
+from app import billing, close_crm, digest, gmail, places, plans, scoring, signals, website
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
 from app.models import Account, ApiUsage, Lead, NightlyRun, NightlySettings
@@ -72,6 +72,12 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
                 except Exception:  # a Close hiccup shouldn't stop the lead search
                     log.exception("Close sync failed")
                     db.rollback()
+            try:
+                if max_searches is None:  # nightly only; a starter search shouldn't wait on this
+                    signals.check_account(db, account_id)  # reasons to reach out, from websites
+            except Exception:
+                log.exception("Reasons-to-reach-out check failed")
+                db.rollback()
         except Exception as exc:  # keep the error for the morning summary
             log.exception("Nightly run failed")
             run.error = str(exc).splitlines()[0][:500]

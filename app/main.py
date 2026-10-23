@@ -14,12 +14,12 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import auth, billing, catalog, close_crm, dashboard, plans, digest, gmail, nightly, outreach, places, results, scoring, search_jobs
+from app import auth, billing, catalog, close_crm, dashboard, plans, digest, gmail, nightly, outreach, places, results, scoring, search_jobs, signals
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, COOKIE_SECURE, GOOGLE_PLACES_API_KEY
-from app.models import OUTCOMES, STATUSES, WOULD_PAY, Account, BetaSurvey, Feedback, FollowUp, Lead, LeadNote, NightlyRun, Organization, SearchJob, User
+from app.models import OUTCOMES, STATUSES, WOULD_PAY, Account, BetaSurvey, Feedback, FollowUp, Lead, LeadNote, LeadSignal, NightlyRun, Organization, SearchJob, User
 
 INDUSTRIES = places.INDUSTRIES
 
@@ -156,12 +156,13 @@ def switch_account(account_id: int = Form(...), db: Session = Depends(get_sessio
 @app.get("/leads")
 def leads_list(request: Request, text: str = Query("", alias="q"), status: str = "", zip_code: str = "", industry: str = "", sort: str = "follow_up", new: str = "",
                hide_contacted: str = "", search: int | None = None, added_from: str = "", added_to: str = "",
+               reasons: str = "",
                db: Session = Depends(get_session), account=Depends(current_account)):
     if account and account.setup_done_at is None:
         return RedirectResponse("/setup", status_code=303)
     # Remember the filters so coming back from a lead shows the same list.
     from urllib.parse import urlencode
-    filter_keys = ("q", "status", "zip_code", "industry", "sort", "new", "hide_contacted", "added_from", "added_to")
+    filter_keys = ("q", "status", "zip_code", "industry", "sort", "new", "hide_contacted", "added_from", "added_to", "reasons")
     chosen = {k: v for k, v in request.query_params.items() if k in filter_keys and v}
     saved = request.cookies.get(LEADS_FILTER_COOKIE, "")
     if "clear" in request.query_params:
@@ -170,8 +171,10 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
         return resp
     if not request.query_params and saved:
         return RedirectResponse(f"/leads?{saved}", status_code=303)
-    leads, last_run, from_search = [], None, None
+    leads, last_run, from_search, reason_counts = [], None, None, {}
     if account:
+        for sig in signals.active(db, account.id, limit=10_000):
+            reason_counts[sig.lead_id] = reason_counts.get(sig.lead_id, 0) + 1
         last_run = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
                               .order_by(NightlyRun.started_at.desc())).first()
         q = (select(Lead).where(Lead.account_id == account.id, Lead.deleted_at.is_(None))
@@ -193,6 +196,8 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
             q = q.where(Lead.last_emailed_at.is_(None))
         if new and last_run:
             q = q.where(Lead.created_at >= last_run.started_at)
+        if reasons:
+            q = q.where(Lead.id.in_(list(reason_counts) or [0]))
         if search:  # "Show them" after a Find leads search: only the leads it added
             from_search = db.get(SearchJob, search)
             if from_search is None or from_search.account_id != account.id:
@@ -221,7 +226,7 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
         Lead.account_id == account.id, Lead.deleted_at.is_not(None))) if account else 0
     resp = render(request, "leads.html", db, account, leads=leads, n_deleted=n_deleted, zips=zips, industries=industries, has_filters=bool(chosen),
                   f_q=text, f_status=status, f_zip=zip_code, f_industry=industry, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
-                  from_search=from_search, f_from=added_from, f_to=added_to,
+                  from_search=from_search, f_from=added_from, f_to=added_to, reason_counts=reason_counts, f_reasons=reasons,
                   working=scoring.whats_working(db, account.id) if account else {},
                   allow=plans.usage(db, account) if account else None,
                   has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.enabled_for(db, account), can_draft=can_draft(db, account), message=request.query_params.get("msg", ""))
@@ -351,7 +356,8 @@ def restore_lead(lead_id: int, db: Session = Depends(get_session), account=Depen
 @app.get("/leads/{lead_id}")
 def lead_detail(lead_id: int, request: Request, db: Session = Depends(get_session),
                 account=Depends(current_account)):
-    return render(request, "lead_detail.html", db, account, lead=get_lead(db, account, lead_id),
+    lead = get_lead(db, account, lead_id)
+    return render(request, "lead_detail.html", db, account, lead=lead, reasons=signals.active(db, account.id, lead.id),
                   can_draft=can_draft(db, account), has_close=close_crm.enabled_for(db, account))
 
 
@@ -990,10 +996,45 @@ def dashboard_page(request: Request, status: str = "", db: Session = Depends(get
     rows = dashboard.counts(db, account.id) if account else []
     chosen = status if status in STATUSES else ""
     ctx = dict(rows=rows, total=sum(r["count"] for r in rows), size=dashboard.SIZE, chosen=chosen,
-               missing=dashboard.sales_missing_amounts(db, account.id) if account else 0)
+               missing=dashboard.sales_missing_amounts(db, account.id) if account else 0,
+               reasons=signals.active(db, account.id, limit=25) if account else [],
+               like_customers=dashboard.like_your_customers(db, account.id) if account else [],
+               checking_news=bool(account and account.id in _checking_news), message=request.query_params.get("msg", ""))
     if chosen:
         ctx.update(breakdown_ctx(db, account, chosen))
     return render(request, "dashboard.html", db, account, **ctx)
+
+
+_checking_news: set[int] = set()  # accounts whose websites are being checked right now
+
+
+@app.post("/signals/check")
+def signals_check_now(db: Session = Depends(get_session), account=Depends(current_account)):
+    """Look for reasons to reach out now (in the background) instead of waiting for tonight."""
+    if account and account.id not in _checking_news:
+        _checking_news.add(account.id)
+
+        def run(account_id: int):
+            from app.db import engine as eng
+            try:
+                with Session(eng) as s:
+                    signals.check_account(s, account_id)
+            finally:
+                _checking_news.discard(account_id)
+        search_jobs.spawn(run, account.id)
+    from urllib.parse import quote
+    return RedirectResponse(f"/dashboard?msg={quote('Checking your top leads’ websites for news. New reasons show up here over the next few minutes.')}",
+                            status_code=303)
+
+
+@app.post("/signals/{signal_id}/done")
+def signal_done(signal_id: int, db: Session = Depends(get_session), account=Depends(current_account)):
+    sig = db.get(LeadSignal, signal_id)
+    if account is None or sig is None or sig.account_id != account.id:
+        raise HTTPException(404, "Not found")
+    sig.done_at = datetime.now(timezone.utc)
+    db.commit()
+    return HTMLResponse("")
 
 
 @app.get("/dashboard/breakdown")

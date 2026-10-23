@@ -58,3 +58,19 @@ def sales_missing_amounts(db: Session, account_id: int) -> int:
     return db.scalar(select(func.count()).select_from(Lead).where(
         Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.status == "Sold",
         (Lead.mrr.is_(None)) | (Lead.contract_months.is_(None)))) or 0
+
+
+def like_your_customers(db: Session, account_id: int, per_industry: int = 5) -> list[dict]:
+    """For each industry this account has sold to: the best-scored businesses in it not contacted yet."""
+    sold = db.execute(select(Lead.industry, func.count()).where(
+        Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.status == "Sold", Lead.industry != "")
+        .group_by(Lead.industry).order_by(func.count().desc())).all()
+    out = []
+    for industry, n_sold in sold:
+        q = select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.status == "New",
+                               Lead.industry == industry)
+        waiting = db.scalar(select(func.count()).select_from(q.subquery()))
+        if waiting:
+            out.append({"industry": industry, "sold": n_sold, "waiting": waiting,
+                        "top": db.scalars(q.order_by(Lead.score.desc().nulls_last()).limit(per_industry)).all()})
+    return out

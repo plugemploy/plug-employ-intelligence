@@ -3,6 +3,18 @@
 {% block content %}
 <h1 class="text-2xl font-bold mb-1">Dashboard</h1>
 <p class="text-sm text-slate-600 mb-6">Where your leads are right now. Click a slice or a row to see those leads.</p>
+{% if message %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">{{ message }}</p>{% endif %}
+<section class="bg-white rounded-xl shadow p-6 mb-6">
+  <div class="flex flex-wrap items-center justify-between gap-2 mb-1">
+    <h2 class="font-semibold">🔔 Reasons to reach out {% if reasons %}<span class="text-slate-400 font-normal">({{ reasons|length }})</span>{% endif %}</h2>
+    {% if checking_news %}<span class="text-xs text-slate-500">Checking websites now…</span>
+    {% else %}<form method="post" action="/signals/check"><button class="text-xs text-blue-700 hover:underline">Check for news now</button></form>{% endif %}
+  </div>
+  <p class="text-xs text-slate-500 mb-2">Timely news from your leads' own websites: openings, new locations, events, anniversaries,
+    hiring, new services, promotions, awards. Checked each night, best leads first.</p>
+  {% if reasons %}<ul class="divide-y">{% for r in reasons %}{% with show_lead=true %}{% include "_reason.html" %}{% endwith %}{% endfor %}</ul>
+  {% else %}<p class="text-sm text-slate-500">Nothing new right now. New reasons appear here as websites are checked.</p>{% endif %}
+</section>
 {% if missing %}<p class="mb-4 rounded bg-amber-50 border border-amber-300 p-3 text-sm text-amber-900">
   <b>{{ missing }} sale{{ "s" if missing != 1 }} need{{ "s" if missing == 1 }} amounts</b> (monthly and contract length) to count in your results.
   <a href="/dashboard?status=Sold" class="underline">Show sold leads</a></p>{% endif %}
@@ -34,6 +46,21 @@
   </table>
 </div>
 <div id="breakdown" class="mt-6">{% if chosen %}{% include "_breakdown.html" %}{% endif %}</div>
+{% if like_customers %}
+<section class="bg-white rounded-xl shadow p-6 mt-6">
+  <h2 class="font-semibold mb-1">🎯 Like your customers</h2>
+  <p class="text-xs text-slate-500 mb-3">Businesses in the same industries as the ones you've sold, not contacted yet. Easy talking point:
+    "We already work with other {{ like_customers[0].industry|lower }} businesses in your area."</p>
+  <div class="grid md:grid-cols-2 gap-4">{% for g in like_customers %}
+    <div class="rounded-lg border p-3">
+      <p class="text-sm"><b>{{ g.industry }}</b>: you've sold {{ g.sold }}; <b>{{ g.waiting }}</b> more not contacted yet</p>
+      <ul class="mt-2 text-sm grid gap-1">{% for l in g.top %}
+        <li><a href="/leads/{{ l.id }}" class="text-blue-700 hover:underline">{{ l.business_name }}</a>
+          {% if l.score %}<span class="text-xs text-slate-500">· score {{ l.score }}</span>{% endif %}</li>{% endfor %}</ul>
+      <a href="/leads?industry={{ g.industry|urlencode }}&status=New&sort=score" class="mt-2 inline-block text-xs text-blue-700 hover:underline">See all {{ g.waiting }} →</a>
+    </div>{% endfor %}</div>
+</section>
+{% endif %}
 {% else %}
 <p class="text-slate-500">No leads yet. <a href="/search" class="text-blue-700 hover:underline">Find leads</a> to get started.</p>
 {% endif %}
