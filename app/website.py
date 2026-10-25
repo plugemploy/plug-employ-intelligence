@@ -97,10 +97,19 @@ def robots_allows(url: str, client: httpx.Client) -> bool:
     return rp.can_fetch(USER_AGENT, url)
 
 
+def full_url(url: str) -> str:
+    """A website as people type it ("example.com", "www.example.com ") as a full address, or "" if it isn't one."""
+    url = (url or "").strip()
+    if not url or " " in url or "@" in url or "." not in url:
+        return ""
+    return url if url.lower().startswith(("http://", "https://")) else "https://" + url
+
+
 def fetch_site(url: str) -> tuple[str, str, str]:
     """Returns (status, text, about_url): the homepage, plus its About/Team page when linked and allowed.
     Kept separate so tests can replace it."""
-    if not url.startswith(("http://", "https://")):
+    url = full_url(url)
+    if not url:
         return "no_site", "", ""
     with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=10, follow_redirects=True) as client:
         if not robots_allows(url, client):
@@ -130,7 +139,8 @@ def fetch_site(url: str) -> tuple[str, str, str]:
 def fetch_news(url: str) -> tuple[str, str]:
     """Returns (text, news_url): the homepage plus its News / Events / Blog page when linked and allowed, for
     spotting timely reasons to reach out. Same rules as fetch_site. Kept separate so tests can replace it."""
-    if not url.startswith(("http://", "https://")):
+    url = full_url(url)
+    if not url:
         return "", ""
     with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=10, follow_redirects=True) as client:
         if not robots_allows(url, client):

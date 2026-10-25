@@ -122,3 +122,19 @@ def test_n2_style_export_with_title_lines(acct):
         assert months_ago == 31  # client since: 31 months in print
         renewal = db.scalars(select(FollowUp).where(FollowUp.lead_id == lead.id)).one()
         assert "Renewal" in renewal.task  # contract ends in 5 months
+
+
+def test_bare_websites_become_full_addresses_and_lead_page_shows_details(acct):
+    from app.website import full_url
+    assert full_url(" example.test ") == "https://example.test" and full_url("http://a.test") == "http://a.test"
+    assert full_url("") == "" and full_url("not a site") == "" and full_url("me@x.test") == ""
+    rows, _, _ = client_import.parse(b"Name,Website,Email,Contact Name\nSample Spa,www.sample-spa.test,hi@sample-spa.test,Pat Owner\n")
+    assert rows[0]["website"] == "https://www.sample-spa.test"
+    with Session(engine) as db:
+        client_import.apply(db, acct, rows)
+        lead_id = db.scalars(select(Lead.id).where(Lead.account_id == acct, Lead.business_name == "Sample Spa")).one()
+    c = TestClient(app)
+    login_as(c, acct)
+    page = c.get(f"/leads/{lead_id}").text
+    assert 'href="https://www.sample-spa.test"' in page and "mailto:hi@sample-spa.test" in page
+    assert "(from your client list)" in page and "imported client" in page and "(from their website)" not in page

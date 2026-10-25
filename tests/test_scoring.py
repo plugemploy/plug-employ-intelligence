@@ -124,3 +124,24 @@ def test_rescore_all_button(account_id, monkeypatch):
         leads = db.scalars(select(Lead).where(Lead.account_id == account_id)).all()
         assert leads and all((l.score, l.score_reason) == (6, "Rescored.") for l in leads)
     assert account_id not in scoring._rescoring
+
+
+def test_missing_industry_filled_in_and_rescore_reads_websites(account_id, monkeypatch):
+    from app import website
+    read = []
+    monkeypatch.setattr(website, "fetch_site", lambda url: read.append(url) or ("ok", "We are a med spa.", ""))
+    monkeypatch.setattr(scoring, "ask_claude", lambda lead, system: (
+        scoring.LeadScore(score=7, reason="Fit.", contact_name="", contact_title="", industry="Med spa"), 0.0001))
+    with Session(engine) as db:
+        blank = Lead(account_id=account_id, business_name="No Type Spa", website="https://notype.test")
+        typed = Lead(account_id=account_id, business_name="Typed Dental", industry="Dentist")
+        db.add_all([blank, typed])
+        db.commit()
+        blank_id, typed_id = blank.id, typed.id
+    scoring._rescoring.add(account_id)
+    scoring.rescore_all(account_id)
+    with Session(engine) as db:
+        assert db.get(Lead, blank_id).industry == "Med spa"      # filled in
+        assert db.get(Lead, typed_id).industry == "Dentist"      # never overwritten
+        assert db.get(Lead, blank_id).website_status == "ok"
+    assert "https://notype.test" in read

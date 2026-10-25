@@ -45,6 +45,9 @@ Use only the facts given. Keep the reason to one or two plain sentences.
 Founded: if the website text clearly states the year the business was founded or opened ("established 2021",
 "serving Knoxville since 2019", "celebrating 5 years" with a date), give that year; otherwise return null.
 
+Industry: only when the lead's industry is unknown, give its business type in one to three words, using one of
+these when one fits: {types}. Otherwise return an empty string.
+
 Contact: if the website text explicitly names the business's owner, founder, president, lead doctor or a
 manager (general, office or practice manager), give that person's name and title as written there, preferring
 the owner over a manager. Never guess or infer a name; if none is clearly stated, return empty strings."""
@@ -72,8 +75,9 @@ def past_results(db: Session, account_id: int) -> str:
 
 
 def build_system(account: Account, results: str = "") -> str:
+    from app.catalog import ALL
     zips = ", ".join(account.zip_list) or "not set"
-    system = (f"{RUBRIC}\n\n<seller>\n{account.business_description.strip() or DEFAULT_DESCRIPTION}\n"
+    system = (f"{RUBRIC.replace('{types}', ', '.join(ALL))}\n\n<seller>\n{account.business_description.strip() or DEFAULT_DESCRIPTION}\n"
               f"Target ZIPs, most important first: {zips}\n</seller>")
     if results:
         system += ("\n\nThis seller's real past results. Businesses similar to ones that became customers should "
@@ -88,6 +92,7 @@ class LeadScore(BaseModel):
     contact_name: str  # "" when the website names no owner or manager
     contact_title: str
     founded_year: int | None = None  # only when the website clearly states it
+    industry: str = ""  # only when the lead had none (e.g. an imported client)
 
 
 def describe(lead: Lead) -> str:
@@ -140,6 +145,8 @@ def score_unscored(db: Session, account_id: int, limit: int = 100) -> dict:
         if lead.website_text and result.contact_name.strip():
             lead.contact_name = result.contact_name.strip()[:200]
             lead.contact_title = result.contact_title.strip()[:100]
+        if not lead.industry and result.industry.strip():
+            lead.industry = result.industry.strip()[:100]
         year = result.founded_year
         if lead.website_text and year and 1800 <= year <= datetime.now().year:
             lead.founded_year = year
@@ -164,6 +171,8 @@ def rescore_all(account_id: int) -> None:
             db.execute(update(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None))
                        .values(score=None, scored_at=None))
             db.commit()
+            from app import website
+            website.check_unchecked(db, account_id, limit=1000)  # read new sites first (e.g. just-imported clients)
             try:
                 score_unscored(db, account_id, limit=10_000)
             except BudgetExceeded:

@@ -13,6 +13,7 @@ from datetime import date, datetime, time, timezone
 from sqlalchemy.orm import Session
 
 from app.dedupe import find_duplicate
+from app.website import full_url
 from app.models import Lead
 
 MAX_ROWS = 2000
@@ -123,7 +124,7 @@ def parse(content: bytes) -> tuple[list[dict], dict[str, str], list[str]]:
             inactive += 1
             continue
         zip_code = (re.search(r"\b\d{5}\b", get(r, "zip_code") or get(r, "address")) or [""])[0]
-        rows.append(dict(name=name[:300], phone=get(r, "phone")[:40], website=get(r, "website")[:300],
+        rows.append(dict(name=name[:300], phone=get(r, "phone")[:40], website=full_url(get(r, "website"))[:300],
                          email=get(r, "email")[:300] if "@" in get(r, "email") else "",
                          contact_name=get(r, "contact_name")[:200],
                          address=get(r, "address")[:300], zip_code=zip_code, industry=get(r, "industry")[:100],
