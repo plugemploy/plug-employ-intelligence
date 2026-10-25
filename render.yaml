@@ -26,7 +26,7 @@ services:
         fromDatabase:
           name: plug-employ-db
           property: connectionString
-      - key: APP_BASE_URL  # e.g. https://plug-employ-leads.onrender.com
+      - key: APP_BASE_URL  # https://app.plugemploy.com (custom domain since 2026-10-25)
         sync: false
       - key: APP_SECRET_KEY  # must be the same as on the Mac, or saved Gmail connections stop working
         sync: false

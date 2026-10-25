@@ -19,7 +19,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Lead tracker: status, notes, follow-up dates. No calling features. Close CRM is optional.
 
 ## Commands
-- Live app (since 2026-10-22): https://plug-employ-leads.onrender.com (Render, Blueprint in render.yaml, deploys on push to main).
+- Live app: https://app.plugemploy.com since 2026-10-25 (GoDaddy CNAME app -> plug-employ-leads.onrender.com; APP_BASE_URL set in Render; Google OAuth redirect URIs for both). Render (Blueprint in render.yaml, deploys on push to main).
   Render web service is 1 GB / 0.5 CPU since 2026-10-23 (set in Render's dashboard, not render.yaml): one
   Overture/DuckDB search peaks near 500 MB; overture.fetch_places runs one search at a time (_lock).
   GitHub: plugemploy/plug-employ-intelligence (private). The Mac copy is for testing changes only; nightly search is off there.
