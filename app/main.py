@@ -18,7 +18,7 @@ from app import auth, billing, catalog, client_import, close_crm, dashboard, pla
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
-from app.config import ANTHROPIC_API_KEY, COOKIE_SECURE
+from app.config import ANTHROPIC_API_KEY, APP_BASE_URL, COOKIE_SECURE
 from app.dedupe import find_duplicate
 from app.models import OUTCOMES, STATUSES, WOULD_PAY, Account, BetaSurvey, Feedback, FollowUp, Lead, LeadNote, LeadSignal, NightlyRun, Organization, SearchJob, User, WatchedPage
 
@@ -33,6 +33,16 @@ async def lifespan(app):
 
 app = FastAPI(title="Plug Employ Intelligence", lifespan=lifespan)
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+
+
+@app.middleware("http")
+async def forward_old_address(request: Request, call_next):
+    """Visits to the old Render address go to the app's own domain (sign-in only works there)."""
+    host = request.url.hostname or ""
+    if host.endswith(".onrender.com") and ".onrender.com" not in APP_BASE_URL and request.url.path != "/health":
+        query = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(f"{APP_BASE_URL}{request.url.path}{query}", status_code=307)
+    return await call_next(request)
 
 
 
