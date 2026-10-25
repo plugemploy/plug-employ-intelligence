@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import anthropic
 from pydantic import BaseModel, Field
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import ANTHROPIC_API_KEY
@@ -53,7 +53,7 @@ manager (general, office or practice manager), give that person's name and title
 the owner over a manager. Never guess or infer a name; if none is clearly stated, return empty strings."""
 
 
-EXAMPLES_EACH = 10  # most recent Sold and Not interested leads shown to Claude
+EXAMPLES_EACH = 25  # most recent Sold and Not interested leads shown to Claude (all customers are also counted by type)
 
 
 def _example_line(lead: Lead) -> str:
@@ -65,6 +65,13 @@ def _example_line(lead: Lead) -> str:
 def past_results(db: Session, account_id: int) -> str:
     """This account's recent wins and losses, so scores lean toward what has actually worked."""
     parts = []
+    kind = func.coalesce(func.nullif(Lead.industry, ""), "unknown")
+    by_type = db.execute(select(kind, func.count()).where(Lead.account_id == account_id, Lead.deleted_at.is_(None),
+                                                         Lead.status == "Sold")
+                         .group_by(kind).order_by(func.count().desc(), kind)).all()
+    if by_type:
+        total = sum(n for _, n in by_type)
+        parts.append(f"All {total} customers by business type: " + ", ".join(f"{t} x{n}" for t, n in by_type))
     for status, label in (("Sold", "Became customers"), ("Not interested", "Said no")):
         leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.status == status)
                            .order_by(Lead.outcome_at.desc().nulls_last(), Lead.id.desc())

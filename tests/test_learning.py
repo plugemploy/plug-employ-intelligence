@@ -59,5 +59,17 @@ def test_moving_back_clears_reason(ids):
         assert (lead.outcome_reason, lead.outcome_at) == ("", None)
 
 
+def test_all_customers_counted_by_type(ids):
+    with Session(engine) as db:
+        for i in range(30):  # more customers than the examples shown
+            db.add(Lead(account_id=ids["a"], business_name=f"Sample Dental {i}", industry="Dentist", status="Sold"))
+        db.add(Lead(account_id=ids["a"], business_name="Sample Mystery Co", industry="", status="Sold"))
+        db.commit()
+        results = scoring.past_results(db, ids["a"])
+    assert "All 31 customers by business type: Dentist x30, unknown x1" in results
+    assert results.count("\n- ") == scoring.EXAMPLES_EACH
+    assert "Secret Won" not in results
+
+
 def test_no_results_means_no_section():
     assert "<past_results>" not in scoring.build_system(Account(business_description="x", target_zips=""), "")
