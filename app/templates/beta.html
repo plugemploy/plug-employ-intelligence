@@ -6,6 +6,7 @@
     <p class="text-sm text-slate-500">Every customer company people have signed up for (not your own). Only you see this page.</p></div>
   <a href="/beta.csv" class="rounded border px-3 py-1 text-sm hover:bg-slate-50">⬇ Download spreadsheet (CSV)</a>
 </div>
+{% if message %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">{{ message }}</p>{% endif %}
 {% if totals %}
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
   {% for label, val in [("Leads contacted", totals.contacted), ("Appointments set", totals.appts_set),
@@ -40,7 +41,9 @@
       <th class="p-3">MRR</th><th class="p-3">Contract value</th><th class="p-3">Ad Mgmt Fees</th><th class="p-3">Only via app</th><th class="p-3">Survey</th><th class="p-3">Feedback</th></tr></thead>
     <tbody>{% for r in rows %}<tr class="border-t align-top">
       <td class="p-3"><b>{{ r.org.name }}</b><span class="block text-xs text-slate-500">{{ r.emails }}</span>
-        {% if not r.setup_done %}<span class="text-xs text-amber-700">setup not finished</span>{% endif %}</td>
+        {% if not r.setup_done %}<span class="text-xs text-amber-700">setup not finished</span>{% endif %}
+        {% for a in r.accounts %}<a href="/clients/import?account_id={{ a.id }}" class="block text-xs text-blue-700 hover:underline">
+          ⬆ Import clients{% if r.accounts|length > 1 %} ({{ a.name }}){% endif %}</a>{% endfor %}</td>
       <td class="p-3">{{ r.plan }}</td>
       <td class="p-3 whitespace-nowrap">{{ r.org.created_at.astimezone().strftime("%b %-d") }}</td>
       <td class="p-3 whitespace-nowrap">{{ r.last_login.astimezone().strftime("%b %-d") if r.last_login else "never" }}</td>

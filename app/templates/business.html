@@ -26,6 +26,8 @@
 </form>
 {% if watched %}<form method="post" action="/local-pages/check" class="max-w-3xl mb-2 -mt-3 text-sm">
   <button class="rounded border px-3 py-1 hover:bg-slate-50">🎀 Check my local pages now</button></form>{% endif %}
+<p class="max-w-3xl mb-2 text-sm"><a href="/clients/import" class="rounded border px-3 py-1 inline-block hover:bg-slate-50">⬆ Import your current clients</a>
+  <span class="text-xs text-slate-500">From a spreadsheet, so scoring learns what your real customers look like.</span></p>
 <form method="post" action="/leads/rescore" class="max-w-3xl mb-6 -mt-3 flex flex-wrap items-center gap-3 text-sm"
       onsubmit="return confirm('Re-score all your leads with this description? It takes a few minutes.')">
   <button class="rounded border px-3 py-1 hover:bg-slate-50">↻ Re-score all my leads</button>

@@ -1,6 +1,6 @@
 """Results: the sales steps and money each account closed (My results), and across beta testers (Beta results).
 
-Counts leads that aren't deleted. Each step counts leads that reached it (kept even if they later said no);
+Counts leads that aren't deleted, leaving out clients imported from a spreadsheet. Each step counts leads that reached it (kept even if they later said no);
 "contacted" also counts leads Gmail saw an email to. Money comes from Sold leads.
 """
 
@@ -36,7 +36,8 @@ def metrics(db: Session, account_ids: list[int], since: datetime | None = None) 
         func.coalesce(func.sum(case((sold, Lead.mrr * func.coalesce(Lead.contract_months, 0)), else_=0)), 0),
         func.coalesce(func.sum(case((sold, Lead.ad_mgmt_fee), else_=0)), 0),
         func.sum(case((sold & (Lead.found_elsewhere == "no"), 1), else_=0)),  # sales they wouldn't have found otherwise
-    ).where(Lead.account_id.in_(ids), Lead.deleted_at.is_(None)).group_by(Lead.account_id))
+    ).where(Lead.account_id.in_(ids), Lead.deleted_at.is_(None), Lead.source != "import")  # imported clients
+       .group_by(Lead.account_id))  # weren't won with the app, so they don't count here
     found = {r[0]: r[1:] for r in rows}
     out = {}
     for aid in account_ids:

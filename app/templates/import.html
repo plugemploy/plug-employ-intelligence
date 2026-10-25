@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Import clients{% endblock %}
+{% block content %}
+<a href="{{ '/beta' if on_behalf else '/business' }}" class="text-sm text-blue-700 hover:underline">← Back</a>
+<h1 class="text-2xl font-bold mt-2 mb-1">Import current clients{% if on_behalf %} for {{ target.name }}{% endif %}</h1>
+<p class="text-sm text-slate-600 mb-4 max-w-3xl">Upload a spreadsheet of clients who already advertise. They're marked <b>Sold</b>, so scoring
+  learns what real customers look like, they won't be pitched as new leads, and contract end dates get renewal reminders.
+  Imported clients are labeled and left out of results, which count sales made with the app.</p>
+{% if not summary %}
+<form method="post" action="/clients/import/preview" enctype="multipart/form-data" class="bg-white rounded-xl shadow p-6 grid gap-4 max-w-3xl">
+  {% if on_behalf %}<input type="hidden" name="account_id" value="{{ target.id }}">{% endif %}
+  <label class="grid gap-1 text-sm"><span class="font-semibold">Spreadsheet (CSV)</span>
+    <span class="text-xs text-slate-500">In Excel: File → Save As → CSV. In Google Sheets: File → Download → CSV. The first row should be column headings.</span>
+    <input type="file" name="file" accept=".csv,text/csv" required class="text-sm"></label>
+  <div class="text-xs text-slate-500">
+    <p class="font-semibold text-slate-600 mb-1">Columns it understands (only the business name is required):</p>
+    <p>Business name · Phone · Website · Address · ZIP · Industry · Monthly amount · Contract length (months) · Ad management fee · Start date</p>
+  </div>
+  {% for p in problems or [] %}<p class="text-sm text-red-700">{{ p }}</p>{% endfor %}
+  <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Preview</button>
+</form>
+{% else %}
+<section class="bg-white rounded-xl shadow p-6 max-w-5xl grid gap-4">
+  <p class="text-sm"><b>{{ filename }}</b>: <b>{{ summary.total }}</b> clients.
+    <b>{{ summary.matched }}</b> are already in the leads and will be marked Sold; <b>{{ summary.new }}</b> will be added as Sold.</p>
+  <p class="text-xs text-slate-500">Columns found: {% for f, h in found.items() %}<span class="inline-block rounded bg-slate-100 px-2 py-0.5 mr-1 mb-1">{{ h }} → {{ {"name": "business name", "phone": "phone", "website": "website", "address": "address", "zip_code": "ZIP", "industry": "industry", "mrr": "monthly amount", "contract_months": "contract length", "ad_mgmt_fee": "ad management fee", "start_date": "start date"}[f] }}</span>{% endfor %}</p>
+  {% for p in problems %}<p class="text-sm text-amber-700">{{ p }}</p>{% endfor %}
+  <div class="overflow-x-auto"><table class="w-full text-sm">
+    <thead class="text-left text-slate-500"><tr><th class="p-2">Business</th><th class="p-2">Phone</th><th class="p-2">ZIP</th><th class="p-2">Industry</th>
+      <th class="p-2">Monthly</th><th class="p-2">Months</th><th class="p-2">Fee</th><th class="p-2">Start</th></tr></thead>
+    <tbody>{% for r in rows %}<tr class="border-t">
+      <td class="p-2">{{ r.name }}</td><td class="p-2">{{ r.phone }}</td><td class="p-2">{{ r.zip_code }}</td><td class="p-2">{{ r.industry }}</td>
+      <td class="p-2">{{ "$" ~ "{:,.0f}".format(r.mrr) if r.mrr is not none else "" }}</td><td class="p-2">{{ r.contract_months or "" }}</td>
+      <td class="p-2">{{ "$" ~ "{:,.0f}".format(r.ad_mgmt_fee) if r.ad_mgmt_fee is not none else "" }}</td>
+      <td class="p-2">{{ r.start_date.strftime("%b %-d, %Y") if r.start_date else "" }}</td></tr>{% endfor %}</tbody></table>
+    {% if summary.total > rows|length %}<p class="text-xs text-slate-500 mt-1">Showing the first {{ rows|length }}.</p>{% endif %}</div>
+  <form method="post" action="/clients/import/apply" class="flex flex-wrap gap-3 items-center"
+        onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Importing…'">
+    <input type="hidden" name="payload" value="{{ payload }}">
+    {% if on_behalf %}<input type="hidden" name="account_id" value="{{ target.id }}">{% endif %}
+    <button class="rounded bg-emerald-700 text-white px-4 py-2">Import {{ summary.total }} clients</button>
+    <a href="/clients/import{% if on_behalf %}?account_id={{ target.id }}{% endif %}" class="text-sm text-slate-500 hover:underline">Choose a different file</a>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

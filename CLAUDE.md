@@ -74,4 +74,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   My business, weekly, ribbon cuttings/new members -> signals or new leads). New in your territory
   (app/new_in_area.py: per-ZIP Overture id snapshots per release; first release is a baseline). Scoring: affluent
   homeowners, multi-location OK, founded_year from site, full 1-10 range; Re-score all my leads button.
+- Client import (2026-10-25): /clients/import (My business link; owner can import for any account from /beta).
+  CSV with flexible headings (app/client_import.py); rows marked Sold (existing lead matched via find_duplicate,
+  else added) with MRR/months/fee/start date + renewal; Lead.source="import" is excluded from results metrics.
 - Next: Stripe (after attorney/LLC), domain, territory lock, Google verification, per-account Close status mapping.

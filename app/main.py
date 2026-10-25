@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Form, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -14,7 +14,7 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import auth, billing, catalog, close_crm, dashboard, plans, digest, gmail, local_pages, nightly, outreach, overture, places, results, scoring, search_jobs, signals
+from app import auth, billing, catalog, client_import, close_crm, dashboard, plans, digest, gmail, local_pages, nightly, outreach, overture, places, results, scoring, search_jobs, signals
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
@@ -673,6 +673,62 @@ def rescore_leads(db: Session = Depends(get_session), account=Depends(current_ac
                             "few minutes; until then, those leads show no score.")
 
 
+# ---- Import current clients ----------------------------------------------------------------
+
+def import_target(db: Session, user: User, account: Account | None, account_id: int | None) -> Account:
+    """The account to import into: your own, or (for the app owner only) any customer's account."""
+    if account_id and (account is None or account_id != account.id):
+        if db.get(Organization, user.org_id).plan_tier != "owner":
+            raise HTTPException(404)
+        target = db.get(Account, account_id)
+        if target is None:
+            raise HTTPException(404, "Account not found")
+        return target
+    if account is None:
+        raise HTTPException(400, "Create an account first")
+    return account
+
+
+@app.get("/clients/import")
+def import_form(request: Request, account_id: int | None = None, db: Session = Depends(get_session),
+                user: User = Depends(current_user), account=Depends(current_account)):
+    target = import_target(db, user, account, account_id)
+    return render(request, "import.html", db, account, target=target, on_behalf=target.id != (account.id if account else None))
+
+
+@app.post("/clients/import/preview")
+async def import_preview(request: Request, file: UploadFile = File(...), account_id: int | None = Form(None),
+                         db: Session = Depends(get_session), user: User = Depends(current_user),
+                         account=Depends(current_account)):
+    import base64
+    target = import_target(db, user, account, account_id)
+    content = await file.read()
+    rows, found, problems = client_import.parse(content[:5_000_000])
+    ctx = dict(target=target, on_behalf=target.id != (account.id if account else None), rows=rows[:15], found=found,
+               problems=problems, filename=file.filename,
+               summary=client_import.preview(db, target.id, rows) if rows else None,
+               payload=base64.b64encode(content[:5_000_000]).decode() if rows else "")
+    return render(request, "import.html", db, account, **ctx)
+
+
+@app.post("/clients/import/apply")
+def import_apply(payload: str = Form(...), account_id: int | None = Form(None), db: Session = Depends(get_session),
+                 user: User = Depends(current_user), account=Depends(current_account)):
+    import base64
+    from urllib.parse import quote
+    target = import_target(db, user, account, account_id)
+    rows, _, _ = client_import.parse(base64.b64decode(payload))
+    s = client_import.apply(db, target.id, rows)
+    msg = (f"Imported {s['marked_sold'] + s['added']} clients: {s['marked_sold']} were already in the leads and are now "
+           f"marked Sold, {s['added']} were added as Sold.")
+    if target.id != (account.id if account else None):  # the owner importing for a customer: re-score them now
+        if target.id not in scoring._rescoring:
+            scoring._rescoring.add(target.id)
+            search_jobs.spawn(scoring.rescore_all, target.id)
+        return RedirectResponse(f"/beta?msg={quote(msg + ' Re-scoring their leads in the background.')}", status_code=303)
+    return back_to_business(msg + " Click Re-score all my leads so every lead is judged against your clients.")
+
+
 def back_to_business(msg: str):
     from urllib.parse import quote
     return RedirectResponse(f"/business?msg={quote(msg)}", status_code=303)
@@ -1070,7 +1126,7 @@ def beta_rows(db: Session) -> list[dict]:
         if not people:  # demo companies nobody signs in to aren't testers
             continue
         logins = [u.last_login_at for u in people if u.last_login_at]
-        rows.append(dict(org=o, plan=plans.PLANS.get(o.plan_tier, {}).get("label", o.plan_tier),
+        rows.append(dict(org=o, accounts=mine, plan=plans.PLANS.get(o.plan_tier, {}).get("label", o.plan_tier),
                          emails=", ".join(u.email for u in people),
                          setup_done=all(a.setup_done_at for a in mine) if mine else False,
                          last_login=max(logins) if logins else None,
@@ -1096,6 +1152,7 @@ def require_owner(db: Session, user: User) -> None:
 def beta_results(request: Request, db: Session = Depends(get_session), user: User = Depends(current_user)):
     require_owner(db, user)
     rows = beta_rows(db)
+    message = request.query_params.get("msg", "")
     answered = [r["survey"] for r in rows if r["survey"]]
     scores = [s.recommend for s in answered if s.recommend is not None]
     hours = [float(s.hours_saved) for s in answered if s.hours_saved is not None]
@@ -1103,7 +1160,8 @@ def beta_results(request: Request, db: Session = Depends(get_session), user: Use
                   would_pay=sum(1 for s in answered if s.would_pay in ("personal", "pro", "premium")),
                   avg_hours=round(sum(hours) / len(hours), 1) if hours else None,
                   quotes=[(r["org"].name, r["survey"]) for r in rows if r["survey"] and r["survey"].quote])
-    return render(request, "beta.html", db, None, rows=rows, totals=results.total(rows) if rows else None, survey=survey)
+    return render(request, "beta.html", db, None, rows=rows, totals=results.total(rows) if rows else None, survey=survey,
+                  message=message)
 
 
 @app.get("/beta.csv")

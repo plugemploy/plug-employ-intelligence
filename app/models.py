@@ -101,6 +101,8 @@ class Lead(Base):
     google_place_id: Mapped[str | None] = mapped_column(String(200), index=True)
     # From Overture Maps' open places data (overturemaps.org), which may be stored and shared.
     overture_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    # "import" for clients a customer imported from a spreadsheet: left out of results (sales made with the app).
+    source: Mapped[str] = mapped_column(String(20), default="", server_default="")
     email: Mapped[str] = mapped_column(String(300), default="", server_default="")
     brand: Mapped[str] = mapped_column(String(200), default="", server_default="")  # set when it's a chain
     source_confidence: Mapped[float | None] = mapped_column(Float)  # Overture's 0-1 confidence the place is real
