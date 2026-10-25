@@ -23,14 +23,15 @@
 <section class="bg-white rounded-xl shadow p-6 max-w-5xl grid gap-4">
   <p class="text-sm"><b>{{ filename }}</b>: <b>{{ summary.total }}</b> clients.
     <b>{{ summary.matched }}</b> are already in the leads and will be marked Sold; <b>{{ summary.new }}</b> will be added as Sold.</p>
-  <p class="text-xs text-slate-500">Columns found: {% for f, h in found.items() %}<span class="inline-block rounded bg-slate-100 px-2 py-0.5 mr-1 mb-1">{{ h }} → {{ {"name": "business name", "phone": "phone", "website": "website", "address": "address", "zip_code": "ZIP", "industry": "industry", "mrr": "monthly amount", "contract_months": "contract length", "ad_mgmt_fee": "ad management fee", "start_date": "start date"}[f] }}</span>{% endfor %}</p>
+  <p class="text-xs text-slate-500">Columns found: {% for f, h in found.items() %}<span class="inline-block rounded bg-slate-100 px-2 py-0.5 mr-1 mb-1">{{ h }} → {{ {"name": "business name", "phone": "phone", "email": "email", "contact_name": "contact", "website": "website", "address": "address", "zip_code": "ZIP", "status": "status (active only)", "industry": "industry", "mrr": "monthly amount", "contract_months": "contract length", "months_in_print": "months as a client", "remaining_months": "months left (renewal date)", "ad_mgmt_fee": "ad management fee", "start_date": "start date"}.get(f, f) }}</span>{% endfor %}</p>
   {% for p in problems %}<p class="text-sm text-amber-700">{{ p }}</p>{% endfor %}
   <div class="overflow-x-auto"><table class="w-full text-sm">
     <thead class="text-left text-slate-500"><tr><th class="p-2">Business</th><th class="p-2">Phone</th><th class="p-2">ZIP</th><th class="p-2">Industry</th>
       <th class="p-2">Monthly</th><th class="p-2">Months</th><th class="p-2">Fee</th><th class="p-2">Start</th></tr></thead>
     <tbody>{% for r in rows %}<tr class="border-t">
       <td class="p-2">{{ r.name }}</td><td class="p-2">{{ r.phone }}</td><td class="p-2">{{ r.zip_code }}</td><td class="p-2">{{ r.industry }}</td>
-      <td class="p-2">{{ "$" ~ "{:,.0f}".format(r.mrr) if r.mrr is not none else "" }}</td><td class="p-2">{{ r.contract_months or "" }}</td>
+      <td class="p-2">{{ "$" ~ "{:,.0f}".format(r.mrr) if r.mrr is not none else "" }}</td>
+      <td class="p-2">{{ r.contract_months or ((r.months_in_print or 0) + (r.remaining_months or 0)) or "" }}{% if r.remaining_months is not none %} <span class="text-xs text-slate-500">({{ r.remaining_months }} left)</span>{% endif %}</td>
       <td class="p-2">{{ "$" ~ "{:,.0f}".format(r.ad_mgmt_fee) if r.ad_mgmt_fee is not none else "" }}</td>
       <td class="p-2">{{ r.start_date.strftime("%b %-d, %Y") if r.start_date else "" }}</td></tr>{% endfor %}</tbody></table>
     {% if summary.total > rows|length %}<p class="text-xs text-slate-500 mt-1">Showing the first {{ rows|length }}.</p>{% endif %}</div>

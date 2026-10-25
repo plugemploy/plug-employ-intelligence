@@ -94,3 +94,31 @@ def test_owner_imports_for_a_tester_and_others_cannot(acct, monkeypatch):
     stranger = TestClient(app)
     login_as(stranger, other_id)
     assert stranger.get(f"/clients/import?account_id={acct}").status_code == 404
+
+
+N2_EXPORT = (b"Clients\nMy Clients  (Managed: True)\n\n"
+             b"Rep,Status,Office,Account,Name,Months in Print,Remaining Months in Print,Avg. Monthly Amount,DBA,"
+             b"Billing Email,Sponsor Index Phone #,Website,Contact 1 Name,Contact 1 Phone,Contact 1 Address,Contact 1 Zip,"
+             b"Contact 2 Name,Contact 2 Address,Contact 2 Zip\n"
+             b"Rep A,Active,Office A,100001,Sample Insurance Agency,31,5,425.0,\"\",owner@sample-insurance.test,(555) 010-0001,,"
+             b"Pat Sample,(555) 010-0001,\"1 Example Pike\",37000\n"
+             b"Rep A,Active,Office A,100002,\"Lee & Kim Example, Realtors\",25,23,800.0,\"\",kim@example-realty.test,"
+             b"(555) 010-0002,example-realty.test,Lee Example,,,,Kim Example,2 Sample Dr,37001\n"
+             b"Rep A,Inactive,Office A,100003,Old Client,10,0,100.0,\"\",,,,,,,,,,\n")
+
+
+def test_n2_style_export_with_title_lines(acct):
+    rows, found, problems = client_import.parse(N2_EXPORT)
+    assert [r["name"] for r in rows] == ["Sample Insurance Agency", "Lee & Kim Example, Realtors"]  # not "Account"
+    assert problems == ["Skipped 1 rows whose status isn't active."]
+    first, second = rows
+    assert (first["mrr"], first["months_in_print"], first["remaining_months"], first["zip_code"]) == (425, 31, 5, "37000")
+    assert (second["zip_code"], second["contact_name"]) == ("37001", "Lee Example")  # Contact 2 fills an empty Contact 1
+    with Session(engine) as db:
+        client_import.apply(db, acct, rows)
+        lead = db.scalars(select(Lead).where(Lead.account_id == acct, Lead.business_name == "Sample Insurance Agency")).one()
+        assert (lead.contract_months, lead.email, lead.contact_name) == (36, "owner@sample-insurance.test", "Pat Sample")
+        months_ago = (date.today().year - lead.sold_at.year) * 12 + date.today().month - lead.sold_at.month
+        assert months_ago == 31  # client since: 31 months in print
+        renewal = db.scalars(select(FollowUp).where(FollowUp.lead_id == lead.id)).one()
+        assert "Renewal" in renewal.task  # contract ends in 5 months
