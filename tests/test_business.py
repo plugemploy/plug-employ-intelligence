@@ -111,3 +111,14 @@ def test_gmail_connect_needs_agreement(ids, monkeypatch):
     assert r.headers["location"] == "https://accounts.google.com/fake"
     with Session(engine) as db:
         assert db.get(Account, ids["b"]).gmail_consent_at is not None
+
+
+def test_export_csv(ids, fake_gmail):
+    c = TestClient(app)
+    login_as(c, ids["a"])
+    r = c.get("/leads?q=Never&export=csv")
+    assert r.headers["content-type"].startswith("text/csv")
+    assert "attachment" in r.headers["content-disposition"]
+    assert r.text.lstrip("﻿").startswith("Business,Contact")
+    assert "Never Emailed" in r.text and "Farragut Dental" not in r.text  # follows the filters
+    assert "Export CSV" in c.get("/leads").text

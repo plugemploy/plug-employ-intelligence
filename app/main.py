@@ -169,7 +169,7 @@ def switch_account(account_id: int = Form(...), db: Session = Depends(get_sessio
 @app.get("/leads")
 def leads_list(request: Request, text: str = Query("", alias="q"), status: str = "", zip_code: str = "", industry: str = "", sort: str = "follow_up", new: str = "",
                hide_contacted: str = "", search: int | None = None, added_from: str = "", added_to: str = "",
-               reasons: str = "",
+               reasons: str = "", export: str = "",
                db: Session = Depends(get_session), account=Depends(current_account)):
     if account and account.setup_done_at is None:
         return RedirectResponse("/setup", status_code=303)
@@ -231,6 +231,8 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
             leads.sort(key=lambda l: ((l.industry or "~").lower(), -(l.score or 0)))
         elif sort == "follow_up":
             leads.sort(key=lambda l: l.next_follow_up.due_date if l.next_follow_up else date.max)
+    if export == "csv":
+        return leads_csv(leads)
     industries = sorted({i for i in db.scalars(select(Lead.industry).where(
         Lead.account_id == (account.id if account else 0), Lead.deleted_at.is_(None))) if i}, key=str.lower)
     zips = sorted({z for z in db.scalars(select(Lead.zip_code).where(Lead.account_id == (account.id if account else 0), Lead.deleted_at.is_(None)))})
@@ -249,6 +251,33 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
         else:
             resp.delete_cookie(LEADS_FILTER_COOKIE)
     return resp
+
+
+def csv_cell(value) -> str:
+    """Text for a spreadsheet cell; a leading = + - @ is escaped so Excel can't run it as a formula."""
+    text = "" if value is None else str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+def leads_csv(leads: list[Lead]):
+    """The leads list as it's filtered and sorted on screen, as a spreadsheet download."""
+    import csv
+    import io
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Business", "Contact", "Contact title", "Email", "Phone", "Website", "Address", "ZIP", "Industry",
+                "Score", "Why this score", "Status", "Next follow-up", "Last emailed", "Monthly revenue $",
+                "Contract months", "Notes", "Date added"])
+    for l in leads:
+        notes = " | ".join(n.text for n in sorted(l.notes, key=lambda n: n.created_at))
+        w.writerow([csv_cell(v) for v in (
+            l.business_name, l.contact_name, l.contact_title, l.email, l.phone, l.website, l.address, l.zip_code,
+            l.industry, l.score, l.score_reason, l.status,
+            l.next_follow_up.due_date if l.next_follow_up else "",
+            l.last_emailed_at.date() if l.last_emailed_at else "", l.mrr, l.contract_months, notes,
+            l.created_at.date() if l.created_at else "")])
+    return HTMLResponse("\ufeff" + buf.getvalue(), media_type="text/csv",  # BOM so Excel reads accents correctly
+                        headers={"Content-Disposition": f'attachment; filename="leads-{date.today()}.csv"'})
 
 
 @app.post("/leads/score")
