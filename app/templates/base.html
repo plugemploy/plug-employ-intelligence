@@ -4,14 +4,62 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Leads{% endblock %} · Plug Employ</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
   <!-- Prototype only: Tailwind and HTMX load from public CDNs. We'll bundle them before going to the cloud. -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    // Softer, rounder look everywhere: these override Tailwind's defaults for every page.
+    tailwind.config = { theme: { extend: {
+      fontFamily: { sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"] },
+      borderRadius: { DEFAULT: "0.5rem", lg: "0.75rem", xl: "1rem" },
+      boxShadow: { DEFAULT: "0 1px 3px rgb(15 23 42 / 0.06), 0 4px 12px rgb(15 23 42 / 0.05)" },
+    } } };
+  </script>
+  <style type="text/tailwindcss">
+    /* Light borders, and brand purple for the main dark buttons */
+    *, ::before, ::after { border-color: theme(colors.slate.200); }
+    .bg-slate-800 { background-color: #3b1578; }
+    .hover\:bg-slate-700:hover { background-color: #4c1d95; }
+    input, select, textarea { @apply rounded-lg; }
+    input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=hidden]), select, textarea {
+      background-color: #ede9fe; border-color: #c4b5fd;
+    }
+    input:focus, select:focus, textarea:focus { outline: 2px solid #a78bfa; outline-offset: 0; }
+    button, a { transition: background-color .15s, color .15s; }
+
+    /* Night mode: switched with the moon button in the top bar, remembered per browser */
+    html.dark { color-scheme: dark; }
+    html.dark body, html.dark .bg-slate-50 { background-color: #0b0b12; color: #e2e8f0; }
+    html.dark .bg-white { background-color: #16161f; }
+    html.dark .bg-slate-100 { background-color: #1f1f2b; }
+    html.dark .text-slate-800, html.dark .text-slate-900, html.dark .text-slate-700 { color: #e2e8f0; }
+    html.dark .text-slate-600, html.dark .text-slate-500 { color: #a1a1b5; }
+    html.dark .text-blue-600, html.dark .text-blue-700 { color: #93c5fd; }
+    html.dark *, html.dark ::before, html.dark ::after { border-color: #2a2a3a; }
+    html.dark input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=hidden]),
+    html.dark select, html.dark textarea { background-color: #1e1b2e; border-color: #3b3555; color: #e2e8f0; }
+    html.dark .bg-green-50 { background-color: #0f2a1a; } html.dark .text-green-900, html.dark .text-green-800, html.dark .text-green-700 { color: #86efac; }
+    html.dark .bg-red-50 { background-color: #2c1212; } html.dark .text-red-900, html.dark .text-red-800, html.dark .text-red-700 { color: #fca5a5; }
+    html.dark .bg-amber-50, html.dark .bg-yellow-50 { background-color: #2a2010; } html.dark .text-amber-900, html.dark .text-amber-800, html.dark .text-amber-700 { color: #fcd34d; }
+    html.dark .bg-blue-50, html.dark .bg-sky-50 { background-color: #10203a; }
+    html.dark .bg-purple-50, html.dark .bg-violet-50 { background-color: #1e1533; }
+    html.dark tr:hover, html.dark .hover\:bg-slate-50:hover { background-color: #1c1c28; }
+  </style>
+  <script>
+    try { if (localStorage.getItem("theme") === "dark") document.documentElement.classList.add("dark"); } catch (e) {}
+    function toggleTheme() {
+      const dark = document.documentElement.classList.toggle("dark");
+      try { localStorage.setItem("theme", dark ? "dark" : "light"); } catch (e) {}
+    }
+  </script>
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
-  <header class="bg-white border-b">
-    <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center gap-4">
-      <a href="/leads?clear=1" class="font-bold text-lg" title="Home: clears filters">Plug Employ</a>
+  <header class="px-3 pt-3">
+    <div class="max-w-6xl mx-auto px-5 py-3 rounded-2xl shadow bg-[#3b1578] text-white flex flex-wrap items-center gap-4">
+      <a href="/leads?clear=1" title="Home: clears filters"><img src="/static/logo.png" alt="Plug Employ" class="h-8 w-auto"></a>
       <nav class="flex gap-4 text-sm">
         <a href="/dashboard" class="hover:underline">Dashboard</a>
         <a href="/leads" class="hover:underline">Leads</a>
@@ -24,6 +72,7 @@
         <a href="/business" class="hover:underline">My business</a>
       </nav>
       <div class="ml-auto flex items-center gap-3 text-sm">
+        <button type="button" onclick="toggleTheme()" title="Night mode on/off" aria-label="Night mode on/off" class="rounded-full px-2 py-1 hover:bg-white/10">🌙</button>
         {% if org and org.plan_tier == "owner" %}<a href="/beta" class="hover:underline">Beta results</a>
         <a href="/feedback" class="hover:underline">Feedback</a>{% endif %}
         {% if user and user.is_admin %}
@@ -31,15 +80,15 @@
         <a href="/billing" class="hover:underline">Billing</a>
         {% if accounts|length > 1 %}
         <form method="post" action="/switch-account" class="flex items-center gap-2">
-          <label for="acct" class="text-slate-500">Viewing</label>
-          <select id="acct" name="account_id" onchange="this.form.submit()" class="border rounded px-2 py-1">
+          <label for="acct" class="text-purple-200">Viewing</label>
+          <select id="acct" name="account_id" onchange="this.form.submit()" class="border rounded px-2 py-1 text-slate-800 bg-white">
             {% for a in accounts %}
             <option value="{{ a.id }}" {% if account and a.id == account.id %}selected{% endif %}>{{ a.name }}</option>
             {% endfor %}
           </select>
         </form>{% endif %}{% endif %}
-        {% if user %}<span class="text-slate-500 hidden md:inline">{{ user.email }}</span>
-        <form method="post" action="/logout"><button class="text-slate-500 hover:underline">Sign out</button></form>{% endif %}
+        {% if user %}<span class="text-purple-200 hidden md:inline">{{ user.email }}</span>
+        <form method="post" action="/logout"><button class="text-purple-200 hover:underline">Sign out</button></form>{% endif %}
       </div>
     </div>
   </header>
