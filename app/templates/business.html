@@ -86,7 +86,7 @@
       <b>Pro</b> plan. <a href="/billing" class="text-blue-700 hover:underline">See plans</a></p>
   {% elif close_on and not close_shared %}
     <p class="text-sm mb-3">Connected{% if account.close_org_name %} to <b>{{ account.close_org_name }}</b>{% endif %}.
-      Use <b>Send top 20 to Close</b> on your Leads page, or <b>Send to Close</b> on any lead.</p>
+      Use <b>Send top 20/50/100 to Close</b> on your Leads page, or <b>Send to Close</b> on any lead.</p>
     <form method="post" action="/close/disconnect"><button class="rounded border px-3 py-1 text-sm hover:bg-slate-50">Disconnect</button></form>
   {% else %}
     {% if close_shared %}<p class="text-xs text-slate-500 mb-2">Using the company Close key from the server settings. Connect below to use your own.</p>{% endif %}

@@ -18,6 +18,7 @@ from app.models import OUTCOMES, FollowUp, Lead
 BASE_URL = "https://api.close.com/api/v1/"
 NEW_STATUS = "Potential"
 TOP_N = 20
+SEND_SIZES = (20, 50, 100)  # choices on the leads page; bigger batches take a few minutes
 
 # Close status (lower case) -> (app status, outcome reason, follow-up in N days or "next_year")
 STATUS_MAP = {

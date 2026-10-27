@@ -91,7 +91,7 @@ def test_pages_show_close(ids, monkeypatch):
     monkeypatch.setattr(close_crm, "enabled_for", lambda db, a: True)
     c = TestClient(app)
     login_as(c, ids)
-    assert "Send top 20 to Close" in c.get("/leads").text
+    assert "How many leads to send" in c.get("/leads").text
     assert "send new leads scored 9+ to Close" in c.get("/nightly").text
 
 

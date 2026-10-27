@@ -73,8 +73,11 @@
 {% endif %}
 {% if has_close %}
 <div class="mb-2 flex flex-wrap gap-2 items-center">
-  <form method="post" action="/close/send-top" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Sending…'">
-    <button class="rounded bg-emerald-700 text-white px-3 py-1 text-sm">📞 Send top 20 to Close</button></form>
+  <form method="post" action="/close/send-top" class="flex items-center gap-1" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Sending… (up to a few minutes)'">
+    <button class="rounded bg-emerald-700 text-white px-3 py-1 text-sm">📞 Send top</button>
+    <select name="count" aria-label="How many leads to send" class="border rounded px-1 py-0.5 text-sm">
+      <option value="20">20</option><option value="50">50</option><option value="100">100</option></select>
+    <span class="text-sm">to Close</span></form>
   <form method="post" action="/close/sync" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Syncing…'">
     <button class="rounded border px-3 py-1 text-sm hover:bg-slate-50">↻ Sync from Close</button></form>
   <span class="text-xs text-slate-500">Your VA calls from Close; statuses come back here each night.</span>

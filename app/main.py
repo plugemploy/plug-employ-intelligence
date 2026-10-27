@@ -476,11 +476,12 @@ def back_to_leads(msg: str):
 
 
 @app.post("/close/send-top")
-def close_send_top(db: Session = Depends(get_session), account=Depends(current_account)):
+def close_send_top(count: int = Form(close_crm.TOP_N), db: Session = Depends(get_session), account=Depends(current_account)):
     if not close_crm.enabled_for(db, account):
         return back_to_leads("Close isn't connected for this account.")
+    count = count if count in close_crm.SEND_SIZES else close_crm.TOP_N
     try:
-        s = close_crm.send_leads(db, close_crm.top_unsent(db, account.id), close_crm.client_for(db, account))
+        s = close_crm.send_leads(db, close_crm.top_unsent(db, account.id, limit=count), close_crm.client_for(db, account))
     except Exception as exc:
         return back_to_leads(f"Close error: {str(exc).splitlines()[0]}")
     return back_to_leads(f"Sent {s['sent']} leads to Close as Potential. {s['already_in_close']} were already in Close."
