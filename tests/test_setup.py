@@ -48,11 +48,13 @@ def test_new_account_goes_through_setup(newbie, monkeypatch):
     assert 'value="Florist" checked' in picker and 'value="Wedding venue" checked' in picker
     assert 'value="Balloon artist LLC" checked' in picker  # custom kept, comma removed
 
-    r = c.post("/setup", data={"description": "Wedding magazine", "zips": "37934, 37919",
+    assert 'name="company"' in page
+    r = c.post("/setup", data={"description": "Wedding magazine", "zips": "37934, 37919", "company": "Test: Bride Mag",
                                "industries": ["Florist", "Wedding venue", "Balloon artist LLC"]}, follow_redirects=False)
     assert r.headers["location"] == "/setup/first"
     with Session(engine) as db:
         a = db.get(Account, newbie["acct"])
+        assert db.get(Organization, a.org_id).name == "Test: Bride Mag"
         assert a.setup_done_at and a.zip_list == ["37934", "37919"] and len(a.industry_list) == 3
     assert "6</b> searches in total" in c.get("/setup/first").text
     assert c.get("/leads", follow_redirects=False).status_code == 200

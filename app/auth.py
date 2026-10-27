@@ -133,7 +133,9 @@ def sign_in(db: Session, email: str, name: str, signup_company: str = "") -> Use
         user = User(org_id=org.id, account_id=first.id if first else None, email=email, name=name, role="owner")
         db.add(user)
     elif user is None:
-        raise ValueError("No account for this email yet. Sign up, or ask your company admin to invite you.")
+        # Anyone Google lets in (a Google Cloud test user while in beta) gets their own beta company,
+        # named after them; the setup wizard runs next.
+        return sign_in(db, email, name, name or email.split("@")[0])
     if name and not user.name:
         user.name = name
     user.last_login_at = datetime.now(timezone.utc)

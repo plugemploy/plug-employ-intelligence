@@ -83,8 +83,10 @@ def test_invite_and_sign_up(two_companies):
         u = auth.sign_in(db, "new@alpha.test", "New Pub")
         acct = db.get(Account, u.account_id)
         assert (u.org_id, u.role, acct.zip_list) == (two_companies["o1"], "publisher", ["37934"])
-        with pytest.raises(ValueError):
-            auth.sign_in(db, "stranger@nowhere.test", "X")
+        stranger = auth.sign_in(db, "stranger@nowhere.test", "Test: Stranger")  # signing in alone makes a beta company
+        s_org = db.get(Organization, stranger.org_id)
+        assert (s_org.name, s_org.plan_tier, stranger.role) == ("Test: Stranger", "beta", "owner") and stranger.account_id
+        assert s_org.id != two_companies["o1"]
         owner = auth.sign_in(db, "founder@gamma.test", "Gia", signup_company="Test: Gamma Living")
         org = db.get(Organization, owner.org_id)
         assert (org.name, org.plan, owner.role) == ("Test: Gamma Living", "trial", "owner") and owner.account_id

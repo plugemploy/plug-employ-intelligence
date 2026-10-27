@@ -6,6 +6,13 @@
 <p class="text-sm text-slate-600 mb-6">Three quick steps. You can change any of this later on My business.</p>
 {% if request.query_params.get("msg") %}<p class="mb-4 rounded bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">{{ request.query_params.get("msg") }}</p>{% endif %}
 <form method="post" action="/setup" class="grid gap-6">
+  {% if user and user.role == "owner" %}
+  <section class="bg-white rounded-xl shadow p-6 grid gap-2">
+    <label for="company" class="font-semibold">Your company name</label>
+    <input id="company" name="company" required maxlength="200" class="border rounded px-3 py-2 text-sm"
+           value="{{ '' if org and user and org.name == user.name else (org.name if org else '') }}" placeholder="e.g. Stroll Farragut">
+  </section>
+  {% endif %}
   <section class="bg-white rounded-xl shadow p-6 grid gap-2">
     <h2 class="font-semibold">1. What do you sell, and who is your ideal advertiser?</h2>
     <p class="text-xs text-slate-500">A few plain sentences. Claude uses this to score every lead for you.</p>

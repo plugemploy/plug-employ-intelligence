@@ -868,9 +868,12 @@ def setup_suggest(request: Request, description: str = Form(""), zips: str = For
 
 
 @app.post("/setup")
-def setup_save(description: str = Form(""), zips: str = Form(""), industries: list[str] = Form(default=[]),
-               db: Session = Depends(get_session), account=Depends(current_account)):
+def setup_save(request: Request, description: str = Form(""), zips: str = Form(""), industries: list[str] = Form(default=[]),
+               company: str = Form(""), db: Session = Depends(get_session), account=Depends(current_account)):
     from urllib.parse import quote
+    user = getattr(request.state, "user", None)
+    if company.strip() and user and user.role == "owner" and user.org_id == account.org_id:
+        db.get(Organization, account.org_id).name = company.strip()[:200]  # shows on /beta as who is using
     zip_list = [z for z in clean_list(zips) if z.isdigit() and len(z) == 5]
     inds = clean_list(",".join(industries))
     if err := plans.territory_error(plans.plan_for(db, account), zip_list, inds):
