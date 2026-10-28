@@ -96,4 +96,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Time in app (2026-10-28): signed-in pages POST /ping on load and every 30s while visible and used in the last 2 min;
   users.active_seconds (gaps <= 60s), visits (new after 30 quiet min), last_seen_at. Shown on /beta (both tables) + CSV.
   Privacy draft mentions it.
+- Offer teaser (2026-10-28): free search banner, pop-up and a blurred "locked leads" block under the list show
+  "N more <type> leads near you and M other local businesses" (GET /offer/teaser, overture.waiting; polls while the
+  area is read). Pop-up payback line ($300/mo x 12 vs price) and a 30-day money-back guarantee (pop-up, banner,
+  Billing, terms draft). Refunds are done by hand in Stripe.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

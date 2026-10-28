@@ -98,8 +98,11 @@
     <div hidden hx-post="/offer/seen" hx-trigger="load" hx-swap="none"></div>
     <form method="post" action="/billing/checkout" id="subscribe-banner" class="mb-5 rounded-xl bg-[#3b1578] text-white px-4 py-3 flex flex-wrap items-center gap-3">
       <input type="hidden" name="tier" value="pro">
-      <p class="text-sm flex-1 min-w-[14rem]"><b>Like these leads?</b> Get {{ pro.searches }} searches a month, new leads every night, scored for you.</p>
-      <button class="rounded-lg bg-white text-[#3b1578] px-4 py-1.5 text-sm font-semibold hover:bg-purple-50">Subscribe for ${{ pro.price }}/month</button>
+      <p class="text-sm flex-1 min-w-[14rem]"><span hx-get="/offer/teaser" hx-trigger="load" hx-swap="outerHTML"><b>Like these leads?</b>
+        Get {{ pro.searches }} searches a month, new leads every night, scored for you.</span></p>
+      <div class="grid gap-0.5 justify-items-center">
+        <button class="rounded-lg bg-white text-[#3b1578] px-4 py-1.5 text-sm font-semibold hover:bg-purple-50">Subscribe for ${{ pro.price }}/month</button>
+        <span class="text-[11px] text-purple-200">30-day money-back guarantee</span></div>
     </form>
     {% endif %}
     {% if not account and not (user and user.is_admin) %}
@@ -122,7 +125,8 @@
   <div id="subscribe-modal" class="hidden fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4">
     <div class="w-full max-w-md bg-white rounded-xl shadow-xl p-6 grid gap-3">
       <h2 class="text-xl font-bold">Like these leads? 🎯</h2>
-      <p class="text-sm text-slate-600">That was one search. With {{ pro.label }} you get your whole territory, every kind of business you sell to, found and scored for you.</p>
+      <p class="text-sm text-slate-600"><span hx-get="/offer/teaser?style=popup" hx-trigger="load" hx-swap="outerHTML">That was one search.</span>
+        With {{ pro.label }} you get your whole territory, every kind of business you sell to, found and scored for you.</p>
       <ul class="text-sm text-slate-700 list-disc ml-5 grid gap-1">
         <li>{{ pro.searches }} searches a month, every lead scored 1 to 10 by Claude</li>
         <li>New leads found automatically every night</li>
@@ -133,7 +137,9 @@
         <input type="hidden" name="tier" value="pro">
         <button class="rounded-lg bg-slate-800 text-white px-5 py-2 font-medium">Subscribe for ${{ pro.price }}/month</button>
       </form>
-      <p class="text-xs text-slate-500 text-center">Cancel anytime. Payments are handled securely by Stripe.</p>
+      <p class="text-sm text-purple-900 bg-purple-50 rounded-lg px-3 py-2 text-center">💡 One $300/month advertiser on a 12-month contract
+        pays for about {{ (300 * 12 / (pro.price * 12))|round|int }} years of {{ pro.label }}.</p>
+      <p class="text-xs text-slate-500 text-center"><b>30-day money-back guarantee.</b> Cancel anytime. Payments are handled securely by Stripe.</p>
       <button type="button" onclick="laterSubscribe()" class="text-sm text-slate-500 hover:underline">Maybe later</button>
     </div>
   </div>

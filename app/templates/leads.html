@@ -121,5 +121,20 @@
     {% endfor %}
     </tbody>
   </table>
+  {% if subscribe_banner %}
+  <div class="relative mt-4 rounded-xl overflow-hidden border">
+    <div class="blur-sm select-none pointer-events-none" aria-hidden="true">
+      {% for i in range(3) %}<div class="grid grid-cols-4 gap-4 p-4 border-t bg-white text-sm text-slate-500">
+        <span class="font-semibold text-slate-700">Business name hidden</span><span>(865) 555-0000</span><span>Score 8</span><span>New</span></div>{% endfor %}
+    </div>
+    <form method="post" action="/billing/checkout" class="absolute inset-0 grid place-items-center bg-white/60 p-4 text-center">
+      <input type="hidden" name="tier" value="pro">
+      <div class="grid gap-2 justify-items-center max-w-md">
+        <p class="text-sm text-slate-800">🔒 <span hx-get="/offer/teaser?style=locked" hx-trigger="load" hx-swap="outerHTML">More leads are waiting in your area.</span></p>
+        <button class="rounded-lg bg-[#3b1578] text-white px-4 py-1.5 text-sm font-semibold">Subscribe for ${{ pro.price }}/month to see them</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
 </div>
 {% endblock %}

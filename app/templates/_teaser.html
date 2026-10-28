@@ -1,0 +1,10 @@
+{# What's waiting for a free search company. While its area is being read, this checks back every 5 seconds. #}
+{% if counts is none %}
+<span hx-get="/offer/teaser?style={{ style }}" hx-trigger="load delay:5s" hx-swap="outerHTML">{% if style == "banner" %}<b>Like these leads?</b> {% endif %}{% if style == "popup" %}That was one search. {% endif %}More leads are waiting in your area.</span>
+{% else %}{% set more, others = counts %}
+<span>{% if more or others %}{% if style == "banner" %}<b>Like these leads?</b> {% endif %}There {{ "is" if more == 1 and not others else "are" }}
+  {% if more %}<b>{{ "{:,}".format(more) }} more {{ industry }} lead{{ "s" if more != 1 }}</b> near you{% endif %}
+  {%- if more and others %} and {% endif %}{% if others %}<b>{{ "{:,}".format(others) }} other local businesses</b>{% endif %}
+  waiting{% if style == "banner" %}, found and scored for you every night{% endif %}.
+{% else %}{% if style == "banner" %}<b>Like these leads?</b> {% endif %}Search your whole territory and every kind of business you sell to.{% endif %}</span>
+{% endif %}

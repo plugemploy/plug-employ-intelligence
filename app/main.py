@@ -130,6 +130,16 @@ def activity(people: list) -> dict:
                 visits=sum(u.visits or 0 for u in people), last_seen=max(seen) if seen else None)
 
 
+@app.get("/offer/teaser")
+def offer_teaser(request: Request, style: str = Query("banner"), db: Session = Depends(get_session),
+                 account=Depends(current_account)):
+    """What's waiting in a free search company's area: "44 more Roofing leads near you and 1,200 other businesses"."""
+    industry = (account.industry_list or [""])[0]
+    have = db.scalar(select(func.count()).select_from(Lead).where(Lead.account_id == account.id, Lead.deleted_at.is_(None))) or 0
+    counts = overture.waiting(account.zip_list, industry, catalog.ALL, have) if industry and account.zip_list else (0, 0)
+    return templates.TemplateResponse(request, "_teaser.html", {"counts": counts, "industry": industry, "style": style})
+
+
 @app.post("/offer/seen")
 def offer_seen(db: Session = Depends(get_session), user: User = Depends(current_user)):
     """The $49 offer was just shown (banner on page load, pop-up by its timer). The first time is kept."""

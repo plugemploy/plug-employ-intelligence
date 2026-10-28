@@ -310,3 +310,18 @@ def estimates(zips: list[str], types: list[str]) -> dict[str, tuple[int, int]] |
         near = set().union(*(c[t][1] for c in per_zip)) - here if per_zip else set()
         out[t] = (len(here), len(near))
     return out
+
+
+def waiting(zips: list[str], industry: str, types: list[str], have: int) -> tuple[int, int] | None:
+    """For the free search offer: (more of this type in and around the ZIPs than the `have` leads already shown,
+    other businesses of any listed type), or None while the area is still being read."""
+    zips = [z for z in zips if zip_box(z) is not None][:ESTIMATE_ZIPS]
+    if not zips or not all(ready(z) for z in zips):
+        warm(zips)
+        return None
+    kinds = list(dict.fromkeys(types + [industry]))
+    per_zip = [_zip_counts(z, kinds) for z in zips]
+    ids = lambda t: set().union(*(c[t][0] | c[t][1] for c in per_zip))
+    mine = ids(industry)
+    everyone = set().union(*(ids(t) for t in kinds))
+    return max(0, len(mine) - have), len(everyone - mine)

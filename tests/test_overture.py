@@ -213,3 +213,38 @@ def test_setup_counts_by_type(monkeypatch):
     finally:
         overture._zip_cache.clear()
         overture._counts.clear()
+
+
+def test_offer_teaser_counts_whats_waiting(monkeypatch):
+    import time
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from tests.conftest import login_as
+    monkeypatch.setattr(overture, "latest_release", lambda: "test-release")
+    lat, lon, _ = overture._zips()["37934"]
+    def at(pid, name, cat, postcode):
+        return {**place(pid, name, category=cat, basic="home_service", phones=(f"+18655559{pid[-2:]}",)),
+                "postcode": postcode, "city": "", "lat": lat, "lon": lon}
+    area = ([at(f"r{i:02}", f"Sample Roofing {i}", "roofing", "37934" if i < 3 else "37922") for i in range(10)]
+            + [at(f"d{i:02}", f"Sample Dental {i}", "dental_clinic", "37934") for i in range(4)])
+    monkeypatch.setattr(overture, "fetch_nearby", lambda z: [p for p in area if p["postcode"] != z])
+    monkeypatch.setattr(overture, "warm", lambda zips: None)
+    overture._counts.clear()
+    with Session(engine) as db:
+        a = Account(name="Test: Teaser", target_zips="37934", industries="Roofing")
+        db.add(a)
+        db.flush()
+        db.add_all([Lead(account_id=a.id, business_name=f"Sample Roofing {i}") for i in range(3)])  # shown already
+        db.commit()
+        aid = a.id
+    c = TestClient(app)
+    login_as(c, aid)
+    assert 'hx-trigger="load delay:5s"' in c.get("/offer/teaser").text  # area not read yet: checks back
+    overture._zip_cache[("test-release", "37934")] = (time.time(), area)
+    try:
+        assert overture.waiting(["37934"], "Roofing", ["Dentist"], 3) == (7, 4)
+        text = " ".join(c.get("/offer/teaser").text.split())
+        assert "7 more Roofing leads</b> near you and <b>4 other local businesses</b> waiting" in text
+    finally:
+        overture._zip_cache.clear()
+        overture._counts.clear()

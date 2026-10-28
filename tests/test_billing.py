@@ -235,6 +235,8 @@ def test_free_search_is_one_search_ever_then_offer(org):
     assert "subscribe-modal" in page and "Subscribe for $49/month" in page
     assert str(int((done + timedelta(seconds=15)).timestamp() * 1000)) in page  # shows 15 seconds after leads are ready
     assert "subscribe-banner" in page
+    assert "about 6 years" in page and "30-day money-back guarantee" in page  # payback line and guarantee
+    assert "Business name hidden" in page and 'hx-get="/offer/teaser?style=locked"' in page  # locked leads teaser
     assert "subscribe-modal" not in c.get("/billing").text and "subscribe-banner" not in c.get("/billing").text
     c.cookies.set("subscribe_later", "1")
     page = c.get("/leads?sort=score").text

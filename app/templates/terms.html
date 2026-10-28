@@ -21,7 +21,10 @@
   <li>The {{ pro.label }} plan is ${{ pro.price }} per month, billed in advance through Stripe, and renews each month
     until you cancel.</li>
   <li>You can cancel at any time from the Billing page. Your plan stays active until the end of the month you've paid
-    for. We don't give refunds for partial months.</li>
+    for.</li>
+  <li><b>30-day money-back guarantee:</b> if you're not happy within 30 days of your first payment, email us
+    {%- if contact %} at <a href="mailto:{{ contact }}" class="text-blue-700 hover:underline">{{ contact }}</a>{% endif %} and we'll refund
+    that payment in full. After that, we don't give refunds for partial months.</li>
   <li>Each plan includes a monthly number of searches, shown on the Usage page. Unused searches don't carry over.</li>
   <li>If we change the price, we'll tell you at least 30 days before it applies to you.</li>
 </ul>
