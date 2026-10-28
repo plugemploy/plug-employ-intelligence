@@ -94,6 +94,14 @@
   </header>
   {% if search_job %}{% include "_search_bar.html" %}{% endif %}
   <main class="max-w-6xl mx-auto px-4 py-6">
+    {% if subscribe_banner %}
+    <div hidden hx-post="/offer/seen" hx-trigger="load" hx-swap="none"></div>
+    <form method="post" action="/billing/checkout" id="subscribe-banner" class="mb-5 rounded-xl bg-[#3b1578] text-white px-4 py-3 flex flex-wrap items-center gap-3">
+      <input type="hidden" name="tier" value="pro">
+      <p class="text-sm flex-1 min-w-[14rem]"><b>Like these leads?</b> Get {{ pro.searches }} searches a month, new leads every night, scored for you.</p>
+      <button class="rounded-lg bg-white text-[#3b1578] px-4 py-1.5 text-sm font-semibold hover:bg-purple-50">Subscribe for ${{ pro.price }}/month</button>
+    </form>
+    {% endif %}
     {% if not account and not (user and user.is_admin) %}
       <p class="text-slate-600">Your account isn't set up yet. Ask your company admin to add you.</p>
     {% else %}

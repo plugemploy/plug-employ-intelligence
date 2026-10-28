@@ -62,12 +62,12 @@ def render(request, name, db, account, **ctx):
     job = search_jobs.for_bar(db, account.id) if account else None
     show_costs = bool(org and org.plan_tier == "owner")  # dollar amounts are for the app owner only
     survey_due = bool(user and account and org and survey_is_due(db, org, account, request))
-    subscribe_at = subscribe_popup_at(db, org, user, account, request) if org else None
+    banner, subscribe_at = subscribe_offer(db, org, user, account, request) if org else (False, None)
     return templates.TemplateResponse(
         request, name,
         {"account": account, "accounts": accounts, "user": user, "org": org, "statuses": STATUSES,
          "today": date.today(), "search_job": job, "show_costs": show_costs, "survey_due": survey_due,
-         "subscribe_at": subscribe_at, "pro": plans.PLANS["pro"],
+         "subscribe_banner": banner, "subscribe_at": subscribe_at, "pro": plans.PLANS["pro"],
          "max_pick": plans.plan_for(db, account).get("max_industries") if account else None,  # industry picker limit
          "would_pay": WOULD_PAY, "would_pay_labels": {**WOULD_PAY_OLD, **WOULD_PAY}, **ctx},
     )
@@ -91,18 +91,21 @@ SUBSCRIBE_AFTER = timedelta(seconds=15)  # after the free search's leads are rea
 SUBSCRIBE_LATER_COOKIE = "subscribe_later"  # "Maybe later" hides the offer for a day
 
 
-def subscribe_popup_at(db: Session, org: Organization, user, account, request: Request) -> int | None:
-    """When (ms since 1970, for the page's timer) a Free search company sees the $49 offer, or None."""
-    if (org.plan_tier != "free" or not (user and user.is_admin and account)
-            or request.cookies.get(SUBSCRIBE_LATER_COOKIE) or request.url.path.startswith("/billing")):
-        return None
+def subscribe_offer(db: Session, org: Organization, user, account, request: Request) -> tuple[bool, int | None]:
+    """The $49 offer for a Free search company once its leads are ready: (show the banner, when the pop-up opens
+    in ms since 1970 for the page's timer, or None). The banner stays; "Maybe later" only hides the pop-up."""
+    if org.plan_tier != "free" or not (user and user.is_admin and account) or request.url.path.startswith("/billing"):
+        return False, None
     ready = plans.first_leads_at(db, account.id)
-    return int((ready + SUBSCRIBE_AFTER).timestamp() * 1000) if ready else None
+    if not ready:
+        return False, None
+    popup = None if request.cookies.get(SUBSCRIBE_LATER_COOKIE) else int((ready + SUBSCRIBE_AFTER).timestamp() * 1000)
+    return True, popup
 
 
 @app.post("/offer/seen")
 def offer_seen(db: Session = Depends(get_session), user: User = Depends(current_user)):
-    """The $49 pop-up just appeared (sent by the page's timer). The first time is kept."""
+    """The $49 offer was just shown (banner on page load, pop-up by its timer). The first time is kept."""
     org = db.get(Organization, user.org_id)
     if org.offer_seen_at is None:
         org.offer_seen_at = datetime.now(timezone.utc)

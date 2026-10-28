@@ -222,7 +222,8 @@ def test_free_search_is_one_search_ever_then_offer(org):
         assert plans.usage(db, db.get(Account, org["acct"]))["searches_left"] == 0
         with pytest.raises(places.BudgetExceeded, match="used your free search"):
             places.check_search(db, org["acct"])
-    assert "subscribe-modal" not in c.get("/leads?sort=score").text  # searched, but leads not ready yet
+    page = c.get("/leads?sort=score").text
+    assert "subscribe-modal" not in page and "subscribe-banner" not in page  # searched, but leads not ready yet
     from app.models import NightlyRun
     done = datetime.now(timezone.utc) - timedelta(seconds=5)
     with Session(engine) as db:
@@ -233,9 +234,11 @@ def test_free_search_is_one_search_ever_then_offer(org):
     page = c.get("/leads?sort=score").text
     assert "subscribe-modal" in page and "Subscribe for $49/month" in page
     assert str(int((done + timedelta(seconds=15)).timestamp() * 1000)) in page  # shows 15 seconds after leads are ready
-    assert "subscribe-modal" not in c.get("/billing").text
+    assert "subscribe-banner" in page
+    assert "subscribe-modal" not in c.get("/billing").text and "subscribe-banner" not in c.get("/billing").text
     c.cookies.set("subscribe_later", "1")
-    assert "subscribe-modal" not in c.get("/leads?sort=score").text
+    page = c.get("/leads?sort=score").text
+    assert "subscribe-modal" not in page and "subscribe-banner" in page  # "Maybe later" hides only the pop-up
 
 
 def test_standard_plan_has_no_gmail(org, monkeypatch):

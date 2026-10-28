@@ -82,7 +82,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   Stripe price lookup key includes the price (pei_pro_49_monthly). Survey asks "Yes, at $49/month".
 - Free search link (2026-10-28): /try signs up new companies on plan "free" (1 ZIP x 1 business type, one search ever,
   no Gmail/Close); existing users keep their plan. 15 seconds after its leads are ready (plans.first_leads_at) a $49 subscribe pop-up shows
-  (main.subscribe_popup_at; "Maybe later" hides it a day). /signup still gives the 30-day Beta.
+  (main.subscribe_offer; "Maybe later" hides the pop-up a day). A purple Subscribe banner shows at once above every page (stays after Maybe later); banner load marks offer_seen_at. /signup still gives the 30-day Beta.
 - Free search tracker + legal pages (2026-10-28): /beta shows /try sign-ups (signup_offer, offer_seen_at,
   checkout_started_at) apart from testers. /privacy and /terms are DRAFTS for the attorney; CONTACT_EMAIL env shows there.
 - Live (2026-10-28): Stripe on the LIVE key (restricted rk_live_, "Full access except sensitive operations", account
