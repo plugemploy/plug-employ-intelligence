@@ -4,6 +4,8 @@ this app only stores Stripe's ids and the subscription status.
 Flow: Billing page -> Stripe Checkout -> back to /billing/return (status saved) -> daily status sync.
 """
 
+import logging
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -17,6 +19,7 @@ SELLABLE = ("pro",)
 PRODUCT_NAME = "Plug Employ Intelligence"
 ACTIVE_STATUSES = ("trialing", "active", "past_due")  # past_due: Stripe is retrying the card
 _price_ids: dict[str, str] = {}
+log = logging.getLogger("billing")
 
 
 def configured() -> bool:
@@ -74,10 +77,14 @@ def checkout_url(db: Session, org: Organization, tier: str, email: str) -> str:
     if PLANS[tier].get("trial_days"):
         params["subscription_data"]["trial_period_days"] = PLANS[tier]["trial_days"]
     if org.stripe_customer_id:
-        params["customer"] = org.stripe_customer_id
-    else:
-        params["customer_email"] = email
-    return sc.v1.checkout.sessions.create(params=params).url
+        try:
+            return sc.v1.checkout.sessions.create(params={**params, "customer": org.stripe_customer_id}).url
+        except stripe.InvalidRequestError as exc:
+            if exc.code != "resource_missing":
+                raise
+            org.stripe_customer_id = ""  # e.g. a test-mode customer after switching to the live key
+            db.commit()
+    return sc.v1.checkout.sessions.create(params={**params, "customer_email": email}).url
 
 
 def apply_status(org: Organization, status: str) -> None:
@@ -103,15 +110,30 @@ def sync(db: Session, org: Organization) -> str:
     """Refresh one company's subscription status from Stripe (cancellations, failed payments)."""
     if not org.stripe_subscription_id:
         return org.billing_status
-    sub = client().v1.subscriptions.retrieve(org.stripe_subscription_id)
+    try:
+        sub = client().v1.subscriptions.retrieve(org.stripe_subscription_id)
+    except stripe.InvalidRequestError as exc:
+        if exc.code != "resource_missing":
+            raise
+        # Stripe has no such subscription, e.g. a test-mode one after switching to the live key:
+        # forget it and the customer, and the company picks a plan again.
+        log.warning("Org %s: subscription %s not found in Stripe; unlinked", org.id, org.stripe_subscription_id)
+        org.stripe_subscription_id = org.stripe_customer_id = ""
+        apply_status(org, "")
+        db.commit()
+        return ""
     apply_status(org, sub.status)
     db.commit()
     return sub.status
 
 
 def sync_all(db: Session) -> None:
-    for org in db.scalars(select(Organization).where(Organization.stripe_subscription_id != "")):
-        sync(db, org)
+    for org in db.scalars(select(Organization).where(Organization.stripe_subscription_id != "")).all():
+        try:
+            sync(db, org)
+        except Exception:  # one company's problem shouldn't stop the others' check
+            log.exception("Stripe sync failed for org %s", org.id)
+            db.rollback()
 
 
 def portal_url(org: Organization) -> str:

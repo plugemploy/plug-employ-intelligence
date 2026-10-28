@@ -270,6 +270,49 @@ def test_cancelled_subscription_pauses_searches(org):
         assert plans.monthly_limit(db, db.get(Account, org["acct"])) == 0.0
 
 
+def missing(what):
+    import stripe
+    return stripe.InvalidRequestError(f"No such {what}", param="id", code="resource_missing")
+
+
+def test_switch_to_live_key_unlinks_test_subscriptions(org):
+    c = client(org["user"])
+    c.post("/billing/checkout", data={"tier": "pro"}, follow_redirects=False)
+    c.get("/billing/return?session_id=cs_1")
+    fake = org["fake"]
+    with Session(engine) as db:  # a second company whose subscription is fine
+        other = Organization(name="Test: Live Co", plan="active", plan_tier="pro", stripe_subscription_id="sub_live",
+                             stripe_customer_id="cus_live", billing_status="active")
+        db.add(other)
+        db.commit()
+        other_id = other.id
+
+    def retrieve(sid):
+        if sid == "sub_1":
+            raise missing("subscription")
+        return NS(id=sid, status="past_due")
+    fake.v1.subscriptions.retrieve = retrieve
+    with Session(engine) as db:
+        billing.sync_all(db)
+        o, live = db.get(Organization, org["org"]), db.get(Organization, other_id)
+        assert (o.stripe_subscription_id, o.stripe_customer_id, o.plan) == ("", "", "cancelled")
+        assert (live.billing_status, live.plan) == ("past_due", "active")  # still checked after the bad one
+
+    # checkout with a customer Stripe no longer knows starts fresh with the email
+    with Session(engine) as db:
+        db.get(Organization, org["org"]).stripe_customer_id = "cus_test_only"
+        db.commit()
+    create = fake.v1.checkout.sessions.create
+    def picky_create(params):
+        if params.get("customer") == "cus_test_only":
+            raise missing("customer")
+        return create(params)
+    fake.v1.checkout.sessions.create = picky_create
+    r = c.post("/billing/checkout", data={"tier": "pro"}, follow_redirects=False)
+    assert r.headers["location"] == "https://checkout.stripe.test/s1"
+    assert fake.checkout["customer_email"] == "boss@billing.test" and "customer" not in fake.checkout
+
+
 def test_publishers_cannot_reach_billing(org):
     with Session(engine) as db:
         u = User(org_id=org["org"], account_id=org["acct"], email="pub@billing.test", role="publisher")
