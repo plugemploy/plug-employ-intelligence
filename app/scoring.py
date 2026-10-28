@@ -107,6 +107,7 @@ def describe(lead: Lead) -> str:
         f"Name: {lead.business_name}",
         f"Industry: {lead.industry or 'unknown'}",
         f"Address: {lead.address} (ZIP {lead.zip_code})",
+    ] + ([f"Outside the target ZIPs, nearby: {lead.nearby}"] if lead.nearby else []) + [
         f"Website: {'yes' if lead.website else 'no'}",
         f"Email listed: {'yes' if lead.email else 'no'}",
     ] + ([f"National brand: {lead.brand}"] if lead.brand else [])

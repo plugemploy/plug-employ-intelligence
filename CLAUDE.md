@@ -88,4 +88,9 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Live (2026-10-28): Stripe on the LIVE key (restricted rk_live_, "Full access except sensitive operations", account
   East TN Publication LLC); billing.sync unlinks subscriptions Stripe doesn't know. Google sign-in published (In production;
   Gmail scopes still unverified). CONTACT_EMAIL=admin@plugemploy.com. Email campaign link: /try.
+- Nearby + setup counts (2026-10-28): one Overture read per ZIP (overture.fetch_area) keeps the ZIP plus reliable places
+  within nearby_miles (2.5x ZIP radius, 3-10 mi, closest 25k). A search with < FILL_TO (15) good in-ZIP matches adds the
+  closest nearby ones (Lead.nearby "Brighton, 6 mi from 48178", zip_code = their own ZIP; already-saved nearby ones don't
+  count, so the next search reaches further). /setup/estimates shows "N · +M nearby" beside each type on /setup and
+  My business (reads up to 5 ZIPs in the background via overture.warm). Tests block online reads (conftest).
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

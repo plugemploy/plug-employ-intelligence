@@ -22,7 +22,8 @@
         {% if not max_pick %}<button type="button" class="ind-group-all text-xs font-normal text-blue-700 hover:underline">select all</button>{% endif %}</legend>
       <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm mt-1">{% for n in names %}
         <label class="ind-item flex items-center gap-1" data-name="{{ n|lower }}">
-          <input type="checkbox" name="industries" value="{{ n }}" {% if n in selected %}checked{% endif %}> {{ n }}</label>{% endfor %}</div>
+          <input type="checkbox" name="industries" value="{{ n }}" {% if n in selected %}checked{% endif %}> {{ n }}
+          <span class="ind-est text-xs text-slate-400" data-type="{{ n }}"></span></label>{% endfor %}</div>
     </fieldset>
     {% endfor %}
     <fieldset class="ind-group md:col-span-2">
@@ -73,5 +74,15 @@
     const inGroup = [...b.closest(".ind-group").querySelectorAll('input[name="industries"]')];
     const on = !inGroup.every(x => x.checked); inGroup.forEach(x => x.checked = on); update(); }));
   root.addEventListener("change", update); update();
+  window.applyIndCounts = () => {  // counts from /setup/estimates (shown when the ZIPs have been read)
+    const c = window.indCounts || {};
+    root.querySelectorAll(".ind-est").forEach(s => {
+      const n = c[s.dataset.type];
+      if (!n) { s.textContent = ""; return; }
+      s.textContent = n[1] ? `${n[0]} · +${n[1]} nearby` : `${n[0]}`;
+      s.className = "ind-est text-xs " + (n[0] + n[1] >= 15 ? "text-green-700" : n[0] + n[1] >= 5 ? "text-slate-500" : "text-amber-700");
+    });
+  };
+  window.applyIndCounts();
 })();
 </script>

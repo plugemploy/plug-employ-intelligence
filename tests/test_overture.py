@@ -105,6 +105,42 @@ def test_short_name_words_also_match_longer_forms():
         assert overture.matches(place("n", name, category=None, basic=None), cats, overture_types.name_pattern(words)), kind
 
 
+def test_thin_zip_fills_with_nearby(acct, monkeypatch):
+    here = [place("h1", "Sample Roofing Here", category="roofing", basic="home_service", phones=("+18655550201",))]
+    near = [{**place(f"n{i}", f"Sample Roofing {i}", category="roofing", basic="home_service",
+                     phones=(f"+1865555{2300 + i}",), websites=(f"https://roof{i}.com",)),
+             "postcode": "37922", "city": "FARRAGUT", "miles": 2.0 + i} for i in range(20)]
+    near.append({**place("p1", "Sample Pizza", category="pizza_restaurant", basic="restaurant"),
+                 "postcode": "37922", "city": "Farragut", "miles": 0.5})
+    monkeypatch.setattr(overture, "fetch_places", lambda z: here)
+    monkeypatch.setattr(overture, "fetch_nearby", lambda z: near)
+    with Session(engine) as db:
+        s = overture.search_and_save(db, acct, "37934", "Roofing")
+        assert (s["added"], s["added_nearby"]) == (overture.FILL_TO, overture.FILL_TO - 1)
+        leads = {l.business_name: l for l in db.scalars(select(Lead).where(Lead.account_id == acct, Lead.overture_id.is_not(None)))}
+        assert leads["Sample Roofing Here"].nearby == ""
+        assert (leads["Sample Roofing 0"].nearby, leads["Sample Roofing 0"].zip_code) == ("Farragut, 2 mi from 37934", "37922")
+        assert "Sample Pizza" not in leads and "Sample Roofing 19" not in leads  # closest roofers first
+        again = overture.search_and_save(db, acct, "37934", "Roofing")  # next month: the next closest ones
+        assert again["added_nearby"] == 6 and "Sample Roofing 19" in {l.business_name for l in db.scalars(select(Lead))}
+
+
+def test_full_zip_adds_no_nearby(acct, monkeypatch):
+    here = [place(f"h{i}", f"Sample Dental {i}", phones=(f"+1865555{2400 + i}",), websites=(f"https://d{i}.com",))
+            for i in range(overture.FILL_TO)]
+    monkeypatch.setattr(overture, "fetch_places", lambda z: here)
+    monkeypatch.setattr(overture, "fetch_nearby", lambda z: pytest.fail("no nearby needed"))
+    with Session(engine) as db:
+        assert overture.search_and_save(db, acct, "37934", "Dentist")["added_nearby"] == 0
+
+
+def test_nearby_reach_by_zip_size():
+    assert 9 < overture.nearby_miles("48178") <= overture.NEARBY_MAX_MILES  # South Lyon, MI: ~48 sq mi
+    assert overture.nearby_miles("10001") == 3.0  # a small Manhattan ZIP: dense, so a short reach
+    west, east, south, north = overture.zip_box("48178")
+    assert (north - south) / 2 * 69 >= overture.nearby_miles("48178") - 0.01  # the read covers the nearby reach
+
+
 def test_zip_box_covers_the_zip():
     west, east, south, north = overture.zip_box("37934")
     assert west < -84.18 < east and south < 35.876 < north
@@ -128,15 +164,52 @@ def test_cached_zip_skips_the_line_and_accounts_run_side_by_side(monkeypatch):
     import time
     from app import nightly
     monkeypatch.setattr(overture, "latest_release", lambda: "test-release")
-    overture._zip_cache[("test-release", "37934")] = (time.time(), [{"id": "x"}])
+    overture._zip_cache[("test-release", "37934")] = (time.time(), [{"id": "x", "postcode": "37934"},
+                                                                    {"id": "y", "postcode": "37922"}])
     got = []
     with overture._lock:  # someone else's Overture read is running
         t = threading.Thread(target=lambda: got.append(overture.fetch_places("37934")))
         t.start()
         t.join(timeout=2)
-    assert got == [[{"id": "x"}]]  # answered from the cache without waiting
+    assert got == [[{"id": "x", "postcode": "37934"}]]  # answered from the cache without waiting, this ZIP only
     overture._zip_cache.clear()
     with nightly._account_lock(1):  # account 1 is mid-batch
         assert nightly._account_lock(2).acquire(timeout=1)  # account 2 isn't held up
         nightly._account_lock(2).release()
         assert not nightly._account_lock(1).acquire(blocking=False)  # account 1 can't run twice at once
+
+
+def test_setup_counts_by_type(monkeypatch):
+    import time
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from tests.conftest import login_as
+    monkeypatch.setattr(overture, "latest_release", lambda: "test-release")
+    monkeypatch.setattr(overture, "fetch_nearby", lambda z: [p for p in area if p["postcode"] != z])
+    lat, lon, _ = overture._zips()["37934"]
+    def at(pid, name, cat, postcode, **kw):
+        return {**place(pid, name, category=cat, basic="home_service", **kw), "postcode": postcode, "city": "", "lat": lat, "lon": lon}
+    area = [at("a", "Sample Roofing A", "roofing", "37934"), at("b", "Sample Roofing B", "roofing", "37934"),
+            at("c", "Sample Roofing C", "roofing", "37922"), at("d", "Sample Ghost Roofing", "roofing", "37934", confidence=0.05),
+            at("e", "Sample Dental", "dental_clinic", "37934")]
+    overture._counts.clear()
+    warmed = []
+    monkeypatch.setattr(overture, "warm", lambda zips: warmed.append(zips))
+    with Session(engine) as db:
+        a = Account(name="Test: Counts")
+        db.add(a)
+        db.commit()
+        aid = a.id
+    c = TestClient(app)
+    login_as(c, aid)
+    assert "Counting businesses" in c.get("/setup/estimates?zips=37934").text and warmed == [["37934"]]
+    overture._zip_cache[("test-release", "37934")] = (time.time(), area)
+    try:
+        counts = overture.estimates(["37934"], ["Roofing", "Dentist", "Florist"])
+        assert counts == {"Roofing": (2, 1), "Dentist": (1, 0), "Florist": (0, 0)}  # the unreliable one isn't counted
+        page = c.get("/setup/estimates?zips=37934").text
+        assert '"Roofing": [2, 1]' in page and "applyIndCounts" in page
+        assert 'hx-get="/setup/estimates"' in c.get("/setup").text
+    finally:
+        overture._zip_cache.clear()
+        overture._counts.clear()

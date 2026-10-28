@@ -32,6 +32,7 @@
       {% if not free %}<button type="button" hx-post="/setup/suggest" hx-include="#desc, #zips" hx-target="#picker" hx-disabled-elt="this"
         class="rounded bg-purple-700 text-white px-3 py-1 text-sm">✨ Suggest from my description</button>{% endif %}
     </div>
+    <div id="estimates" hx-get="/setup/estimates" hx-include="#zips" hx-trigger="load, change from:#zips"></div>
     <div id="picker">{% include "_industry_picker.html" %}</div>
   </section>
   <button class="rounded-lg bg-slate-800 text-white px-5 py-2 font-medium justify-self-start">Save and continue →</button>

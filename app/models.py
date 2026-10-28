@@ -110,6 +110,8 @@ class Lead(Base):
     email: Mapped[str] = mapped_column(String(300), default="", server_default="")
     brand: Mapped[str] = mapped_column(String(200), default="", server_default="")  # set when it's a chain
     source_confidence: Mapped[float | None] = mapped_column(Float)  # Overture's 0-1 confidence the place is real
+    # Set when a thin search added it from just outside the searched ZIP, e.g. "Brighton, 6 mi from 48178".
+    nearby: Mapped[str] = mapped_column(String(120), default="", server_default="")
     rating: Mapped[float | None] = mapped_column(Float)
     review_count: Mapped[int | None] = mapped_column(Integer)
     score: Mapped[int | None] = mapped_column(Integer, index=True)

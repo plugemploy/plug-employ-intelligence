@@ -27,7 +27,8 @@
     {% if lead.phone %} · {{ lead.phone }}{% endif %}
     {% if lead.website %} · <a href="{{ lead.website }}" target="_blank" rel="noopener" class="text-blue-700 hover:underline">website</a>{% endif %}
     {% if lead.email %} · <a href="mailto:{{ lead.email }}" class="text-blue-700 hover:underline">{{ lead.email }}</a>{% endif %}
-    {% if lead.source == "import" %} · <span class="text-xs rounded bg-slate-100 px-1.5 py-0.5">imported client</span>{% endif %}</p>
+    {% if lead.source == "import" %} · <span class="text-xs rounded bg-slate-100 px-1.5 py-0.5">imported client</span>{% endif %}
+    {% if lead.nearby %} · <span class="text-xs rounded bg-purple-50 text-purple-800 px-1.5 py-0.5">Nearby · {{ lead.nearby }}</span>{% endif %}</p>
 </div>
 {% if reasons %}
 <section class="mb-6 rounded-xl bg-amber-50 border border-amber-200 p-4">

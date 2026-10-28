@@ -47,3 +47,14 @@ def _cleanup_test_orgs():
     with Session(engine) as db:
         db.execute(delete(Organization).where(Organization.name.like("Test:%")))
         db.commit()
+
+
+@pytest.fixture(autouse=True)
+def _no_overture_network(monkeypatch):
+    """Tests never read Overture online: searches see no nearby places unless a test supplies them."""
+    from app import overture
+
+    def blocked(*args):
+        raise RuntimeError("Tests don't read Overture online; replace fetch_places / fetch_nearby.")
+    monkeypatch.setattr(overture, "_read_area", blocked)
+    monkeypatch.setattr(overture, "fetch_nearby", lambda zip_code: [])

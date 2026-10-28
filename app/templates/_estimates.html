@@ -1,0 +1,13 @@
+{# Counts beside each business type on the picker. While the ZIPs are being read, this checks back every 5 seconds. #}
+{% if counts is none %}
+<p class="text-xs text-slate-500" hx-get="/setup/estimates?zips={{ zips|urlencode }}" hx-trigger="load delay:5s" hx-swap="outerHTML">
+  ⏳ Counting businesses in your area… the first time takes a minute or two. You can keep going.</p>
+{% elif counts %}
+<p class="text-xs text-slate-500">Numbers beside each type: businesses with a phone or website in your ZIP code{{ "s" if "," in zips }}
+  {%- if more_zips %} (your first {{ max_zips }}){% endif %}, plus more within a few miles. When a ZIP has few, searches add the
+  closest nearby ones.</p>
+<script>
+  window.indCounts = {{ counts|tojson }};
+  if (window.applyIndCounts) window.applyIndCounts();
+</script>
+{% endif %}

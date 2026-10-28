@@ -63,6 +63,7 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
                 stats = overture.search_and_save(db, account_id, z, ind)
                 run.searches += 1
                 run.added += stats["added"]
+            db.commit()  # keep the counts even if a later step fails and rolls back
             try:
                 gmail.check_account(db, account_id)
             except Exception:  # a Gmail hiccup shouldn't stop the lead search

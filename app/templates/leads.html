@@ -107,7 +107,7 @@
           {% if reason_counts.get(l.id) %}<span class="ml-1 inline-block rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs" title="Reasons to reach out: open the lead">🔔 {{ reason_counts[l.id] }}</span>{% endif %}
           {% if l.last_emailed_at %}<span class="ml-1 inline-block rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs" title="Latest email to/from {{ l.emailed_domain }}">Emailed · {{ l.last_emailed_at.astimezone().strftime("%b %-d") }}</span>{% endif %}</td>
         <td class="p-3">{{ l.industry }}</td>
-        <td class="p-3">{{ l.zip_code }}</td>
+        <td class="p-3">{{ l.zip_code }}{% if l.nearby %}<br><span class="text-xs rounded bg-purple-50 text-purple-800 px-1.5 py-0.5 whitespace-nowrap" title="{{ l.nearby }}">Nearby</span>{% endif %}</td>
         <td class="p-3 whitespace-nowrap">{% if l.rating %}★ {{ l.rating }} <span class="text-slate-400">({{ l.review_count }})</span>{% endif %}</td>
         <td class="p-3">{% with s = l.status %}{% include "_badge.html" %}{% endwith %}
           {% if l.close_status %}<span class="block text-xs text-emerald-700 mt-0.5">Close: {{ l.close_status }}</span>{% endif %}</td>

@@ -922,6 +922,16 @@ def setup_suggest(request: Request, description: str = Form(""), zips: str = For
         "zip_count": zip_count, "note": note, "max_pick": plans.plan_for(db, account).get("max_industries")})
 
 
+@app.get("/setup/estimates")
+def setup_estimates(request: Request, zips: str = Query(""), account=Depends(current_account)):
+    """How many businesses each type has in these ZIPs (and nearby), for the counts beside the types."""
+    zip_list = [z for z in clean_list(zips) if z.isdigit() and len(z) == 5]
+    counts = overture.estimates(zip_list, catalog.ALL) if zip_list else {}
+    return templates.TemplateResponse(request, "_estimates.html", {
+        "counts": counts, "zips": ", ".join(zip_list), "more_zips": len(zip_list) > overture.ESTIMATE_ZIPS,
+        "max_zips": overture.ESTIMATE_ZIPS})
+
+
 @app.post("/setup")
 def setup_save(request: Request, description: str = Form(""), zips: str = Form(""), industries: list[str] = Form(default=[]),
                company: str = Form(""), db: Session = Depends(get_session), account=Depends(current_account)):
