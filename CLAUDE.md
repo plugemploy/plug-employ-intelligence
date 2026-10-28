@@ -85,4 +85,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   (main.subscribe_popup_at; "Maybe later" hides it a day). /signup still gives the 30-day Beta.
 - Free search tracker + legal pages (2026-10-28): /beta shows /try sign-ups (signup_offer, offer_seen_at,
   checkout_started_at) apart from testers. /privacy and /terms are DRAFTS for the attorney; CONTACT_EMAIL env shows there.
-- Next: Stripe (after attorney/LLC), domain, territory lock, Google verification, per-account Close status mapping.
+- Live (2026-10-28): Stripe on the LIVE key (restricted rk_live_, "Full access except sensitive operations", account
+  East TN Publication LLC); billing.sync unlinks subscriptions Stripe doesn't know. Google sign-in published (In production;
+  Gmail scopes still unverified). CONTACT_EMAIL=admin@plugemploy.com. Email campaign link: /try.
+- Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.
