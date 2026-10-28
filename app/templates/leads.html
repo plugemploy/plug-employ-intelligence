@@ -75,7 +75,7 @@
 <div class="mb-2 flex flex-wrap gap-2 items-center">
   <form id="close-pick" method="post" action="/close/send-selected" class="flex flex-wrap items-center gap-1"
         onsubmit="const b = document.getElementById('close-send'); b.disabled = true; b.textContent = 'Sending… (up to a few minutes)'">
-    <span class="text-sm">Tick the leads for your VA, or</span>
+    <span class="text-sm">Tick the leads for your VA (☑ above the list selects all), or</span>
     <button type="button" id="close-top" class="rounded border px-2 py-0.5 text-sm hover:bg-slate-50">select the top</button>
     <select id="close-top-n" aria-label="How many top leads to select" class="border rounded px-1 py-0.5 text-sm">
       <option>20</option><option>50</option><option>100</option></select>
@@ -97,7 +97,7 @@
 <div class="bg-white rounded-xl shadow overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-100 text-left text-slate-600">
-      <tr>{% if has_close %}<th class="p-3" title="Pick leads to send to Close">📞</th>{% endif %}<th class="p-3">Score</th><th class="p-3">Business</th><th class="p-3">Industry</th><th class="p-3">ZIP</th><th class="p-3">Rating</th>
+      <tr>{% if has_close %}<th class="p-3"><input type="checkbox" id="close-all" title="Select all leads that can go to Close" aria-label="Select all leads for Close"></th>{% endif %}<th class="p-3">Score</th><th class="p-3">Business</th><th class="p-3">Industry</th><th class="p-3">ZIP</th><th class="p-3">Rating</th>
           <th class="p-3">Status</th><th class="p-3">Next follow-up</th><th class="p-3">Last note</th><th class="p-3">Added</th></tr>
     </thead>
     <tbody>
@@ -133,11 +133,15 @@
   <script>
     (function () {  // pick leads for Close: tick by hand, or select the top N by score and untick the ones to skip
       const boxes = () => [...document.querySelectorAll(".close-box")];
+      const all = document.getElementById("close-all");
       const count = () => {
         const n = boxes().filter(b => b.checked).length;
         document.getElementById("close-n").textContent = n;
         document.getElementById("close-send").disabled = !n;
+        all.checked = n > 0 && n === boxes().length;
+        all.indeterminate = n > 0 && n < boxes().length;  // some ticked: a dash in the box
       };
+      all.addEventListener("change", () => { boxes().forEach(b => b.checked = all.checked); count(); });
       document.getElementById("close-top").addEventListener("click", () => {
         const n = +document.getElementById("close-top-n").value;
         boxes().forEach(b => b.checked = false);

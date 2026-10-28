@@ -92,7 +92,7 @@ def test_pages_show_close(ids, monkeypatch):
     c = TestClient(app)
     login_as(c, ids)
     page = c.get("/leads").text
-    assert "select the top" in page and page.count('class="close-box"') == 2  # Top Spa, Known Dental; not No Phone / Won
+    assert "select the top" in page and 'id="close-all"' in page and page.count('class="close-box"') == 2  # Top Spa, Known Dental; not No Phone / Won
     assert "send new leads scored 9+ to Close" in c.get("/nightly").text
 
 
