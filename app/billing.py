@@ -13,7 +13,7 @@ from app.config import APP_BASE_URL, STRIPE_SECRET_KEY
 from app.models import Account, Organization
 from app.plans import PLANS
 
-SELLABLE = ("personal", "pro", "premium")
+SELLABLE = ("pro",)
 PRODUCT_NAME = "Plug Employ Intelligence"
 ACTIVE_STATUSES = ("trialing", "active", "past_due")  # past_due: Stripe is retrying the card
 _price_ids: dict[str, str] = {}
@@ -29,7 +29,7 @@ def client() -> stripe.StripeClient:
 
 
 def lookup_key(tier: str) -> str:
-    return f"pei_{tier}_monthly"
+    return f"pei_{tier}_{PLANS[tier]['price']}_monthly"  # a new price gets a new Stripe price
 
 
 def price_ids(sc) -> dict[str, str]:
@@ -37,8 +37,9 @@ def price_ids(sc) -> dict[str, str]:
     if len(_price_ids) == len(SELLABLE):
         return _price_ids
     found = sc.v1.prices.list(params={"lookup_keys": [lookup_key(t) for t in SELLABLE], "limit": 10})
+    by_key = {lookup_key(t): t for t in SELLABLE}
     for p in found.data:
-        _price_ids[p.lookup_key.removeprefix("pei_").removesuffix("_monthly")] = p.id
+        _price_ids[by_key[p.lookup_key]] = p.id
     for tier in SELLABLE:
         if tier not in _price_ids:
             plan = PLANS[tier]

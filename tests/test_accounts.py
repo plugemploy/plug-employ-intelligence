@@ -188,7 +188,7 @@ def test_beta_survey_due_saved_and_reported():
     assert "survey_later" in later.headers.get("set-cookie", "")
     c_old.cookies.clear()
     login_as(c_old, old_id)
-    r = c_old.post("/survey", data={"would_pay": "pro", "recommend": "9", "hours_saved": "3.5",
+    r = c_old.post("/survey", data={"would_pay": "yes", "recommend": "9", "hours_saved": "3.5",
                                     "quote": "Booked 4 appointments my first week.", "quote_ok": "1", "next": "/dashboard"},
                    follow_redirects=False)
     assert r.headers["location"].startswith("/dashboard?msg=")
@@ -197,7 +197,7 @@ def test_beta_survey_due_saved_and_reported():
     login_as(owner, mine)
     html = owner.get("/beta").text
     assert "Booked 4 appointments my first week." in html and "OK to quote" in html
-    assert "Yes, Pro ($149)" in html and "Recommend 9/10" in html
+    assert "Yes, at $49/month" in html and "Recommend 9/10" in html
     line = [l for l in owner.get("/beta.csv").text.splitlines() if l.startswith("Test: Day 26 Co")][0]
-    assert line.endswith(',1,0,"Yes, Pro ($149)",9,3.5,Booked 4 appointments my first week.,yes')  # found only here, feedback, survey
+    assert line.endswith(',1,0,"Yes, at $49/month",9,3.5,Booked 4 appointments my first week.,yes')  # found only here, feedback, survey
     assert "<b>1</b> of your 1 sale" in c_old.get("/results").text

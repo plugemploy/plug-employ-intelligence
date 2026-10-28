@@ -138,7 +138,8 @@ def test_premium_territory_limits_and_unlimited_meter(acct):
 
 def test_every_plan_keeps_77_percent():
     # Worst case: the whole allowance used, plus card fees (3.6% + $0.30) and ~$2.50 hosting.
-    for tier in ("personal", "pro", "premium"):
+    from app.billing import SELLABLE
+    for tier in ("personal", "premium", *SELLABLE):
         p = plans.PLANS[tier]
         kept = p["price"] - p["allowance_usd"] - (p["price"] * 0.036 + 0.30) - 2.50
         assert kept / p["price"] >= 0.77, tier

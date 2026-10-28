@@ -16,20 +16,21 @@ from app.models import Account, Organization
 # searches: ZIP x business-type searches a month (None = no count). allowance_usd: a cap on the Claude cost
 # (scoring, drafts) each month, as a safety net. nightly_max: most searches per night.
 # email: Gmail features (Emailed tags, quiet follow-ups, drafts, Monday digest). close: Close CRM connection.
-# max_zips / max_industries: territory size. On Premium these make searches "unlimited": every ZIP +
-# business type is searched once a month, and 20 x 70 = 1,400 searches (~$55) still keeps a 77% margin at $299.
+# max_zips / max_industries: territory size ("unlimited" searches within it).
+# Since 2026-10-28 one plan is sold: "pro", $49/month with everything. Its $6.50 Claude cap keeps a 77% margin
+# at full use (640 searches x ~$0.006 = ~$3.84, the rest covers drafts, reasons to reach out and re-scores).
 PLANS = {
     "beta": {"label": "Beta", "price": 0, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True},
+    "pro": {"label": "Plug Employ", "price": 49, "searches": 640, "allowance_usd": 6.5, "nightly_max": 30, "email": True, "close": True},
+    # Earlier plans, kept for companies already on them. Not offered on the Billing page.
     "personal": {"label": "Standard", "price": 99, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": False, "close": False},
-    "pro": {"label": "Pro", "price": 149, "searches": 640, "allowance_usd": 25.0, "nightly_max": 30, "email": True, "close": True},
     "premium": {"label": "Premium", "price": 299, "searches": 1400, "allowance_usd": 55.0, "nightly_max": 50, "email": True, "close": True,
                 "max_zips": 20, "max_industries": 70, "unlimited": True},
-    # Earlier plans, kept for companies already on them. Not offered on the Billing page.
     "founding": {"label": "Founding member", "price": 79, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True},
     "wholesale": {"label": "Wholesale (per publisher)", "price": 60, "searches": 256, "allowance_usd": 10.0, "nightly_max": 20, "email": True, "close": True},
     "owner": {"label": "Owner", "price": 0, "searches": None, "allowance_usd": None, "nightly_max": 100, "email": True, "close": True},  # only the .env cap applies
 }
-EMAIL_PLAN_MSG = "Gmail features are included in the Pro plan. Upgrade on the Billing page."
+EMAIL_PLAN_MSG = "Gmail features are included in the $49 Plug Employ plan. Switch on the Billing page."
 TRIAL_DAYS = 30  # a company that hasn't subscribed gets this long, then searches pause
 # Searches come from Overture's free open data; what a search costs is Claude scoring the leads it adds.
 SCORING_COST_PER_SEARCH = 0.006  # measured ~$0.004 for Google's 20 results; Overture adds up to 30

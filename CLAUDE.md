@@ -77,4 +77,6 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Client import (2026-10-25): /clients/import (My business link; owner can import for any account from /beta).
   CSV with flexible headings (app/client_import.py); rows marked Sold (existing lead matched via find_duplicate,
   else added) with MRR/months/fee/start date + renewal; Lead.source="import" is excluded from results metrics.
+- One $49 plan (2026-10-28): billing.SELLABLE = ("pro",), label "Plug Employ", everything included, $6.50 Claude cap;
+  Stripe price lookup key includes the price (pei_pro_49_monthly). Survey asks "Yes, at $49/month".
 - Next: Stripe (after attorney/LLC), domain, territory lock, Google verification, per-account Close status mapping.

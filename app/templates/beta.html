@@ -52,7 +52,7 @@
       <td class="p-3">${{ "{:,.0f}".format(r.mrr) }}</td><td class="p-3">${{ "{:,.0f}".format(r.contract_value) }}</td>
       <td class="p-3">${{ "{:,.0f}".format(r.ad_fees) }}</td>
       <td class="p-3">{{ r.found_only }}</td>
-      <td class="p-3 text-xs">{% if r.survey %}{{ would_pay.get(r.survey.would_pay, "") }}<br>Recommend {{ r.survey.recommend }}/10
+      <td class="p-3 text-xs">{% if r.survey %}{{ would_pay_labels.get(r.survey.would_pay, "") }}<br>Recommend {{ r.survey.recommend }}/10
         {% else %}<span class="text-slate-400">not yet</span>{% endif %}</td>
       <td class="p-3">{% if r.feedback %}<a href="/feedback" class="text-blue-700 hover:underline">{{ r.feedback }}</a>{% else %}0{% endif %}</td></tr>
     {% else %}<tr><td colspan="14" class="p-6 text-center text-slate-500">No testers have signed up yet.</td></tr>{% endfor %}</tbody>

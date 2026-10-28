@@ -63,13 +63,11 @@ The prototype runs locally on a Mac and must later move to cloud hosting.
 
 ### Plans and pricing
 - Leads come from Overture Maps' open data (free, storable). A search costs only Claude scoring (~$0.006). Plans count searches.
-- Standard: $99/month, $15 allowance (~380 searches), up to 20 nightly searches. **No Gmail features.**
-- Pro: $149/month, $25 (~640 searches), up to 30 nightly searches, Gmail features (Emailed tags,
-  quiet follow-ups, drafts, Monday digest).
-- Premium: $299/month, "unlimited searches across up to 20 ZIP codes and 70 business types": each
-  ZIP + type is searched at most once a month (31-day repeat rule), so the worst case is 1,400 searches
-  (~$55, the allowance). Up to 50 nightly searches, Gmail.
-- Every paid plan keeps at least 77% after card fees and ~$2.50 hosting at full use (checked by a test).
+- One plan since 2026-10-28: **$49/month** ("Plug Employ", tier key `pro`), everything included: 640 searches a
+  month, up to 30 nightly searches, Gmail features, Close. Claude cost capped at $6.50/month, so at full use it
+  keeps at least 77% after card fees and ~$2.50 hosting (checked by a test). Typical use is ~$4.
+- Earlier Standard ($99, no Gmail) and Premium ($299, unlimited within 20 ZIPs x 70 types) stay in the code for any
+  company already on them but aren't sold.
 - Beta: new sign-ups get everything free for 30 days, no card; then searches pause until they pick a plan.
 - Earlier Founding ($79) and Wholesale ($60/publisher) plans stay in the code for existing companies but aren't sold.
 - Each company has its own limit; the `.env` `MONTHLY_API_BUDGET_USD` applies only to the owner account.

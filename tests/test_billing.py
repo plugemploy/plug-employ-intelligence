@@ -84,19 +84,19 @@ def client(uid):
 def test_pro_checkout_and_return(org):
     c = client(org["user"])
     page = c.get("/billing").text
-    assert "Choose Standard" in page and "Choose Pro" in page and "Choose Premium" in page and "Choose Beta" not in page
-    assert "Unlimited searches" in page
+    assert "Choose Plug Employ" in page and "$49" in page
+    assert "Choose Standard" not in page and "Choose Premium" not in page and "Choose Beta" not in page
     r = c.post("/billing/checkout", data={"tier": "pro"}, follow_redirects=False)
     assert r.headers["location"] == "https://checkout.stripe.test/s1"
     fake = org["fake"]
-    assert ("price", "pei_pro_monthly", 14900) in fake.created and ("price", "pei_personal_monthly", 9900) in fake.created
+    assert [c for c in fake.created if c[0] == "price"] == [("price", "pei_pro_49_monthly", 4900)]
     assert "trial_period_days" not in fake.checkout["subscription_data"]
     assert fake.checkout["customer_email"] == "boss@billing.test"
-    assert "subscribed to the Pro plan" in c.get("/billing/return?session_id=cs_1").text
+    assert "subscribed to the Plug Employ plan" in c.get("/billing/return?session_id=cs_1").text
     with Session(engine) as db:
         o = db.get(Organization, org["org"])
         assert (o.plan_tier, o.plan, o.billing_status, o.stripe_customer_id) == ("pro", "active", "trialing", "cus_1")
-        assert plans.monthly_limit(db, db.get(Account, org["acct"])) == 25.0
+        assert plans.monthly_limit(db, db.get(Account, org["acct"])) == 6.5
 
 
 def test_old_plans_not_for_sale(org):
@@ -139,13 +139,13 @@ def test_standard_plan_has_no_gmail(org, monkeypatch):
         db.commit()
         assert not plans.has_email(db, a)
         assert gmail.check_account(db, a.id) == {"checked": 0, "emailed": 0, "follow_ups": 0}
-        with pytest.raises(ValueError, match="Pro plan"):
+        with pytest.raises(ValueError, match="Plug Employ plan"):
             outreach.draft_for_lead(db, a, lead)
         lead_id = lead.id
     c = TestClient(app, follow_redirects=False)
     c.cookies.set(auth.SESSION_COOKIE, auth.make_session(org["user"]))
     assert "included in the" in c.get("/business").text
-    assert "Pro%20plan" in c.get("/gmail/connect?agree=1").headers["location"]
+    assert "Plug%20Employ%20plan" in c.get("/gmail/connect?agree=1").headers["location"]
     assert "Draft an email" not in c.get(f"/leads/{lead_id}").text
     c.post("/nightly", data={"enabled": "1", "run_hour": "2", "searches_per_night": "100"})
     with Session(engine) as db:
@@ -154,7 +154,7 @@ def test_standard_plan_has_no_gmail(org, monkeypatch):
 
 def test_cancelled_subscription_pauses_searches(org):
     c = client(org["user"])
-    c.post("/billing/checkout", data={"tier": "personal"}, follow_redirects=False)
+    c.post("/billing/checkout", data={"tier": "pro"}, follow_redirects=False)
     c.get("/billing/return?session_id=cs_1")
     org["fake"].status = "canceled"
     with Session(engine) as db:

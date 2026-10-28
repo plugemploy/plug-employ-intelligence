@@ -322,8 +322,9 @@ class SearchJob(Base):
         return sum(r.get("added", 0) for r in self.result_list)
 
 
-WOULD_PAY = {"personal": "Yes, Standard ($99)", "pro": "Yes, Pro ($149)", "premium": "Yes, Premium ($299)",
-             "unsure": "Not sure yet", "no": "No"}
+WOULD_PAY = {"yes": "Yes, at $49/month", "unsure": "Not sure yet", "no": "No"}  # asked in the survey
+# Answers saved when the survey offered three plans; still shown on Beta results.
+WOULD_PAY_OLD = {"personal": "Yes, Standard ($99)", "pro": "Yes, Pro ($149)", "premium": "Yes, Premium ($299)"}
 
 
 class BetaSurvey(Base):

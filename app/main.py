@@ -21,7 +21,7 @@ from app import setup as setup_mod
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY, APP_BASE_URL, COOKIE_SECURE
 from app.dedupe import find_duplicate
-from app.models import OUTCOMES, STATUSES, WOULD_PAY, Account, BetaSurvey, Feedback, FollowUp, Lead, LeadNote, LeadSignal, NightlyRun, Organization, SearchJob, User, WatchedPage
+from app.models import OUTCOMES, STATUSES, WOULD_PAY, WOULD_PAY_OLD, Account, BetaSurvey, Feedback, FollowUp, Lead, LeadNote, LeadSignal, NightlyRun, Organization, SearchJob, User, WatchedPage
 
 INDUSTRIES = places.INDUSTRIES
 
@@ -66,7 +66,7 @@ def render(request, name, db, account, **ctx):
         request, name,
         {"account": account, "accounts": accounts, "user": user, "org": org, "statuses": STATUSES,
          "today": date.today(), "search_job": job, "show_costs": show_costs, "survey_due": survey_due,
-         "would_pay": WOULD_PAY, **ctx},
+         "would_pay": WOULD_PAY, "would_pay_labels": {**WOULD_PAY_OLD, **WOULD_PAY}, **ctx},
     )
 
 
@@ -519,7 +519,7 @@ def close_connect(api_key: str = Form(""), db: Session = Depends(get_session), a
     if account is None:
         raise HTTPException(400, "Create an account first")
     if not plans.has_close(db, account):
-        return back_to_business("The Close CRM connection is included in the Pro plan. Upgrade on the Billing page.")
+        return back_to_business("The Close CRM connection is included in the $49 Plug Employ plan. Switch on the Billing page.")
     try:
         org_name = close_crm.connect(db, account, api_key)
     except ValueError as exc:
@@ -1184,7 +1184,7 @@ def beta_rows(db: Session) -> list[dict]:
 def survey_cells(s: BetaSurvey | None) -> list:
     if s is None:
         return ["", "", "", "", ""]
-    return [WOULD_PAY.get(s.would_pay, ""), "" if s.recommend is None else s.recommend,
+    return [{**WOULD_PAY_OLD, **WOULD_PAY}.get(s.would_pay, ""), "" if s.recommend is None else s.recommend,
             "" if s.hours_saved is None else float(s.hours_saved), s.quote, "yes" if s.quote_ok else "no"]
 
 
@@ -1202,7 +1202,7 @@ def beta_results(request: Request, db: Session = Depends(get_session), user: Use
     scores = [s.recommend for s in answered if s.recommend is not None]
     hours = [float(s.hours_saved) for s in answered if s.hours_saved is not None]
     survey = dict(answered=len(answered), avg_recommend=round(sum(scores) / len(scores), 1) if scores else None,
-                  would_pay=sum(1 for s in answered if s.would_pay in ("personal", "pro", "premium")),
+                  would_pay=sum(1 for s in answered if s.would_pay in ("personal", "pro", "premium", "yes")),
                   avg_hours=round(sum(hours) / len(hours), 1) if hours else None,
                   quotes=[(r["org"].name, r["survey"]) for r in rows if r["survey"] and r["survey"].quote])
     return render(request, "beta.html", db, None, rows=rows, totals=results.total(rows) if rows else None, survey=survey,
