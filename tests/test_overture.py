@@ -95,6 +95,16 @@ def test_type_matching_uses_names_only_when_category_is_vague():
                             overture_types.name_pattern(words))
 
 
+def test_short_name_words_also_match_longer_forms():
+    # "roof" must stand alone, so "Roofing" needs its own word (a roofer listed only as a general contractor)
+    for kind, name in [("Roofing", "Sample Roofing Co"), ("Brewery", "Sample Brewing Co"), ("Bike shop", "Sample Cycles"),
+                       ("Bowling alley", "Sample Bowling Lanes"), ("Swim school", "Sample Swimming Academy")]:
+        cats, words = overture_types.matcher(kind)
+        assert overture.matches(place("r", name, category="contractor", basic="home_service"), cats,
+                                overture_types.name_pattern(words)), kind
+        assert overture.matches(place("n", name, category=None, basic=None), cats, overture_types.name_pattern(words)), kind
+
+
 def test_zip_box_covers_the_zip():
     west, east, south, north = overture.zip_box("37934")
     assert west < -84.18 < east and south < 35.876 < north
