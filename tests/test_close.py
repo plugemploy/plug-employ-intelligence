@@ -91,8 +91,32 @@ def test_pages_show_close(ids, monkeypatch):
     monkeypatch.setattr(close_crm, "enabled_for", lambda db, a: True)
     c = TestClient(app)
     login_as(c, ids)
-    assert "How many leads to send" in c.get("/leads").text
+    page = c.get("/leads").text
+    assert "select the top" in page and page.count('class="close-box"') == 2  # Top Spa, Known Dental; not No Phone / Won
     assert "send new leads scored 9+ to Close" in c.get("/nightly").text
+
+
+def test_send_only_the_ticked_leads(ids, monkeypatch):
+    fake = FakeClose(existing=[])
+    monkeypatch.setattr(close_crm, "enabled_for", lambda db, a: True)
+    monkeypatch.setattr(close_crm, "client_for", lambda db, a: fake)
+    with Session(engine) as db:
+        by_name = {l.business_name: l.id for l in db.scalars(select(Lead).where(Lead.account_id == ids))}
+        other = Account(name="Test: Close Other")
+        db.add(other)
+        db.flush()
+        theirs = Lead(account_id=other.id, business_name="Someone Else's", phone="865-555-0199", score=9)
+        db.add(theirs)
+        db.commit()
+        theirs_id = theirs.id
+    c = TestClient(app)
+    login_as(c, ids)
+    r = c.post("/close/send-selected", data={"lead_ids": [by_name["Known Dental"], by_name["No Phone"], by_name["Won Already"],
+                                                          theirs_id]}, follow_redirects=False)
+    assert "Sent%201%20leads" in r.headers["location"]
+    assert [b["name"] for b in fake.created] == ["Known Dental"]  # Top Spa wasn't ticked; the others can't be sent
+    assert "Tick%20the%20leads" in c.post("/close/send-selected", data={}, follow_redirects=False).headers["location"]
+    assert 'title="Already in Close"' in c.get("/leads").text
 
 
 class FakeMe(FakeClose):

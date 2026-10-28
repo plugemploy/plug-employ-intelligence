@@ -34,6 +34,7 @@ async def lifespan(app):
 
 app = FastAPI(title="Plug Employ Intelligence", lifespan=lifespan)
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+templates.env.globals["close_sendable"] = close_crm.sendable
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
@@ -574,6 +575,25 @@ def close_send_top(count: int = Form(close_crm.TOP_N), db: Session = Depends(get
     count = count if count in close_crm.SEND_SIZES else close_crm.TOP_N
     try:
         s = close_crm.send_leads(db, close_crm.top_unsent(db, account.id, limit=count), close_crm.client_for(db, account))
+    except Exception as exc:
+        return back_to_leads(f"Close error: {str(exc).splitlines()[0]}")
+    return back_to_leads(f"Sent {s['sent']} leads to Close as Potential. {s['already_in_close']} were already in Close."
+                         + (f" {s['failed']} failed." if s["failed"] else ""))
+
+
+@app.post("/close/send-selected")
+def close_send_selected(lead_ids: list[int] = Form(default=[]), db: Session = Depends(get_session),
+                        account=Depends(current_account)):
+    """Send the leads someone ticked on the leads page (theirs, not yet in Close, with a phone)."""
+    if not close_crm.enabled_for(db, account):
+        return back_to_leads("Close isn't connected for this account.")
+    leads = db.scalars(select(Lead).where(Lead.account_id == account.id, Lead.id.in_(lead_ids or [0]))
+                       .order_by(Lead.score.desc().nulls_last())).all()
+    leads = [l for l in leads if close_crm.sendable(l)]
+    if not leads:
+        return back_to_leads("Tick the leads you want to send to Close first.")
+    try:
+        s = close_crm.send_leads(db, leads, close_crm.client_for(db, account))
     except Exception as exc:
         return back_to_leads(f"Close error: {str(exc).splitlines()[0]}")
     return back_to_leads(f"Sent {s['sent']} leads to Close as Potential. {s['already_in_close']} were already in Close."

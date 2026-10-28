@@ -73,11 +73,15 @@
 {% endif %}
 {% if has_close %}
 <div class="mb-2 flex flex-wrap gap-2 items-center">
-  <form method="post" action="/close/send-top" class="flex items-center gap-1" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Sending… (up to a few minutes)'">
-    <button class="rounded bg-emerald-700 text-white px-3 py-1 text-sm">📞 Send top</button>
-    <select name="count" aria-label="How many leads to send" class="border rounded px-1 py-0.5 text-sm">
-      <option value="20">20</option><option value="50">50</option><option value="100">100</option></select>
-    <span class="text-sm">to Close</span></form>
+  <form id="close-pick" method="post" action="/close/send-selected" class="flex flex-wrap items-center gap-1"
+        onsubmit="const b = document.getElementById('close-send'); b.disabled = true; b.textContent = 'Sending… (up to a few minutes)'">
+    <span class="text-sm">Tick the leads for your VA, or</span>
+    <button type="button" id="close-top" class="rounded border px-2 py-0.5 text-sm hover:bg-slate-50">select the top</button>
+    <select id="close-top-n" aria-label="How many top leads to select" class="border rounded px-1 py-0.5 text-sm">
+      <option>20</option><option>50</option><option>100</option></select>
+    <button type="button" id="close-clear" class="text-sm text-slate-500 hover:underline">clear</button>
+    <button id="close-send" disabled class="rounded bg-emerald-700 text-white px-3 py-1 text-sm disabled:opacity-50">📞 Send <b id="close-n">0</b> to Close</button>
+  </form>
   <form method="post" action="/close/sync" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Syncing…'">
     <button class="rounded border px-3 py-1 text-sm hover:bg-slate-50">↻ Sync from Close</button></form>
   <span class="text-xs text-slate-500">Your VA calls from Close; statuses come back here each night.</span>
@@ -93,13 +97,17 @@
 <div class="bg-white rounded-xl shadow overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-100 text-left text-slate-600">
-      <tr><th class="p-3">Score</th><th class="p-3">Business</th><th class="p-3">Industry</th><th class="p-3">ZIP</th><th class="p-3">Rating</th>
+      <tr>{% if has_close %}<th class="p-3" title="Pick leads to send to Close">📞</th>{% endif %}<th class="p-3">Score</th><th class="p-3">Business</th><th class="p-3">Industry</th><th class="p-3">ZIP</th><th class="p-3">Rating</th>
           <th class="p-3">Status</th><th class="p-3">Next follow-up</th><th class="p-3">Last note</th><th class="p-3">Added</th></tr>
     </thead>
     <tbody>
     {% for l in leads %}
       {% set fu = l.next_follow_up %}
       <tr class="border-t hover:bg-slate-50">
+        {% if has_close %}<td class="p-3">{% if l.close_lead_id %}<span class="text-xs text-emerald-700" title="Already in Close">✓</span>
+          {% elif close_sendable(l) %}<input type="checkbox" name="lead_ids" value="{{ l.id }}" form="close-pick" data-score="{{ l.score or 0 }}"
+            class="close-box" aria-label="Send {{ l.business_name }} to Close">
+          {% else %}<input type="checkbox" disabled title="{{ 'No phone number' if not l.phone else 'Already closed out' }}">{% endif %}</td>{% endif %}
         <td class="p-3" title="{{ l.score_reason }}">{% if l.score %}<span class="inline-block w-8 text-center rounded font-bold
           {{ 'bg-green-100 text-green-800' if l.score >= 8 else 'bg-amber-100 text-amber-800' if l.score >= 5 else 'bg-slate-100 text-slate-600' }}">{{ l.score }}</span>{% endif %}</td>
         <td class="p-3"><a href="/leads/{{ l.id }}" class="font-medium text-blue-700 hover:underline">{{ l.business_name }}</a>
@@ -117,10 +125,31 @@
         <td class="p-3 text-slate-500 whitespace-nowrap">{{ l.created_at.astimezone().strftime("%b %-d") }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="9" class="p-6 text-center text-slate-500">No leads match.</td></tr>
+      <tr><td colspan="{{ 10 if has_close else 9 }}" class="p-6 text-center text-slate-500">No leads match.</td></tr>
     {% endfor %}
     </tbody>
   </table>
+  {% if has_close %}
+  <script>
+    (function () {  // pick leads for Close: tick by hand, or select the top N by score and untick the ones to skip
+      const boxes = () => [...document.querySelectorAll(".close-box")];
+      const count = () => {
+        const n = boxes().filter(b => b.checked).length;
+        document.getElementById("close-n").textContent = n;
+        document.getElementById("close-send").disabled = !n;
+      };
+      document.getElementById("close-top").addEventListener("click", () => {
+        const n = +document.getElementById("close-top-n").value;
+        boxes().forEach(b => b.checked = false);
+        boxes().sort((a, b) => b.dataset.score - a.dataset.score).slice(0, n).forEach(b => b.checked = true);
+        count();
+      });
+      document.getElementById("close-clear").addEventListener("click", () => { boxes().forEach(b => b.checked = false); count(); });
+      document.addEventListener("change", e => { if (e.target.classList.contains("close-box")) count(); });
+      count();
+    })();
+  </script>
+  {% endif %}
   {% if subscribe_banner %}
   <div class="relative mt-4 rounded-xl overflow-hidden border">
     <div class="blur-sm select-none pointer-events-none" aria-hidden="true">

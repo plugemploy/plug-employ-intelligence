@@ -199,6 +199,11 @@ def send_leads(db: Session, leads: list[Lead], client: CloseClient) -> dict:
     return stats
 
 
+def sendable(lead: Lead) -> bool:
+    """Can this lead go to Close: not there yet, still open, and has a phone for the VA to call."""
+    return not lead.deleted_at and not lead.close_lead_id and lead.status not in OUTCOMES and bool(lead.phone)
+
+
 def top_unsent(db: Session, account_id: int, min_score: int = 0, limit: int = TOP_N) -> list[Lead]:
     return db.scalars(select(Lead).where(
         Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.close_lead_id == "", Lead.status.not_in(OUTCOMES),

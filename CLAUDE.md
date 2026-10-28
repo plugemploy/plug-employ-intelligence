@@ -100,4 +100,6 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   "N more <type> leads near you and M other local businesses" (GET /offer/teaser, overture.waiting; polls while the
   area is read). Pop-up payback line ($300/mo x 12 vs price) and a 30-day money-back guarantee (pop-up, banner,
   Billing, terms draft). Refunds are done by hand in Stripe.
+- Pick leads for Close (2026-10-28): leads list has a 📞 checkbox column when Close is on; "select the top 20/50/100"
+  ticks the highest scores, untick to skip, POST /close/send-selected (close_crm.sendable: not in Close, open, has phone).
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.
