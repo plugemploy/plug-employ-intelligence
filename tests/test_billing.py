@@ -202,6 +202,14 @@ def test_free_search_is_one_search_ever_then_offer(org):
         db.commit()
     setup_page = c.get("/setup").text
     assert "one ZIP code" in setup_page and "Suggest from my description" not in setup_page
+    assert "maxPick = 1" in setup_page and "of 1 selected" in setup_page and "Select all" not in setup_page
+    # two business types: an error, but the description and ZIP aren't lost
+    r = c.post("/setup", data={"description": "Test: wedding mag", "zips": "37934", "industries": ["Florist", "Bakery"]},
+               follow_redirects=False)
+    assert "1%20business%20type" in r.headers["location"]
+    with Session(engine) as db:
+        a = db.get(Account, org["acct"])
+        assert (a.business_description, a.zip_list) == ("Test: wedding mag", ["37934"])
     assert "Run my free search" in c.get("/setup/first").text
     assert "subscribe-modal" not in c.get("/leads?sort=score").text  # no search yet
     with Session(engine) as db:

@@ -68,6 +68,7 @@ def render(request, name, db, account, **ctx):
         {"account": account, "accounts": accounts, "user": user, "org": org, "statuses": STATUSES,
          "today": date.today(), "search_job": job, "show_costs": show_costs, "survey_due": survey_due,
          "subscribe_at": subscribe_at, "pro": plans.PLANS["pro"],
+         "max_pick": plans.plan_for(db, account).get("max_industries") if account else None,  # industry picker limit
          "would_pay": WOULD_PAY, "would_pay_labels": {**WOULD_PAY_OLD, **WOULD_PAY}, **ctx},
     )
 
@@ -915,7 +916,7 @@ def setup_suggest(request: Request, description: str = Form(""), zips: str = For
     zip_count = len([z for z in clean_list(zips) if z.isdigit() and len(z) == 5]) or len(account.zip_list)
     return templates.TemplateResponse(request, "_industry_picker.html", {
         "categories": catalog.CATEGORIES, "all_catalog": catalog.ALL, "selected": selected,
-        "zip_count": zip_count, "note": note})
+        "zip_count": zip_count, "note": note, "max_pick": plans.plan_for(db, account).get("max_industries")})
 
 
 @app.post("/setup")
@@ -927,11 +928,16 @@ def setup_save(request: Request, description: str = Form(""), zips: str = Form("
         db.get(Organization, account.org_id).name = company.strip()[:200]  # shows on /beta as who is using
     zip_list = [z for z in clean_list(zips) if z.isdigit() and len(z) == 5]
     inds = clean_list(",".join(industries))
-    if err := plans.territory_error(plans.plan_for(db, account), zip_list, inds):
-        return RedirectResponse(f"/setup?msg={quote(err)}", status_code=303)
-    account.business_description = description.strip()[:3000]
-    account.target_zips, account.industries = ",".join(zip_list), ",".join(inds)
+    plan = plans.plan_for(db, account)
+    account.business_description = description.strip()[:3000]  # kept even if something below is over the limit
+    zip_err, ind_err = plans.territory_error(plan, zip_list), plans.territory_error(plan, [], inds)
+    if not zip_err:
+        account.target_zips = ",".join(zip_list)
+    if not ind_err:
+        account.industries = ",".join(inds)
     db.commit()
+    if zip_err or ind_err:
+        return RedirectResponse(f"/setup?msg={quote(zip_err or ind_err)}", status_code=303)
     if not zip_list or not inds:
         return RedirectResponse(f"/setup?msg={quote('Add at least one ZIP code and one industry.')}", status_code=303)
     setup_mod.finish(db, account)

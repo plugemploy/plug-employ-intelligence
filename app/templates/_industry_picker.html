@@ -1,4 +1,5 @@
-{# Industry picker. Needs: categories (dict), selected (list), zip_count (int). Posts "industries" (many). #}
+{# Industry picker. Needs: categories (dict), selected (list), zip_count (int); optional max_pick (plan limit:
+   at the limit the other boxes grey out). Posts "industries" (many). #}
 {% set custom = selected | reject("in", all_catalog) | list %}
 <div id="ind-picker" class="grid gap-3">
   {% if note %}<p class="text-sm text-purple-800 bg-purple-50 border border-purple-200 rounded p-2">{{ note }}</p>{% endif %}
@@ -7,16 +8,18 @@
            class="border rounded px-3 py-2 text-sm w-72" autocomplete="off">
     <datalist id="ind-options">{% for n in all_catalog %}<option value="{{ n }}">{% endfor %}</datalist>
     <button type="button" id="ind-add" class="rounded border px-3 py-2 text-sm hover:bg-slate-50">Add</button>
-    <button type="button" data-all="1" class="ind-bulk text-sm text-blue-700 hover:underline">Select all</button>
+    {% if not max_pick %}<button type="button" data-all="1" class="ind-bulk text-sm text-blue-700 hover:underline">Select all</button>{% endif %}
     <button type="button" data-all="0" class="ind-bulk text-sm text-slate-500 hover:underline">Clear</button>
   </div>
-  <p class="text-xs text-slate-600"><b id="ind-count">0</b> selected · about <b id="ind-searches">0</b> searches across your ZIP codes
-    (the nightly search works through these over time).</p>
+  {% if max_pick %}<p class="text-xs text-slate-600"><b id="ind-count">0</b> of {{ max_pick }} selected{% if max_pick == 1 %}. To pick a
+    different one, untick your choice first.{% endif %}<b id="ind-searches" class="hidden">0</b></p>
+  {% else %}<p class="text-xs text-slate-600"><b id="ind-count">0</b> selected · about <b id="ind-searches">0</b> searches across your ZIP codes
+    (the nightly search works through these over time).</p>{% endif %}
   <div class="grid md:grid-cols-2 gap-3 max-h-96 overflow-y-auto border rounded p-3 bg-slate-50">
     {% for group, names in categories.items() %}
     <fieldset class="ind-group">
       <legend class="flex items-center gap-2 text-sm font-semibold">{{ group }}
-        <button type="button" class="ind-group-all text-xs font-normal text-blue-700 hover:underline">select all</button></legend>
+        {% if not max_pick %}<button type="button" class="ind-group-all text-xs font-normal text-blue-700 hover:underline">select all</button>{% endif %}</legend>
       <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm mt-1">{% for n in names %}
         <label class="ind-item flex items-center gap-1" data-name="{{ n|lower }}">
           <input type="checkbox" name="industries" value="{{ n }}" {% if n in selected %}checked{% endif %}> {{ n }}</label>{% endfor %}</div>
@@ -32,12 +35,17 @@
 </div>
 <script>
 (function () {
-  const root = document.getElementById("ind-picker"), zipCount = {{ zip_count or 1 }};
+  const root = document.getElementById("ind-picker"), zipCount = {{ zip_count or 1 }}, maxPick = {{ max_pick or 0 }};
   const boxes = () => [...root.querySelectorAll('input[name="industries"]')];
+  const full = () => maxPick && boxes().filter(b => b.checked).length >= maxPick;
   const update = () => {
     const n = boxes().filter(b => b.checked).length;
     document.getElementById("ind-count").textContent = n;
     document.getElementById("ind-searches").textContent = n * zipCount;
+    if (maxPick) boxes().forEach(b => {  // at the plan's limit, grey out the rest
+      b.disabled = !b.checked && n >= maxPick;
+      b.closest("label").classList.toggle("opacity-40", b.disabled);
+    });
   };
   const search = document.getElementById("ind-search");
   search.addEventListener("input", () => {
@@ -47,6 +55,7 @@
   const add = () => {
     const name = search.value.trim().replace(/\s+/g, " ").replace(/,/g, "");
     if (!name) return;
+    if (full()) { search.value = ""; return; }
     let box = boxes().find(b => b.value.toLowerCase() === name.toLowerCase());
     if (!box) {
       const label = document.createElement("label");
