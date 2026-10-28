@@ -232,7 +232,7 @@ def test_free_search_is_one_search_ever_then_offer(org):
         assert plans.first_leads_at(db, org["acct"]) == done
     page = c.get("/leads?sort=score").text
     assert "subscribe-modal" in page and "Subscribe for $49/month" in page
-    assert str(int((done + timedelta(seconds=30)).timestamp() * 1000)) in page  # shows 30 seconds after leads are ready
+    assert str(int((done + timedelta(seconds=15)).timestamp() * 1000)) in page  # shows 15 seconds after leads are ready
     assert "subscribe-modal" not in c.get("/billing").text
     c.cookies.set("subscribe_later", "1")
     assert "subscribe-modal" not in c.get("/leads?sort=score").text

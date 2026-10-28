@@ -87,7 +87,7 @@ def survey_is_due(db: Session, org: Organization, account: Account, request: Req
     return not db.scalar(select(func.count()).select_from(BetaSurvey).where(BetaSurvey.account_id == account.id))
 
 
-SUBSCRIBE_AFTER = timedelta(seconds=30)  # after the free search's leads are ready, before the $49 offer
+SUBSCRIBE_AFTER = timedelta(seconds=15)  # after the free search's leads are ready, before the $49 offer
 SUBSCRIBE_LATER_COOKIE = "subscribe_later"  # "Maybe later" hides the offer for a day
 
 
