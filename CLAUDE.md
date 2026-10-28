@@ -20,7 +20,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 
 ## Commands
 - Live app: https://app.plugemploy.com since 2026-10-25 (GoDaddy CNAME app -> plug-employ-leads.onrender.com; APP_BASE_URL set in Render; Google OAuth redirect URIs for both). Render (Blueprint in render.yaml, deploys on push to main).
-  Render web service is 1 GB / 0.5 CPU since 2026-10-23 (set in Render's dashboard, not render.yaml): one
+  Render web service is 2 GB / 1 CPU (Standard) by 2026-10-28, OVERTURE_PARALLEL=2 in Render (set in Render's dashboard, not render.yaml): one
   Overture/DuckDB search peaks near 500 MB; overture.fetch_places runs OVERTURE_PARALLEL Overture reads at once (default 1; 2-3 needs 2 GB);
   a ZIP read is cached 12h and cached ZIPs skip the line. nightly.run_for_account locks per account only.
   GitHub: plugemploy/plug-employ-intelligence (private). The Mac copy is for testing changes only; nightly search is off there.
