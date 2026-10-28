@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace as NS
 
 import pytest
+import stripe
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -36,13 +37,14 @@ class FakeStripe:
                 outer.checkout = params
                 return NS(url="https://checkout.stripe.test/s1")
 
-            def retrieve(self, sid):
-                return NS(client_reference_id=outer.checkout["client_reference_id"], customer="cus_1",
-                          subscription="sub_1", metadata=outer.checkout["metadata"])
+            def retrieve(self, sid):  # real Stripe objects: they don't act like dicts (.get fails)
+                return stripe.StripeObject.construct_from(dict(
+                    client_reference_id=outer.checkout["client_reference_id"], customer="cus_1",
+                    subscription="sub_1", metadata=outer.checkout["metadata"]), "sk_test")
 
         class Subs:
             def retrieve(self, sid):
-                return NS(id="sub_1", status=outer.status)
+                return stripe.StripeObject.construct_from(dict(id="sub_1", status=outer.status), "sk_test")
 
         class Portal:
             def create(self, params):

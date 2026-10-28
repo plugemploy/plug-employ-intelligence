@@ -100,7 +100,9 @@ def finish_checkout(db: Session, org: Organization, session_id: str) -> str:
         raise ValueError("That checkout belongs to a different account.")
     sub = sc.v1.subscriptions.retrieve(session.subscription)
     org.stripe_customer_id, org.stripe_subscription_id = session.customer, sub.id
-    org.plan_tier = (session.metadata or {}).get("tier", org.plan_tier)
+    meta = session.metadata.to_dict() if session.metadata else {}  # a StripeObject, not a dict
+    if meta.get("tier") in PLANS:
+        org.plan_tier = meta["tier"]
     apply_status(org, sub.status)
     db.commit()
     return PLANS[org.plan_tier]["label"]
