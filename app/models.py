@@ -375,6 +375,10 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(20), default="publisher", server_default="publisher")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Time spent in the app while the page is open and in use (pinged every 30 seconds), for Beta results.
+    active_seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    visits: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # a new one after 30 quiet minutes
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     @property
     def is_admin(self) -> bool:

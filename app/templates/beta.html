@@ -20,12 +20,14 @@
     <table class="w-full text-sm">
       <thead class="bg-slate-100 text-left text-slate-600"><tr>
         <th class="p-3">Company</th><th class="p-3">Signed up</th><th class="p-3">Their search</th><th class="p-3">Leads</th>
-        <th class="p-3">Saw offer</th><th class="p-3">Clicked Subscribe</th><th class="p-3">Subscribed</th></tr></thead>
+        <th class="p-3">Time in app</th><th class="p-3">Saw offer</th><th class="p-3">Clicked Subscribe</th><th class="p-3">Subscribed</th></tr></thead>
       <tbody>{% for r in free %}<tr class="border-t align-top">
         <td class="p-3"><b>{{ r.org.name }}</b><span class="block text-xs text-slate-500">{{ r.emails }}</span></td>
         <td class="p-3 whitespace-nowrap">{{ r.org.created_at.astimezone().strftime("%b %-d, %-I:%M %p") }}</td>
         <td class="p-3">{{ r.search or "setup not finished" }}</td>
         <td class="p-3">{{ r.leads if r.leads_at else "—" }}</td>
+        <td class="p-3 whitespace-nowrap">{% if r.active %}{{ r.active }}<span class="block text-xs text-slate-500">{{ r.visits }} visit{{ "s" if r.visits != 1 }}
+          {%- if r.last_seen %} · last {{ r.last_seen.astimezone().strftime("%b %-d") }}{% endif %}</span>{% else %}—{% endif %}</td>
         <td class="p-3">{{ "yes" if r.org.offer_seen_at else "—" }}</td>
         <td class="p-3 {{ 'font-semibold text-amber-700' if r.org.checkout_started_at and not r.subscribed }}">{{ "yes" if r.org.checkout_started_at else "—" }}</td>
         <td class="p-3 {{ 'font-semibold text-green-700' if r.subscribed }}">{{ "yes" if r.subscribed else "—" }}</td></tr>{% endfor %}</tbody>
@@ -63,7 +65,7 @@
 <div class="bg-white rounded-xl shadow overflow-x-auto">
   <table class="w-full text-sm">
     <thead class="bg-slate-100 text-left text-slate-600"><tr>
-      <th class="p-3">Company</th><th class="p-3">Plan</th><th class="p-3">Signed up</th><th class="p-3">Last sign-in</th>
+      <th class="p-3">Company</th><th class="p-3">Plan</th><th class="p-3">Signed up</th><th class="p-3">Last sign-in</th><th class="p-3">Time in app</th>
       <th class="p-3">Contacted</th><th class="p-3">Appts set</th><th class="p-3">Shown</th><th class="p-3">Sold</th>
       <th class="p-3">MRR</th><th class="p-3">Contract value</th><th class="p-3">Ad Mgmt Fees</th><th class="p-3">Only via app</th><th class="p-3">Survey</th><th class="p-3">Feedback</th></tr></thead>
     <tbody>{% for r in rows %}<tr class="border-t align-top">
@@ -74,6 +76,8 @@
       <td class="p-3">{{ r.plan }}</td>
       <td class="p-3 whitespace-nowrap">{{ r.org.created_at.astimezone().strftime("%b %-d") }}</td>
       <td class="p-3 whitespace-nowrap">{{ r.last_login.astimezone().strftime("%b %-d") if r.last_login else "never" }}</td>
+      <td class="p-3 whitespace-nowrap">{% if r.active %}{{ r.active }}<span class="block text-xs text-slate-500">{{ r.visits }} visit{{ "s" if r.visits != 1 }}
+          {%- if r.last_seen %} · last {{ r.last_seen.astimezone().strftime("%b %-d") }}{% endif %}</span>{% else %}—{% endif %}</td>
       <td class="p-3">{{ r.contacted }}</td><td class="p-3">{{ r.appts_set }}</td><td class="p-3">{{ r.appts_shown }}</td>
       <td class="p-3 font-semibold text-green-700">{{ r.sold }}</td>
       <td class="p-3">${{ "{:,.0f}".format(r.mrr) }}</td><td class="p-3">${{ "{:,.0f}".format(r.contract_value) }}</td>

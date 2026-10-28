@@ -103,6 +103,33 @@ def subscribe_offer(db: Session, org: Organization, user, account, request: Requ
     return True, popup
 
 
+PING_SECONDS = 30  # the page pings this often while it's open and in use
+NEW_VISIT_AFTER = timedelta(minutes=30)
+
+
+@app.post("/ping")
+def ping(db: Session = Depends(get_session), user: User = Depends(current_user)):
+    """Count time in the app: the gap since the last ping (when it's short), and a new visit after a quiet spell."""
+    now = datetime.now(timezone.utc)
+    gap = (now - user.last_seen_at).total_seconds() if user.last_seen_at else None
+    if gap is None or gap > NEW_VISIT_AFTER.total_seconds():
+        user.visits += 1
+    elif gap <= 2 * PING_SECONDS:  # longer gaps mean the tab sat idle or hidden: not counted
+        user.active_seconds += int(gap)
+    user.last_seen_at = now
+    db.commit()
+    return HTMLResponse("")
+
+
+def activity(people: list) -> dict:
+    """Time in the app, visits and last seen for a company's people (Beta results)."""
+    secs = sum(u.active_seconds or 0 for u in people)
+    seen = [u.last_seen_at for u in people if u.last_seen_at]
+    h, m = divmod(round(secs / 60), 60)
+    return dict(active_seconds=secs, active=(f"{h}h {m}m" if h else f"{m} min") if secs else "",
+                visits=sum(u.visits or 0 for u in people), last_seen=max(seen) if seen else None)
+
+
 @app.post("/offer/seen")
 def offer_seen(db: Session = Depends(get_session), user: User = Depends(current_user)):
     """The $49 offer was just shown (banner on page load, pop-up by its timer). The first time is kept."""
@@ -1251,7 +1278,7 @@ def beta_rows(db: Session) -> list[dict]:
                          last_login=max(logins) if logins else None,
                          feedback=sum(notes.get(a.id, 0) for a in mine),
                          survey=next((surveys[a.id] for a in mine if a.id in surveys), None),
-                         **results.total([per_account[a.id] for a in mine])))
+                         **activity(people), **results.total([per_account[a.id] for a in mine])))
     return rows
 
 
@@ -1268,7 +1295,7 @@ def free_search_rows(db: Session) -> list[dict]:
             search=f"{', '.join(acct.industry_list)} in {', '.join(acct.zip_list)}" if acct and acct.setup_done_at else "",
             leads_at=plans.first_leads_at(db, acct.id) if acct else None,
             leads=db.scalar(select(func.count()).select_from(Lead).where(Lead.account_id == acct.id)) if acct else 0,
-            subscribed=o.plan == "active"))
+            subscribed=o.plan == "active", **activity(people)))
     return rows
 
 
@@ -1312,13 +1339,15 @@ def beta_results_csv(db: Session = Depends(get_session), user: User = Depends(cu
     require_owner(db, user)
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["Company", "People", "Plan", "Signed up", "Setup done", "Last sign-in", "Leads contacted",
+    w.writerow(["Company", "People", "Plan", "Signed up", "Setup done", "Last sign-in", "Minutes in app", "Visits",
+                "Last seen", "Leads contacted",
                 "Appointments set", "Appointments shown", "Sold", "Monthly recurring revenue $", "Contract value $",
                 "Ad Management Fees $", "Sales found only with Plug Employ", "Feedback notes", "Would pay",
                 "Recommend (0-10)", "Hours saved per week", "Quote", "OK to quote"])
     for r in beta_rows(db):
         w.writerow([r["org"].name, r["emails"], r["plan"], r["org"].created_at.date(), "yes" if r["setup_done"] else "no",
-                    r["last_login"].date() if r["last_login"] else "", r["contacted"], r["appts_set"],
+                    r["last_login"].date() if r["last_login"] else "", round(r["active_seconds"] / 60), r["visits"],
+                    r["last_seen"].date() if r["last_seen"] else "", r["contacted"], r["appts_set"],
                     r["appts_shown"], r["sold"], round(r["mrr"]), round(r["contract_value"]), round(r["ad_fees"]),
                     r["found_only"], r["feedback"]] + survey_cells(r["survey"]))
     return HTMLResponse(buf.getvalue(), media_type="text/csv",

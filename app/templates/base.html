@@ -159,5 +159,18 @@
     </form>
   </details>
   {% endif %}
+{% if user %}
+<script>
+  // Time in app (Beta results): ping now and every 30 seconds while this tab is visible and was used in the last 2 minutes.
+  (function () {
+    let used = Date.now();
+    ["mousemove", "keydown", "scroll", "touchstart", "click"].forEach(e =>
+      addEventListener(e, () => { used = Date.now(); }, {passive: true}));
+    const ping = () => { if (document.visibilityState === "visible" && Date.now() - used < 120000)
+      fetch("/ping", {method: "POST", keepalive: true}).catch(() => {}); };
+    ping(); setInterval(ping, 30000);
+  })();
+</script>
+{% endif %}
 </body>
 </html>

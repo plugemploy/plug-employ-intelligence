@@ -93,4 +93,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   closest nearby ones (Lead.nearby "Brighton, 6 mi from 48178", zip_code = their own ZIP; already-saved nearby ones don't
   count, so the next search reaches further). /setup/estimates shows "N · +M nearby" beside each type on /setup and
   My business (reads up to 5 ZIPs in the background via overture.warm). Tests block online reads (conftest).
+- Time in app (2026-10-28): signed-in pages POST /ping on load and every 30s while visible and used in the last 2 min;
+  users.active_seconds (gaps <= 60s), visits (new after 30 quiet min), last_seen_at. Shown on /beta (both tables) + CSV.
+  Privacy draft mentions it.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

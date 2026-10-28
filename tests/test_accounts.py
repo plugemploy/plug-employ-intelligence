@@ -162,6 +162,46 @@ def test_results_pages_and_beta_dashboard():
 
 
 
+def test_time_in_app_on_beta_results():
+    from datetime import datetime, timedelta, timezone
+    with Session(engine) as db:
+        owner_org = Organization(name="Test: Owner Co 2", plan="active", plan_tier="owner")
+        tester_org = Organization(name="Test: Busy Co", plan="trial", plan_tier="beta")
+        db.add_all([owner_org, tester_org])
+        db.flush()
+        mine = Account(name="Test: Owner Acct 2", org_id=owner_org.id)
+        theirs = Account(name="Test: Busy Acct", org_id=tester_org.id)
+        db.add_all([mine, theirs])
+        db.commit()
+        mine_id, theirs_id = mine.id, theirs.id
+    tester = TestClient(app)
+    uid = login_as(tester, theirs_id)
+    assert 'fetch("/ping"' in tester.get("/leads").text
+    tester.post("/ping")  # first ping: a visit starts
+
+    def last_ping(ago):
+        with Session(engine) as db:
+            db.get(User, uid).last_seen_at = datetime.now(timezone.utc) - ago
+            db.commit()
+    last_ping(timedelta(seconds=30))
+    tester.post("/ping")  # 30 seconds in use
+    last_ping(timedelta(minutes=10))
+    tester.post("/ping")  # the tab sat idle: not counted, same visit
+    last_ping(timedelta(hours=2))
+    tester.post("/ping")  # back later: a second visit
+    with Session(engine) as db:
+        u = db.get(User, uid)
+        assert (u.visits, 29 <= u.active_seconds <= 31) == (2, True)
+        u.active_seconds = 75 * 60
+        db.commit()
+    owner = TestClient(app)
+    login_as(owner, mine_id)
+    html = owner.get("/beta").text
+    assert "Time in app" in html and "1h 15m" in html and "2 visits" in html
+    line = [l for l in owner.get("/beta.csv").text.splitlines() if l.startswith("Test: Busy Co")][0]
+    assert f",75,2,{datetime.now().date()}," in line or f",75,2,{datetime.now(timezone.utc).date()}," in line
+
+
 def test_beta_survey_due_saved_and_reported():
     from datetime import datetime, timedelta, timezone
     from app.models import BetaSurvey
