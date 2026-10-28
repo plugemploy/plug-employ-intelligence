@@ -21,3 +21,6 @@ APP_BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 COOKIE_SECURE = APP_BASE_URL.startswith("https://")  # online: cookies only travel over https
 CLOSE_API_KEY = os.getenv("CLOSE_API_KEY", "")
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
+CONTACT_EMAIL = os.getenv("CONTACT_EMAIL", "")  # shown on the privacy policy and terms pages
+# Overture reads that may run at once. Each peaks near 500 MB, so 1 on a 1 GB server; 2 or 3 on 2 GB.
+OVERTURE_PARALLEL = max(1, int(os.getenv("OVERTURE_PARALLEL", "1")))

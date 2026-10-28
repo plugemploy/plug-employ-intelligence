@@ -7,6 +7,33 @@
   <a href="/beta.csv" class="rounded border px-3 py-1 text-sm hover:bg-slate-50">⬇ Download spreadsheet (CSV)</a>
 </div>
 {% if message %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">{{ message }}</p>{% endif %}
+<section class="mb-8">
+  <h2 class="text-lg font-semibold mb-1">Free search sign-ups</h2>
+  <p class="text-sm text-slate-500 mb-3">People who came from your app.plugemploy.com/try link. Clicked Subscribe but didn't subscribe = worth a personal email.</p>
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
+    {% for label, n in funnel %}
+    <div class="bg-white rounded-xl shadow p-4"><p class="text-xs text-slate-500">{{ label }}</p><p class="text-2xl font-bold">{{ n }}</p></div>
+    {% endfor %}
+  </div>
+  {% if free %}
+  <div class="bg-white rounded-xl shadow overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-100 text-left text-slate-600"><tr>
+        <th class="p-3">Company</th><th class="p-3">Signed up</th><th class="p-3">Their search</th><th class="p-3">Leads</th>
+        <th class="p-3">Saw offer</th><th class="p-3">Clicked Subscribe</th><th class="p-3">Subscribed</th></tr></thead>
+      <tbody>{% for r in free %}<tr class="border-t align-top">
+        <td class="p-3"><b>{{ r.org.name }}</b><span class="block text-xs text-slate-500">{{ r.emails }}</span></td>
+        <td class="p-3 whitespace-nowrap">{{ r.org.created_at.astimezone().strftime("%b %-d, %-I:%M %p") }}</td>
+        <td class="p-3">{{ r.search or "setup not finished" }}</td>
+        <td class="p-3">{{ r.leads if r.leads_at else "—" }}</td>
+        <td class="p-3">{{ "yes" if r.org.offer_seen_at else "—" }}</td>
+        <td class="p-3 {{ 'font-semibold text-amber-700' if r.org.checkout_started_at and not r.subscribed }}">{{ "yes" if r.org.checkout_started_at else "—" }}</td>
+        <td class="p-3 {{ 'font-semibold text-green-700' if r.subscribed }}">{{ "yes" if r.subscribed else "—" }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+<h2 class="text-lg font-semibold mb-3">Beta testers</h2>
 {% if totals %}
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
   {% for label, val in [("Leads contacted", totals.contacted), ("Appointments set", totals.appts_set),

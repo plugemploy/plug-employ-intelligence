@@ -21,7 +21,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 ## Commands
 - Live app: https://app.plugemploy.com since 2026-10-25 (GoDaddy CNAME app -> plug-employ-leads.onrender.com; APP_BASE_URL set in Render; Google OAuth redirect URIs for both). Render (Blueprint in render.yaml, deploys on push to main).
   Render web service is 1 GB / 0.5 CPU since 2026-10-23 (set in Render's dashboard, not render.yaml): one
-  Overture/DuckDB search peaks near 500 MB; overture.fetch_places runs one search at a time (_lock).
+  Overture/DuckDB search peaks near 500 MB; overture.fetch_places runs OVERTURE_PARALLEL Overture reads at once (default 1; 2-3 needs 2 GB);
+  a ZIP read is cached 12h and cached ZIPs skip the line. nightly.run_for_account locks per account only.
   GitHub: plugemploy/plug-employ-intelligence (private). The Mac copy is for testing changes only; nightly search is off there.
 - Start app on the Mac (testing): `./start.sh`, then open http://127.0.0.1:8000
 - psql: /Applications/Postgres.app/Contents/Versions/latest/bin/psql -h localhost plug_employ_dev
@@ -79,4 +80,9 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   else added) with MRR/months/fee/start date + renewal; Lead.source="import" is excluded from results metrics.
 - One $49 plan (2026-10-28): billing.SELLABLE = ("pro",), label "Plug Employ", everything included, $6.50 Claude cap;
   Stripe price lookup key includes the price (pei_pro_49_monthly). Survey asks "Yes, at $49/month".
+- Free search link (2026-10-28): /try signs up new companies on plan "free" (1 ZIP x 1 business type, one search ever,
+  no Gmail/Close); existing users keep their plan. 30 seconds after its leads are ready (plans.first_leads_at) a $49 subscribe pop-up shows
+  (main.subscribe_popup_at; "Maybe later" hides it a day). /signup still gives the 30-day Beta.
+- Free search tracker + legal pages (2026-10-28): /beta shows /try sign-ups (signup_offer, offer_seen_at,
+  checkout_started_at) apart from testers. /privacy and /terms are DRAFTS for the attorney; CONTACT_EMAIL env shows there.
 - Next: Stripe (after attorney/LLC), domain, territory lock, Google verification, per-account Close status mapping.

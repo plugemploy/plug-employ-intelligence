@@ -115,11 +115,12 @@ def google_identity(state: str, code: str) -> tuple[dict, str]:
     return {"email": info["email"].lower(), "name": info.get("name", "")}, pending["signup_company"]
 
 
-def sign_in(db: Session, email: str, name: str, signup_company: str = "") -> User:
-    """Find or create the user for a verified Google email."""
+def sign_in(db: Session, email: str, name: str, signup_company: str = "", tier: str = "beta") -> User:
+    """Find or create the user for a verified Google email. tier is only used for a new company
+    ("free" from the /try link); existing users keep what they have."""
     user = db.scalars(select(User).where(User.email == email)).first()
     if user is None and signup_company:
-        org = Organization(name=signup_company, plan="trial", plan_tier="beta")
+        org = Organization(name=signup_company, plan="trial", plan_tier=tier, signup_offer="free" if tier == "free" else "")
         db.add(org)
         db.flush()
         account = new_account(db, org.id, name or signup_company)
@@ -135,7 +136,7 @@ def sign_in(db: Session, email: str, name: str, signup_company: str = "") -> Use
     elif user is None:
         # Anyone Google lets in (a Google Cloud test user while in beta) gets their own beta company,
         # named after them; the setup wizard runs next.
-        return sign_in(db, email, name, name or email.split("@")[0])
+        return sign_in(db, email, name, name or email.split("@")[0], tier)
     if name and not user.name:
         user.name = name
     user.last_login_at = datetime.now(timezone.utc)

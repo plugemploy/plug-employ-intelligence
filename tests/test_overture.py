@@ -111,3 +111,22 @@ def test_independents_fill_the_limit_before_chains(acct, monkeypatch):
         overture.search_and_save(db, acct, "37934", "Dentist")
         brands = db.scalars(select(Lead.brand).where(Lead.account_id == acct, Lead.overture_id.is_not(None))).all()
         assert len(brands) == overture.MAX_ADDED and not any(brands)
+
+
+def test_cached_zip_skips_the_line_and_accounts_run_side_by_side(monkeypatch):
+    import threading
+    import time
+    from app import nightly
+    monkeypatch.setattr(overture, "latest_release", lambda: "test-release")
+    overture._zip_cache[("test-release", "37934")] = (time.time(), [{"id": "x"}])
+    got = []
+    with overture._lock:  # someone else's Overture read is running
+        t = threading.Thread(target=lambda: got.append(overture.fetch_places("37934")))
+        t.start()
+        t.join(timeout=2)
+    assert got == [[{"id": "x"}]]  # answered from the cache without waiting
+    overture._zip_cache.clear()
+    with nightly._account_lock(1):  # account 1 is mid-batch
+        assert nightly._account_lock(2).acquire(timeout=1)  # account 2 isn't held up
+        nightly._account_lock(2).release()
+        assert not nightly._account_lock(1).acquire(blocking=False)  # account 1 can't run twice at once

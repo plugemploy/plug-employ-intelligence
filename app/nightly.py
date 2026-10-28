@@ -18,7 +18,13 @@ from app.db import engine
 from app.models import Account, ApiUsage, Lead, NightlyRun, NightlySettings
 
 log = logging.getLogger("nightly")
-_lock = threading.Lock()
+_locks: dict[int, threading.Lock] = {}  # one batch at a time per account; different accounts run side by side
+_locks_guard = threading.Lock()
+
+
+def _account_lock(account_id: int) -> threading.Lock:
+    with _locks_guard:
+        return _locks.setdefault(account_id, threading.Lock())
 
 
 def get_settings(db: Session, account_id: int) -> NightlySettings:
@@ -40,8 +46,8 @@ def next_pairs(db: Session, s: NightlySettings) -> list[tuple[str, str]]:
 
 
 def run_for_account(account_id: int, max_searches: int | None = None) -> NightlyRun:
-    """Run one batch now. Only one batch runs at a time."""
-    with _lock, Session(engine) as db:
+    """Run one batch now. Only one batch per account runs at a time (the memory-heavy Overture read has its own line)."""
+    with _account_lock(account_id), Session(engine) as db:
         s = get_settings(db, account_id)
         run = NightlyRun(account_id=account_id)
         db.add(run)

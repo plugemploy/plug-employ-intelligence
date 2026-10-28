@@ -70,8 +70,10 @@ def check_search(db: Session, account_id: int) -> None:
         raise BudgetExceeded("No account.")
     if trial_over(db.get(Organization, account.org_id) if account.org_id else None):
         raise BudgetExceeded("Your free trial has ended. Choose a plan on the Billing page to keep searching.")
-    left = usage(db, account)["searches_left"]
-    if left is not None and left <= 0:
+    u = usage(db, account)
+    if u["searches_left"] is not None and u["searches_left"] <= 0:
+        if u["plan"].get("lifetime"):
+            raise BudgetExceeded("You've used your free search. Choose the $49 plan on the Billing page to keep finding leads.")
         raise BudgetExceeded("This month's searches are used up. Searches resume on the 1st.")
 
 

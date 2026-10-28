@@ -29,6 +29,10 @@ class Organization(Base):
     stripe_customer_id: Mapped[str] = mapped_column(String(100), default="", server_default="")
     stripe_subscription_id: Mapped[str] = mapped_column(String(100), default="", server_default="")
     billing_status: Mapped[str] = mapped_column(String(30), default="", server_default="")  # Stripe's status, e.g. trialing, active
+    # Free search funnel, for the owner's Beta results page: came from /try, first saw the $49 pop-up, clicked Subscribe.
+    signup_offer: Mapped[str] = mapped_column(String(30), default="", server_default="")
+    offer_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checkout_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

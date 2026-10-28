@@ -44,3 +44,5 @@ services:
         value: "50"
       - key: STRIPE_SECRET_KEY
         sync: false
+      - key: CONTACT_EMAIL  # shown on /privacy and /terms
+        sync: false

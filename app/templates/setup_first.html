@@ -3,6 +3,13 @@
 {% block content %}
 <div class="max-w-2xl bg-white rounded-xl shadow p-6 grid gap-4">
   <h1 class="text-2xl font-bold">You're set up 🎉</h1>
+  {% if org and org.plan_tier == "free" %}
+  <p class="text-sm text-slate-700">Ready for your free search: <b>{{ account.industry_list|join(", ") }}</b> in
+    <b>{{ account.zip_list|join(", ") }}</b>. We'll find them, read their websites and score each one (takes a minute or two).</p>
+  <form method="post" action="/setup/first" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Finding your leads…'">
+    <button class="rounded-lg bg-green-700 text-white px-5 py-2 font-medium">Run my free search</button>
+  </form>
+  {% else %}
   <p class="text-sm text-slate-700">Your territory and industries make <b>{{ pairs }}</b> searches in total. The nightly search runs
     <b>{{ st.searches_per_night }}</b> each night at {{ (st.run_hour % 12) or 12 }} {{ "am" if st.run_hour < 12 else "pm" }}, so it covers everything in about
     <b>{{ nights }}</b> night{{ "s" if nights != 1 }}, then starts again to catch new businesses.</p>
@@ -14,5 +21,6 @@
     <a href="/leads" class="text-sm text-slate-500 hover:underline">Skip, I'll wait for tonight</a>
   </form>
   <p class="text-xs text-slate-500">Optional: connect Gmail and your CRM any time on <a href="/business" class="text-blue-700 hover:underline">My business</a>.</p>
+  {% endif %}
 </div>
 {% endblock %}

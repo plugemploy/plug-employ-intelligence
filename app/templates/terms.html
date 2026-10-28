@@ -1,0 +1,57 @@
+{% extends "public.html" %}
+{% block width %}max-w-3xl{% endblock %}
+{% block content %}
+{# Draft written 2026-10-28; to be reviewed by Plug Employ's attorney (company name, governing law, refunds). #}
+<div class="text-sm text-slate-700 grid gap-4 leading-relaxed">
+<h1 class="text-2xl font-bold text-slate-800">Terms of service</h1>
+<p class="text-xs text-slate-500">Last updated October 28, 2026</p>
+<p>These terms apply when you use Plug Employ Intelligence ("Plug Employ", "the app"). By signing up or using the app,
+  you agree to them. If you use it for a company, you agree on that company's behalf.</p>
+
+<h2 class="font-semibold text-slate-800">The service</h2>
+<p>Plug Employ finds local businesses in the areas and categories you choose, scores them with AI on how likely they are
+  to advertise with you, and helps you track your follow-up. Lead information comes from open data and businesses' public
+  websites. It may be incomplete or out of date, and scores are estimates, not guarantees of a sale.</p>
+
+<h2 class="font-semibold text-slate-800">Free search</h2>
+<p>A free search covers one ZIP code and one kind of business, once per company. No card is needed.</p>
+
+<h2 class="font-semibold text-slate-800">Subscription and billing</h2>
+<ul class="list-disc ml-5 grid gap-1">
+  <li>The {{ pro.label }} plan is ${{ pro.price }} per month, billed in advance through Stripe, and renews each month
+    until you cancel.</li>
+  <li>You can cancel at any time from the Billing page. Your plan stays active until the end of the month you've paid
+    for. We don't give refunds for partial months.</li>
+  <li>Each plan includes a monthly number of searches, shown on the Usage page. Unused searches don't carry over.</li>
+  <li>If we change the price, we'll tell you at least 30 days before it applies to you.</li>
+</ul>
+
+<h2 class="font-semibold text-slate-800">Your responsibilities</h2>
+<ul class="list-disc ml-5 grid gap-1">
+  <li>Use the leads to contact businesses lawfully, including email and calling laws such as CAN-SPAM and the
+    Telephone Consumer Protection Act.</li>
+  <li>Don't resell or publish the lead lists as a list, try to break or overload the app, or share your sign-in.</li>
+  <li>Keep any connections you add (Gmail, Close) secure. You can disconnect them at any time.</li>
+</ul>
+
+<h2 class="font-semibold text-slate-800">Your data</h2>
+<p>Your notes, statuses and sales records are yours. Our <a href="/privacy" class="text-blue-700 hover:underline">privacy
+  policy</a> explains how we handle them. Lead data from Overture Maps is used under its open licenses.</p>
+
+<h2 class="font-semibold text-slate-800">Availability and changes</h2>
+<p>We work to keep the app running but can't promise it will always be available or error-free. We may improve or change
+  features. If we make a change to these terms that matters, we'll tell you in the app or by email.</p>
+
+<h2 class="font-semibold text-slate-800">Limits of liability</h2>
+<p>The app is provided "as is". To the extent the law allows, Plug Employ isn't liable for lost profits, lost sales or
+  indirect damages, and our total liability is limited to what you paid us in the 3 months before the claim.</p>
+
+<h2 class="font-semibold text-slate-800">Ending your account</h2>
+<p>You can stop using the app and cancel at any time. We may suspend accounts that break these terms or don't pay.</p>
+
+<h2 class="font-semibold text-slate-800">Law and contact</h2>
+<p>These terms are governed by the laws of the State of Tennessee. Questions:
+  {% if contact %}<a href="mailto:{{ contact }}" class="text-blue-700 hover:underline">{{ contact }}</a>{% else %}use the
+  Send feedback button in the app{% endif %}.</p>
+</div>
+{% endblock %}

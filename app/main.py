@@ -19,7 +19,7 @@ from app import auth, billing, catalog, client_import, close_crm, dashboard, pla
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
-from app.config import ANTHROPIC_API_KEY, APP_BASE_URL, COOKIE_SECURE
+from app.config import ANTHROPIC_API_KEY, APP_BASE_URL, CONTACT_EMAIL, COOKIE_SECURE
 from app.dedupe import find_duplicate
 from app.models import OUTCOMES, STATUSES, WOULD_PAY, WOULD_PAY_OLD, Account, BetaSurvey, Feedback, FollowUp, Lead, LeadNote, LeadSignal, NightlyRun, Organization, SearchJob, User, WatchedPage
 
@@ -62,10 +62,12 @@ def render(request, name, db, account, **ctx):
     job = search_jobs.for_bar(db, account.id) if account else None
     show_costs = bool(org and org.plan_tier == "owner")  # dollar amounts are for the app owner only
     survey_due = bool(user and account and org and survey_is_due(db, org, account, request))
+    subscribe_at = subscribe_popup_at(db, org, user, account, request) if org else None
     return templates.TemplateResponse(
         request, name,
         {"account": account, "accounts": accounts, "user": user, "org": org, "statuses": STATUSES,
          "today": date.today(), "search_job": job, "show_costs": show_costs, "survey_due": survey_due,
+         "subscribe_at": subscribe_at, "pro": plans.PLANS["pro"],
          "would_pay": WOULD_PAY, "would_pay_labels": {**WOULD_PAY_OLD, **WOULD_PAY}, **ctx},
     )
 
@@ -82,6 +84,29 @@ def survey_is_due(db: Session, org: Organization, account: Account, request: Req
     if datetime.now(timezone.utc) < org.created_at + timedelta(days=SURVEY_AFTER_DAYS):
         return False
     return not db.scalar(select(func.count()).select_from(BetaSurvey).where(BetaSurvey.account_id == account.id))
+
+
+SUBSCRIBE_AFTER = timedelta(seconds=30)  # after the free search's leads are ready, before the $49 offer
+SUBSCRIBE_LATER_COOKIE = "subscribe_later"  # "Maybe later" hides the offer for a day
+
+
+def subscribe_popup_at(db: Session, org: Organization, user, account, request: Request) -> int | None:
+    """When (ms since 1970, for the page's timer) a Free search company sees the $49 offer, or None."""
+    if (org.plan_tier != "free" or not (user and user.is_admin and account)
+            or request.cookies.get(SUBSCRIBE_LATER_COOKIE) or request.url.path.startswith("/billing")):
+        return None
+    ready = plans.first_leads_at(db, account.id)
+    return int((ready + SUBSCRIBE_AFTER).timestamp() * 1000) if ready else None
+
+
+@app.post("/offer/seen")
+def offer_seen(db: Session = Depends(get_session), user: User = Depends(current_user)):
+    """The $49 pop-up just appeared (sent by the page's timer). The first time is kept."""
+    org = db.get(Organization, user.org_id)
+    if org.offer_seen_at is None:
+        org.offer_seen_at = datetime.now(timezone.utc)
+        db.commit()
+    return HTMLResponse("")
 
 
 def parse_day(raw: str) -> date | None:
@@ -124,27 +149,53 @@ def signup_page(request: Request, msg: str = ""):
     return page(request, "signup.html", message=msg, ready=gmail.configured())
 
 
+@app.get("/privacy")
+def privacy_page(request: Request):
+    return page(request, "privacy.html", contact=CONTACT_EMAIL)
+
+
+@app.get("/terms")
+def terms_page(request: Request):
+    return page(request, "terms.html", contact=CONTACT_EMAIL, pro=plans.PLANS["pro"])
+
+
+OFFER_COOKIE = "offer"  # "free" while someone from the /try link is away at Google signing in
+
+
+@app.get("/try")
+def try_page(request: Request, msg: str = ""):
+    """The link in the email campaign: one free search, then the $49 plan."""
+    return page(request, "try.html", message=msg, ready=gmail.configured())
+
+
 @app.get("/auth/google")
-def auth_google(company: str = ""):
+def auth_google(company: str = "", offer: str = ""):
     if not gmail.configured():
         return RedirectResponse("/login?msg=Google%20sign-in%20isn%27t%20set%20up%20yet.", status_code=303)
-    return RedirectResponse(auth.start_login(company), status_code=303)
+    resp = RedirectResponse(auth.start_login(company), status_code=303)
+    if offer == "free":
+        resp.set_cookie(OFFER_COOKIE, "free", max_age=1800, httponly=True, samesite="lax", secure=COOKIE_SECURE)
+    else:
+        resp.delete_cookie(OFFER_COOKIE)
+    return resp
 
 
 @app.get("/auth/callback")
-def auth_callback(state: str = "", code: str = "", error: str = "", db: Session = Depends(get_session)):
+def auth_callback(request: Request, state: str = "", code: str = "", error: str = "", db: Session = Depends(get_session)):
     from urllib.parse import quote
     if error:
         return RedirectResponse(f"/login?msg={quote('Sign-in cancelled.')}", status_code=303)
+    tier = "free" if request.cookies.get(OFFER_COOKIE) == "free" else "beta"
     try:
         identity, company = auth.google_identity(state, code)
-        user = auth.sign_in(db, identity["email"], identity["name"], company)
+        user = auth.sign_in(db, identity["email"], identity["name"], company, tier)
     except Exception as exc:
         return RedirectResponse(f"/login?msg={quote(str(exc).splitlines()[0])}", status_code=303)
     resp = RedirectResponse("/setup" if company else "/leads", status_code=303)
     resp.set_cookie(auth.SESSION_COOKIE, auth.make_session(user.id), httponly=True, samesite="lax", secure=COOKIE_SECURE,
                     max_age=auth.SESSION_DAYS * 86400)
     resp.delete_cookie(ACCOUNT_COOKIE)
+    resp.delete_cookie(OFFER_COOKIE)
     return resp
 
 
@@ -927,6 +978,8 @@ def billing_checkout(tier: str = Form(...), db: Session = Depends(get_session), 
         return back_to_billing("Billing isn't set up yet.")
     if org.plan_tier == "owner":
         return back_to_billing("The owner account isn't billed.")
+    org.checkout_started_at = org.checkout_started_at or datetime.now(timezone.utc)  # for the free search funnel
+    db.commit()
     try:
         return RedirectResponse(billing.checkout_url(db, org, tier, user.email), status_code=303)
     except Exception as exc:
@@ -1170,6 +1223,8 @@ def beta_rows(db: Session) -> list[dict]:
         people = [u for u in users if u.org_id == o.id]
         if not people:  # demo companies nobody signs in to aren't testers
             continue
+        if o.signup_offer == "free" and o.plan != "active":  # free search sign-ups have their own table until they pay
+            continue
         logins = [u.last_login_at for u in people if u.last_login_at]
         rows.append(dict(org=o, accounts=mine, plan=plans.PLANS.get(o.plan_tier, {}).get("label", o.plan_tier),
                          emails=", ".join(u.email for u in people),
@@ -1178,6 +1233,23 @@ def beta_rows(db: Session) -> list[dict]:
                          feedback=sum(notes.get(a.id, 0) for a in mine),
                          survey=next((surveys[a.id] for a in mine if a.id in surveys), None),
                          **results.total([per_account[a.id] for a in mine])))
+    return rows
+
+
+def free_search_rows(db: Session) -> list[dict]:
+    """Everyone who signed up from the /try link, newest first, with how far they got."""
+    orgs = db.scalars(select(Organization).where(Organization.signup_offer == "free")
+                      .order_by(Organization.created_at.desc())).all()
+    rows = []
+    for o in orgs:
+        acct = db.scalars(select(Account).where(Account.org_id == o.id).order_by(Account.id)).first()
+        people = db.scalars(select(User).where(User.org_id == o.id)).all()
+        rows.append(dict(
+            org=o, emails=", ".join(u.email for u in people),
+            search=f"{', '.join(acct.industry_list)} in {', '.join(acct.zip_list)}" if acct and acct.setup_done_at else "",
+            leads_at=plans.first_leads_at(db, acct.id) if acct else None,
+            leads=db.scalar(select(func.count()).select_from(Lead).where(Lead.account_id == acct.id)) if acct else 0,
+            subscribed=o.plan == "active"))
     return rows
 
 
@@ -1205,8 +1277,13 @@ def beta_results(request: Request, db: Session = Depends(get_session), user: Use
                   would_pay=sum(1 for s in answered if s.would_pay in ("personal", "pro", "premium", "yes")),
                   avg_hours=round(sum(hours) / len(hours), 1) if hours else None,
                   quotes=[(r["org"].name, r["survey"]) for r in rows if r["survey"] and r["survey"].quote])
+    free = free_search_rows(db)
+    funnel = [("Signed up", len(free)), ("Ran their search", sum(1 for r in free if r["leads_at"])),
+              ("Saw the $49 offer", sum(1 for r in free if r["org"].offer_seen_at)),
+              ("Clicked Subscribe", sum(1 for r in free if r["org"].checkout_started_at)),
+              ("Subscribed", sum(1 for r in free if r["subscribed"]))]
     return render(request, "beta.html", db, None, rows=rows, totals=results.total(rows) if rows else None, survey=survey,
-                  message=message)
+                  message=message, free=free, funnel=funnel)
 
 
 @app.get("/beta.csv")

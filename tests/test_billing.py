@@ -5,7 +5,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app import auth, billing, gmail, nightly, outreach, places, plans
@@ -127,6 +127,105 @@ def test_signup_starts_on_beta():
         assert (o.plan, o.plan_tier) == ("trial", "beta")
         db.delete(u)
         db.commit()
+
+
+def test_try_link_signs_up_on_free_search(monkeypatch):
+    from app import main
+    monkeypatch.setattr(gmail, "configured", lambda: True)
+    monkeypatch.setattr(auth, "start_login", lambda company: "https://accounts.google.test/")
+    monkeypatch.setattr(auth, "google_identity", lambda s, c: ({"email": "new@free.test", "name": "Free Person"}, "Test: Free Co"))
+    c = TestClient(app, follow_redirects=False)
+    assert "one free lead search" in c.get("/try").text
+    c.get("/auth/google?company=Test:%20Free%20Co&offer=free")
+    assert c.cookies.get(main.OFFER_COOKIE) == "free"
+    assert c.get("/auth/callback?state=s&code=c").headers["location"] == "/setup"
+    with Session(engine) as db:
+        u = db.scalars(select(User).where(User.email == "new@free.test")).one()
+        o = db.get(Organization, u.org_id)
+        assert (o.plan, o.plan_tier, o.signup_offer) == ("trial", "free", "free")
+        db.delete(u)
+        db.commit()
+
+
+def test_free_signup_tracker_on_beta_page(org):
+    from tests.conftest import login_as
+    with Session(engine) as db:
+        o = db.get(Organization, org["org"])
+        o.plan_tier, o.signup_offer = "free", "free"
+        db.commit()
+    c = client(org["user"])
+    c.post("/offer/seen")
+    c.post("/billing/checkout", data={"tier": "pro"}, follow_redirects=False)
+    with Session(engine) as db:
+        o = db.get(Organization, org["org"])
+        assert o.offer_seen_at and o.checkout_started_at
+        owner_org = Organization(name="Test: Owner Co", plan="active", plan_tier="owner")
+        db.add(owner_org)
+        db.flush()
+        owner_acct = auth.new_account(db, owner_org.id, "Test: Owner Pub")
+        db.commit()
+        owner_acct_id = owner_acct.id
+    owner = TestClient(app)
+    login_as(owner, owner_acct_id)
+    page = owner.get("/beta").text
+    assert "Free search sign-ups" in page and "Test: Billing Co" in page and "boss@billing.test" in page
+    assert "Clicked Subscribe" in page
+
+
+def test_privacy_and_terms_pages():
+    c = TestClient(app)
+    assert "We never sell your data" in c.get("/privacy").text and "Limited Use" in c.get("/privacy").text
+    assert "$49 per month" in c.get("/terms").text
+    assert 'href="/terms"' in c.get("/try").text
+
+
+def test_existing_beta_tester_keeps_beta_through_try_link():
+    with Session(engine) as db:
+        u = auth.sign_in(db, "tester@beta.test", "Tester", "Test: Beta Tester Co")
+        again = auth.sign_in(db, "tester@beta.test", "Tester", "Test: Other Co", "free")
+        assert again.id == u.id and db.get(Organization, u.org_id).plan_tier == "beta"
+        db.delete(u)
+        db.commit()
+
+
+def test_free_search_is_one_search_ever_then_offer(org):
+    from app.models import ApiUsage
+    c = client(org["user"])
+    with Session(engine) as db:
+        o = db.get(Organization, org["org"])
+        o.plan_tier = "free"
+        a = db.get(Account, org["acct"])
+        a.setup_done_at = datetime.now(timezone.utc)
+        assert plans.trial_ends(o) is None
+        assert "1 ZIP code." in plans.territory_error(plans.PLANS["free"], ["37934", "37919"])
+        assert "1 business type." in plans.territory_error(plans.PLANS["free"], ["37934"], ["Florist", "Bakery"])
+        db.commit()
+    setup_page = c.get("/setup").text
+    assert "one ZIP code" in setup_page and "Suggest from my description" not in setup_page
+    assert "Run my free search" in c.get("/setup/first").text
+    assert "subscribe-modal" not in c.get("/leads?sort=score").text  # no search yet
+    with Session(engine) as db:
+        # a search last month still counts: the free search is once, not once a month
+        db.add(ApiUsage(account_id=org["acct"], service="overture_search", detail="Florist in 37934", est_cost_usd=0,
+                        created_at=datetime.now(timezone.utc) - timedelta(days=40)))
+        db.commit()
+        assert plans.usage(db, db.get(Account, org["acct"]))["searches_left"] == 0
+        with pytest.raises(places.BudgetExceeded, match="used your free search"):
+            places.check_search(db, org["acct"])
+    assert "subscribe-modal" not in c.get("/leads?sort=score").text  # searched, but leads not ready yet
+    from app.models import NightlyRun
+    done = datetime.now(timezone.utc) - timedelta(seconds=5)
+    with Session(engine) as db:
+        db.add(NightlyRun(account_id=org["acct"], searches=0, finished_at=done - timedelta(hours=1)))  # a nightly run with no search
+        db.add(NightlyRun(account_id=org["acct"], searches=1, added=12, finished_at=done))
+        db.commit()
+        assert plans.first_leads_at(db, org["acct"]) == done
+    page = c.get("/leads?sort=score").text
+    assert "subscribe-modal" in page and "Subscribe for $49/month" in page
+    assert str(int((done + timedelta(seconds=30)).timestamp() * 1000)) in page  # shows 30 seconds after leads are ready
+    assert "subscribe-modal" not in c.get("/billing").text
+    c.cookies.set("subscribe_later", "1")
+    assert "subscribe-modal" not in c.get("/leads?sort=score").text
 
 
 def test_standard_plan_has_no_gmail(org, monkeypatch):

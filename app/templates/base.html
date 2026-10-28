@@ -100,6 +100,7 @@
       {% block content %}{% endblock %}
     {% endif %}
   </main>
+  <footer class="max-w-6xl mx-auto px-4 pb-16 text-xs text-slate-400"><a href="/privacy" class="hover:underline">Privacy policy</a> · <a href="/terms" class="hover:underline">Terms of service</a></footer>
   {% if survey_due %}
   <div id="survey-modal" class="fixed inset-0 z-40 grid place-items-center bg-slate-900/40 p-4">
     <div class="w-full max-w-xl bg-white rounded-xl shadow-xl p-6 max-h-[90vh] overflow-y-auto">
@@ -108,6 +109,36 @@
       {% with in_popup=true %}{% include "_survey_form.html" %}{% endwith %}
     </div>
   </div>
+  {% endif %}
+  {% if subscribe_at %}
+  <div id="subscribe-modal" class="hidden fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4">
+    <div class="w-full max-w-md bg-white rounded-xl shadow-xl p-6 grid gap-3">
+      <h2 class="text-xl font-bold">Like these leads? 🎯</h2>
+      <p class="text-sm text-slate-600">That was one search. With {{ pro.label }} you get your whole territory, every kind of business you sell to, found and scored for you.</p>
+      <ul class="text-sm text-slate-700 list-disc ml-5 grid gap-1">
+        <li>{{ pro.searches }} searches a month, every lead scored 1 to 10 by Claude</li>
+        <li>New leads found automatically every night</li>
+        <li>Reasons to reach out: news and events from each business</li>
+        <li>Gmail follow-up reminders and email drafts, Close CRM</li>
+      </ul>
+      <form method="post" action="/billing/checkout" class="grid gap-2">
+        <input type="hidden" name="tier" value="pro">
+        <button class="rounded-lg bg-slate-800 text-white px-5 py-2 font-medium">Subscribe for ${{ pro.price }}/month</button>
+      </form>
+      <p class="text-xs text-slate-500 text-center">Cancel anytime. Payments are handled securely by Stripe.</p>
+      <button type="button" onclick="laterSubscribe()" class="text-sm text-slate-500 hover:underline">Maybe later</button>
+    </div>
+  </div>
+  <script>
+    function laterSubscribe() {
+      document.cookie = "subscribe_later=1; max-age=86400; path=/; samesite=lax";
+      document.getElementById("subscribe-modal").classList.add("hidden");
+    }
+    setTimeout(() => {
+      document.getElementById("subscribe-modal").classList.remove("hidden");
+      htmx.ajax("POST", "/offer/seen", {swap: "none"});
+    }, Math.max(0, {{ subscribe_at }} - Date.now()));
+  </script>
   {% endif %}
   {% if user %}
   <details class="fixed bottom-4 right-4 w-72 rounded-xl bg-white shadow-lg border text-sm">

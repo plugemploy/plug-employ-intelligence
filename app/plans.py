@@ -22,6 +22,9 @@ from app.models import Account, Organization
 PLANS = {
     "beta": {"label": "Beta", "price": 0, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True},
     "pro": {"label": "Plug Employ", "price": 49, "searches": 640, "allowance_usd": 6.5, "nightly_max": 30, "email": True, "close": True},
+    # Sign-ups from the /try link (email campaign, 2026-10-28): one search ever, then the $49 pop-up.
+    "free": {"label": "Free search", "price": 0, "searches": 1, "lifetime": True, "allowance_usd": 0.5, "nightly_max": 0,
+             "email": False, "close": False, "max_zips": 1, "max_industries": 1},
     # Earlier plans, kept for companies already on them. Not offered on the Billing page.
     "personal": {"label": "Standard", "price": 99, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": False, "close": False},
     "premium": {"label": "Premium", "price": 299, "searches": 1400, "allowance_usd": 55.0, "nightly_max": 50, "email": True, "close": True,
@@ -49,7 +52,7 @@ def plan_for(db: Session, account: Account) -> dict:
 
 def trial_ends(org: Organization) -> datetime | None:
     """When an unpaid company's free time runs out (None once they subscribe, or for the owner)."""
-    if org.plan != "trial" or org.plan_tier == "owner" or org.created_at is None:
+    if org.plan != "trial" or org.plan_tier in ("owner", "free") or org.created_at is None:  # free: its one search is the limit
         return None
     return org.created_at + timedelta(days=TRIAL_DAYS)
 
@@ -72,9 +75,11 @@ def has_email(db: Session, account: Account) -> bool:
 def territory_error(plan: dict, zips: list[str], industries: list[str] | None = None) -> str:
     """A message when a plan's ZIP or business-type limit is exceeded, else ""."""
     if plan.get("max_zips") and len(zips) > plan["max_zips"]:
-        return f"The {plan['label']} plan covers up to {plan['max_zips']} ZIP codes. You entered {len(zips)}."
+        n = plan["max_zips"]
+        return f"The {plan['label']} plan covers up to {n} ZIP code{'s' if n != 1 else ''}. You entered {len(zips)}."
     if industries is not None and plan.get("max_industries") and len(industries) > plan["max_industries"]:
-        return (f"The {plan['label']} plan covers up to {plan['max_industries']} business types. "
+        n = plan["max_industries"]
+        return (f"The {plan['label']} plan covers up to {n} business type{'s' if n != 1 else ''}. "
                 f"You picked {len(industries)}.")
     return ""
 
@@ -87,13 +92,27 @@ def monthly_limit(db: Session, account: Account) -> float:
     return MONTHLY_API_BUDGET_USD if allowance is None else allowance
 
 
-def searches_this_month(db: Session, account_id: int) -> int:
+def searches_this_month(db: Session, account_id: int, ever: bool = False) -> int:
+    """Searches run this month (or ever, for the one-time Free search)."""
     from sqlalchemy import func, select
     from app.models import ApiUsage
     from app.places import month_start
-    return db.scalar(select(func.count()).select_from(ApiUsage).where(
-        ApiUsage.account_id == account_id, ApiUsage.service.in_(SEARCH_SERVICES),
-        ApiUsage.created_at >= month_start())) or 0
+    q = select(func.count()).select_from(ApiUsage).where(
+        ApiUsage.account_id == account_id, ApiUsage.service.in_(SEARCH_SERVICES))
+    return db.scalar(q if ever else q.where(ApiUsage.created_at >= month_start())) or 0
+
+
+def first_leads_at(db: Session, account_id: int) -> datetime | None:
+    """When this account's first search finished (leads found, read and scored): a starter or nightly batch
+    that searched something, or a Find leads search."""
+    from sqlalchemy import func, select
+    from app.models import NightlyRun, SearchJob
+    times = [db.scalar(select(func.min(NightlyRun.finished_at)).where(
+                 NightlyRun.account_id == account_id, NightlyRun.searches > 0)),
+             db.scalar(select(func.min(SearchJob.finished_at)).where(
+                 SearchJob.account_id == account_id, SearchJob.status == "done"))]
+    times = [t for t in times if t]
+    return min(times) if times else None
 
 
 def usage(db: Session, account: Account) -> dict:
@@ -103,7 +122,7 @@ def usage(db: Session, account: Account) -> dict:
     limit, spent = monthly_limit(db, account), spent_this_month(db, account.id)
     paused = bool(org and (org.plan == "cancelled" or trial_over(org)))
     total = None if plan["searches"] is None else (0 if paused else plan["searches"])
-    used = searches_this_month(db, account.id)
+    used = searches_this_month(db, account.id, ever=plan.get("lifetime", False))
     left = None if total is None else max(0, total - used)
     return {"limit": limit, "spent": spent, "left": max(0.0, limit - spent),
             "pct": (used / total if total else 1.0) if total is not None else 0.0,
