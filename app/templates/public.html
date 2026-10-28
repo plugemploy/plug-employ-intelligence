@@ -4,13 +4,32 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Plug Employ Intelligence</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png">
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    // Same look as the signed-in pages (base.html): Inter, rounder corners, soft shadows.
+    tailwind.config = { theme: { extend: {
+      fontFamily: { sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"] },
+      borderRadius: { DEFAULT: "0.5rem", lg: "0.75rem", xl: "1rem" },
+    } } };
+  </script>
+  <style type="text/tailwindcss">
+    /* Brand purple for the main buttons and links; light purple fields, as inside the app */
+    .bg-slate-800 { background-color: #3b1578; }
+    .bg-slate-800:hover { background-color: #4c1d95; }
+    .text-blue-700 { color: #6d28d9; }
+    input:not([type=checkbox]):not([type=radio]):not([type=hidden]) { background-color: #ede9fe; border-color: #c4b5fd; }
+    input:focus { outline: 2px solid #a78bfa; outline-offset: 0; }
+  </style>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen flex items-center justify-center p-4">
-  <main class="bg-white shadow rounded-xl p-8 {% block width %}max-w-md{% endblock %} w-full">
-    <p class="text-sm uppercase tracking-wide text-slate-500 mb-4">Plug Employ Intelligence</p>
+<body class="min-h-screen bg-gradient-to-b from-[#3b1578] to-[#1e0b40] text-slate-800 flex flex-col items-center justify-center gap-6 p-4 py-10">
+  <a href="/login"><img src="/static/logo.png" alt="Plug Employ" class="h-12 w-auto"></a>
+  <main class="bg-white shadow-xl rounded-2xl p-8 {% block width %}max-w-md{% endblock %} w-full">
+    <p class="text-xs font-semibold uppercase tracking-wider text-[#6d28d9] mb-4">Plug Employ Intelligence</p>
     {% block content %}{% endblock %}
-    <p class="mt-8 text-xs text-slate-400"><a href="/privacy" class="hover:underline">Privacy policy</a> · <a href="/terms" class="hover:underline">Terms of service</a></p>
   </main>
+  <p class="text-xs text-purple-200"><a href="/privacy" class="hover:underline">Privacy policy</a> · <a href="/terms" class="hover:underline">Terms of service</a></p>
 </body>
 </html>
