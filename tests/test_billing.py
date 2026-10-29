@@ -409,3 +409,27 @@ def test_free_search_runs_in_background_and_list_refreshes(org, monkeypatch):
         db.commit()
     page = c.get("/leads?sort=score").text
     assert 'hx-trigger="every 4s"' not in page and "Finding your leads" not in page
+
+
+def test_reason_leads_on_top_and_page_live_while_checking(org):
+    from app import signals
+    from app.models import LeadSignal
+    with Session(engine) as db:
+        db.get(Organization, org["org"]).plan_tier = "free"
+        db.get(Account, org["acct"]).setup_done_at = datetime.now(timezone.utc)
+        best = Lead(account_id=org["acct"], business_name="Test Best Score", score=10)
+        news = Lead(account_id=org["acct"], business_name="Test Has News", score=6)
+        db.add_all([best, news])
+        db.flush()
+        db.add(LeadSignal(account_id=org["acct"], lead_id=news.id, kind="opening", text="Opening a second shop in May."))
+        db.commit()
+    c = client(org["user"])
+    signals.checking[org["acct"]] = [3, 10]
+    try:
+        page = c.get("/leads?sort=score").text
+        assert page.index("Test Has News") < page.index("Test Best Score")  # reason first, even with a lower score
+        assert "🔔 Reason to reach out" in page and "Opening a second shop in May." in page
+        assert "Looking for reasons to reach out" in page and "checked 3 of 10" in page and 'hx-trigger="every 4s"' in page
+    finally:
+        signals.checking.pop(org["acct"], None)
+    assert 'hx-trigger="every 4s"' not in c.get("/leads?sort=score").text

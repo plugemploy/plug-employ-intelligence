@@ -315,10 +315,11 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
         return resp
     if not request.query_params and saved:
         return RedirectResponse(f"/leads?{saved}", status_code=303)
-    leads, last_run, from_search, reason_counts, locked = [], None, None, {}, []
+    leads, last_run, from_search, reason_counts, locked, first_reason = [], None, None, {}, [], {}
     if account:
         for sig in signals.active(db, account.id, limit=10_000):
             reason_counts[sig.lead_id] = reason_counts.get(sig.lead_id, 0) + 1
+            first_reason.setdefault(sig.lead_id, sig.text)
         last_run = db.scalars(select(NightlyRun).where(NightlyRun.account_id == account.id)
                               .order_by(NightlyRun.started_at.desc())).first()
         q = (select(Lead).where(Lead.account_id == account.id, Lead.deleted_at.is_(None))
@@ -366,6 +367,7 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
             leads.sort(key=lambda l: ((l.industry or "~").lower(), -(l.score or 0)))
         elif sort == "follow_up":
             leads.sort(key=lambda l: l.next_follow_up.due_date if l.next_follow_up else date.max)
+        leads.sort(key=lambda l: l.id not in reason_counts)  # a reason to reach out now goes to the top (sort kept below)
     if export == "csv":
         return leads_csv(leads)
     industries = sorted({i for i in db.scalars(select(Lead.industry).where(
@@ -378,8 +380,10 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
                   f_q=text, f_status=status, f_zip=zip_code, f_industry=industry, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   from_search=from_search, f_from=added_from, f_to=added_to, reason_counts=reason_counts, f_reasons=reasons,
                   locked=locked, locked_high=sum(1 for l in locked if (l.score or 0) >= 8),
-                  free_shown=plans.FREE_SHOWN, live=bool(account and plans.plan_for(db, account) is plans.PLANS["free"]
+                  free_shown=plans.FREE_SHOWN, first_reason=first_reason,
+                  live=bool(account and plans.plan_for(db, account) is plans.PLANS["free"]
                             and (job := search_jobs.latest(db, account.id)) and job.status == "running"),
+                  reasons_checking=signals.checking.get(account.id) if account and plans.plan_for(db, account) is plans.PLANS["free"] else None,
                   locked_reasons=sum(1 for l in locked if l.id in reason_counts),
                   working=scoring.whats_working(db, account.id) if account else {},
                   allow=plans.usage(db, account) if account else None,

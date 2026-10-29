@@ -7,7 +7,9 @@ timely the site clearly states. Best-scored leads first, customers (Sold) includ
 call too.
 """
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Literal
 
 import anthropic
@@ -79,16 +81,23 @@ def _date(raw: str) -> date | None:
         return None
 
 
-def check_lead(db: Session, lead: Lead, today: date | None = None) -> int:
-    """Re-read one lead's website and save new reasons. Returns how many were added."""
-    today = today or date.today()
-    check_budget(db, lead.account_id, EST_COST)
-    text, news_url = website.fetch_news(lead.website or "")
+def _look(url: str, lead, today: date) -> tuple[str, str, list[Reason], float]:
+    """Read the site and ask Claude: no database here, so it can run in a thread. lead is a plain snapshot.
+    Returns (text found, news_url, reasons, cost)."""
+    text, news_url = website.fetch_news(url)
+    if not text:
+        return "", "", [], 0.0
+    reasons, cost = ask_claude(lead, text, today)
+    return text, news_url, reasons, cost
+
+
+def _save(db: Session, lead: Lead, found: tuple[str, str, list[Reason], float], today: date) -> int:
+    """Save what _look found for one lead. Returns how many new reasons were added."""
+    text, news_url, reasons, cost = found
     lead.signals_checked_at = datetime.now(timezone.utc)
     if not text:
         db.commit()
         return 0
-    reasons, cost = ask_claude(lead, text, today)
     db.add(ApiUsage(account_id=lead.account_id, service="claude_signals", detail=lead.business_name[:300],
                     est_cost_usd=cost))
     known = {(s.kind, s.text.lower()) for s in db.scalars(select(LeadSignal).where(LeadSignal.lead_id == lead.id))}
@@ -107,6 +116,17 @@ def check_lead(db: Session, lead: Lead, today: date | None = None) -> int:
     return added
 
 
+def check_lead(db: Session, lead: Lead, today: date | None = None) -> int:
+    """Re-read one lead's website and save new reasons. Returns how many were added."""
+    today = today or date.today()
+    check_budget(db, lead.account_id, EST_COST)
+    return _save(db, lead, _look(lead.website or "", _snapshot(lead), today), today)
+
+
+def _snapshot(lead: Lead) -> SimpleNamespace:
+    return SimpleNamespace(business_name=lead.business_name, industry=lead.industry, website=lead.website)
+
+
 def due_leads(db: Session, account_id: int, limit: int = CHECK_PER_NIGHT) -> list[Lead]:
     stale = datetime.now(timezone.utc) - timedelta(days=RECHECK_DAYS)
     return db.scalars(select(Lead).where(
@@ -116,20 +136,49 @@ def due_leads(db: Session, account_id: int, limit: int = CHECK_PER_NIGHT) -> lis
         .order_by(Lead.score.desc().nulls_last(), Lead.id).limit(limit)).all()
 
 
+PARALLEL = 6  # websites checked at once
+checking: dict[int, list[int]] = {}  # account id -> [checked, total] while a check runs (for the live leads page)
+
+
 def check_account(db: Session, account_id: int, limit: int = CHECK_PER_NIGHT) -> dict:
-    """The nightly pass for one account."""
+    """Check leads' websites for reasons to reach out, best-scored first, PARALLEL at a time; each is saved as soon
+    as it's done. The budget is checked before each one, as when they ran one by one."""
     stats = {"checked": 0, "found": 0, "failed": 0}
     if not ANTHROPIC_API_KEY:
         return stats
-    for lead in due_leads(db, account_id, limit):
-        try:
-            stats["found"] += check_lead(db, lead)
-            stats["checked"] += 1
-        except BudgetExceeded:
-            break
-        except Exception:  # one odd website or answer must never stop the rest
-            db.rollback()
-            stats["failed"] += 1
+    leads, today = due_leads(db, account_id, limit), date.today()
+    checking[account_id] = [0, len(leads)]
+    queue = iter(leads)
+    try:
+        with ThreadPoolExecutor(PARALLEL) as pool:
+            looking = {}
+
+            def look_next() -> None:
+                lead = next(queue, None)
+                if lead is not None:
+                    check_budget(db, account_id, EST_COST)
+                    looking[pool.submit(_look, lead.website or "", _snapshot(lead), today)] = lead
+            try:
+                for _ in range(PARALLEL):
+                    look_next()
+            except BudgetExceeded:
+                queue = iter(())
+            while looking:
+                future = next(as_completed(looking))
+                lead = looking.pop(future)
+                try:
+                    stats["found"] += _save(db, lead, future.result(), today)
+                    stats["checked"] += 1
+                except Exception:  # one odd website or answer must never stop the rest
+                    db.rollback()
+                    stats["failed"] += 1
+                checking[account_id][0] += 1
+                try:
+                    look_next()
+                except BudgetExceeded:
+                    queue = iter(())
+    finally:
+        checking.pop(account_id, None)
     return stats
 
 

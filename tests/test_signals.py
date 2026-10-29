@@ -78,7 +78,7 @@ def test_dashboard_lead_page_list_and_done(ids):
     assert "Hosting a ribbon cutting." in page and "Old promo." not in page
     assert "Glow Spa" in c.get(f"/leads/{ids['spa']}").text and "Reasons to reach out" in c.get(f"/leads/{ids['spa']}").text
     listing = c.get("/leads?reasons=1").text
-    assert "Glow Spa" in listing and "🔔 1" in listing and "Fresh Check" not in listing
+    assert "Glow Spa" in listing and "🔔 Reason to reach out" in listing and "Fresh Check" not in listing
     with Session(engine) as db:
         sid = db.scalars(select(LeadSignal.id).where(LeadSignal.kind == "event", LeadSignal.account_id == ids["a"])).one()
     assert c.post(f"/signals/{sid}/done").status_code == 200

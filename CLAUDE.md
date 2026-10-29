@@ -119,4 +119,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   each lead is saved as it finishes. A Free search's /setup/first starts a background SearchJob and goes straight to
   /leads?search=, which refreshes itself every 4s while it runs (#leads-live, "Finding your leads…" card). Beta's first
   search keeps the "Finding your leads" pop-up (_finding.html, live counts from GET /setup/progress).
+- Reasons first (2026-10-29): signals.check_account checks 6 sites at once (_look in threads, _save in the session;
+  signals.checking[account] = [checked, total] while it runs). After a free search the leads page stays live with a
+  "Looking for reasons to reach out…" card until it's done. Leads list (every account, every sort) puts leads with an
+  active reason first, red "🔔 Reason to reach out" pill + the first reason's text, row tinted.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

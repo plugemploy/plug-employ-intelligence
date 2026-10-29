@@ -39,8 +39,12 @@ def reasons_after_free_search(db: Session, account_id: int) -> None:
         return
 
     def check(acct_id: int):
-        with Session(engine) as s:
-            signals.check_account(s, acct_id, limit=FREE_REASON_CHECKS)
+        try:
+            with Session(engine) as s:
+                signals.check_account(s, acct_id, limit=FREE_REASON_CHECKS)
+        finally:
+            signals.checking.pop(acct_id, None)
+    signals.checking[account_id] = [0, 0]  # the leads page keeps refreshing from now, not only once the thread starts
     spawn(check, account_id)
 
 
