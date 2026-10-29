@@ -59,8 +59,3 @@ def _no_overture_network(monkeypatch):
     monkeypatch.setattr(overture, "_read_area", blocked)
     monkeypatch.setattr(overture, "fetch_nearby", lambda zip_code: [])
 
-
-@pytest.fixture(autouse=True)
-def _terms_agreed(monkeypatch):
-    """Test users haven't ticked the agreement box; only test_terms checks that gate."""
-    monkeypatch.setattr(auth, "REQUIRE_TERMS", False)

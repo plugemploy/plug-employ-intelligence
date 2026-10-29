@@ -57,13 +57,6 @@ def login_required(request: Request, exc: auth.LoginRequired):
     return RedirectResponse("/login", status_code=303)
 
 
-@app.exception_handler(auth.TermsRequired)
-def terms_required(request: Request, exc: auth.TermsRequired):
-    if request.headers.get("HX-Request"):
-        return HTMLResponse("", headers={"HX-Redirect": "/agree"})
-    return RedirectResponse("/agree", status_code=303)
-
-
 def render(request, name, db, account, **ctx):
     user = getattr(request.state, "user", None)
     accounts = auth.visible_accounts(db, user) if user else []
@@ -269,21 +262,6 @@ def auth_callback(request: Request, state: str = "", code: str = "", error: str 
     resp.delete_cookie(OFFER_COOKIE)
     resp.delete_cookie(AGREE_COOKIE)
     return resp
-
-
-@app.get("/agree")
-def agree_page(request: Request, msg: str = "", user: User = Depends(current_user)):
-    """People who signed up before the agreement box tick it once here."""
-    return page(request, "agree.html", message=msg, person=user)
-
-
-@app.post("/agree")
-def agree_submit(agree: str = Form(""), db: Session = Depends(get_session), user: User = Depends(current_user)):
-    if not agree:
-        return RedirectResponse("/agree?msg=Please%20tick%20the%20box%20to%20continue.", status_code=303)
-    auth.agree(user)
-    db.commit()
-    return RedirectResponse("/leads", status_code=303)
 
 
 @app.post("/logout")

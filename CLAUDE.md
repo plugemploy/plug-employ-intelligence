@@ -104,8 +104,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   ticks the highest scores, header box selects all, untick to skip, POST /close/send-selected (close_crm.sendable: not in Close, open, has phone).
 - Terms agreement (2026-10-28): /signup and /try need a ticked box (Terms + Privacy, "independent tool owned by East TN
   Publication LLC, not affiliated with or endorsed by N2"; templates/_agree_box.html) before Google sign-in. users.terms_agreed_at +
-  terms_version (auth.TERMS_VERSION; bump it to ask everyone again). Anyone signed in without it is sent to /agree once
-  (auth.TermsRequired; tests turn auth.REQUIRE_TERMS off). Shown on /beta + CSV.
+  terms_version (auth.TERMS_VERSION). Earlier users are NOT asked (Savannah removed the one-time /agree page so it
+  doesn't put testers off). Shown on /beta + CSV.
 - VA offer (2026-10-28): free search users see a soft line under their leads ("N leads ready. Short on time to call
   them? We can hire and train someone...") with "I'm interested" (POST /va/interest -> organizations.va_interest_at);
   shown on /beta (Wants a VA column + funnel). Savannah follows up by email by hand.

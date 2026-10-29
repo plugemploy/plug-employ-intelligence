@@ -28,20 +28,13 @@ REDIRECT_URI = f"{APP_BASE_URL}/auth/callback"
 # Before anyone has signed in, the first person to sign in on this Mac claims this company.
 FIRST_OWNER_ORG = "Plug Employ"
 
-# Everyone ticks the agreement box once (sign-up page, or /agree for people who signed up before it).
-# Bump TERMS_VERSION when the terms change and everyone is asked again.
+# New sign-ups tick the agreement box; the version they saw is saved with the date.
 TERMS_VERSION = "2026-10-28"
-REQUIRE_TERMS = True  # tests turn this off
-AGREE_FREE = ("/agree", "/logout", "/ping")
 
 _pending: dict[str, dict] = {}  # sign-in in progress: state -> {"verifier", "signup_company"}
 
 
 class LoginRequired(Exception):
-    pass
-
-
-class TermsRequired(Exception):
     pass
 
 
@@ -71,8 +64,6 @@ def current_user(request: Request, db: Session = Depends(get_session)) -> User:
     if user is None:
         raise LoginRequired()
     request.state.user = user
-    if REQUIRE_TERMS and user.terms_version != TERMS_VERSION and request.url.path not in AGREE_FREE:
-        raise TermsRequired()
     return user
 
 
