@@ -1,6 +1,6 @@
 """Checks Stripe billing with a fake Stripe (no real requests, no charges)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace as NS
 
 import pytest
@@ -172,6 +172,10 @@ def test_free_signup_tracker_on_beta_page(org):
     page = owner.get("/beta").text
     assert "Free search sign-ups" in page and "Test: Billing Co" in page and "boss@billing.test" in page
     assert "Clicked Subscribe" in page
+    csv_text = owner.get("/beta.csv").text
+    assert "FREE SEARCH SIGN-UPS" in csv_text
+    line = [l for l in csv_text.split("FREE SEARCH SIGN-UPS")[1].splitlines() if l.startswith("Test: Billing Co")][0]
+    assert "boss@billing.test" in line and str(date.today()) in line  # saw the offer / clicked Subscribe dates
 
 
 def test_privacy_and_terms_pages():

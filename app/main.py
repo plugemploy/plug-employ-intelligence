@@ -1405,6 +1405,19 @@ def beta_results_csv(db: Session = Depends(get_session), user: User = Depends(cu
                     r["agreed"].date() if r["agreed"] else "", r["contacted"], r["appts_set"],
                     r["appts_shown"], r["sold"], round(r["mrr"]), round(r["contract_value"]), round(r["ad_fees"]),
                     r["found_only"], r["feedback"]] + survey_cells(r["survey"]))
+    # Free search sign-ups (from the /try link) below the testers, in their own section.
+    def day(when):
+        return when.astimezone().date() if when else ""
+    w.writerow([])
+    w.writerow(["FREE SEARCH SIGN-UPS"])
+    w.writerow(["Company", "People", "Signed up", "Their search", "Leads", "Minutes in app", "Visits", "Last seen",
+                "Agreed to terms", "Saw $49 offer", "Clicked Subscribe", "Subscribed", "Interested in a VA"])
+    for r in free_search_rows(db):
+        o = r["org"]
+        w.writerow([csv_cell(o.name), r["emails"], day(o.created_at), csv_cell(r["search"]) or "setup not finished",
+                    r["leads"] if r["leads_at"] else "", round(r["active_seconds"] / 60), r["visits"], day(r["last_seen"]),
+                    day(r["agreed"]), day(o.offer_seen_at), day(o.checkout_started_at), "yes" if r["subscribed"] else "",
+                    day(o.va_interest_at)])
     return HTMLResponse(buf.getvalue(), media_type="text/csv",
                         headers={"Content-Disposition": f'attachment; filename="beta-results-{date.today()}.csv"'})
 
