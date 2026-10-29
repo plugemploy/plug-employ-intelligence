@@ -23,7 +23,11 @@
         <th class="p-3">Time in app</th><th class="p-3">Saw offer</th><th class="p-3">Clicked Subscribe</th><th class="p-3">Subscribed</th><th class="p-3">Wants a VA</th></tr></thead>
       <tbody>{% for r in free %}<tr class="border-t align-top">
         <td class="p-3"><b>{{ r.org.name }}</b><span class="block text-xs text-slate-500">{{ r.emails }}</span>
-          <span class="block text-xs {{ 'text-slate-500' if r.agreed else 'text-amber-700' }}">{{ "agreed to terms " ~ r.agreed.astimezone().strftime("%b %-d") if r.agreed else "hasn't agreed to terms yet" }}</span></td>
+          <span class="block text-xs {{ 'text-slate-500' if r.agreed else 'text-amber-700' }}">{{ "agreed to terms " ~ r.agreed.astimezone().strftime("%b %-d") if r.agreed else "hasn't agreed to terms yet" }}</span>
+          <form method="post" action="/beta/delete" class="mt-1"
+          onsubmit='return confirm({{ ("Delete " ~ r.org.name ~ " and everything in it (people, leads, searches)? This can’t be undone.")|tojson }})'>
+          <input type="hidden" name="org_id" value="{{ r.org.id }}">
+          <button class="text-xs text-red-700 hover:underline">🗑 Delete test company</button></form></td>
         <td class="p-3 whitespace-nowrap">{{ r.org.created_at.astimezone().strftime("%b %-d, %-I:%M %p") }}</td>
         <td class="p-3">{{ r.search or "setup not finished" }}</td>
         <td class="p-3">{{ r.leads if r.leads_at else "—" }}</td>
@@ -75,7 +79,11 @@
         <span class="block text-xs {{ 'text-slate-500' if r.agreed else 'text-amber-700' }}">{{ "agreed to terms " ~ r.agreed.astimezone().strftime("%b %-d") if r.agreed else "hasn't agreed to terms yet" }}</span>
         {% if not r.setup_done %}<span class="text-xs text-amber-700">setup not finished</span>{% endif %}
         {% for a in r.accounts %}<a href="/clients/import?account_id={{ a.id }}" class="block text-xs text-blue-700 hover:underline">
-          ⬆ Import clients{% if r.accounts|length > 1 %} ({{ a.name }}){% endif %}</a>{% endfor %}</td>
+          ⬆ Import clients{% if r.accounts|length > 1 %} ({{ a.name }}){% endif %}</a>{% endfor %}
+        <form method="post" action="/beta/delete" class="mt-1"
+          onsubmit='return confirm({{ ("Delete " ~ r.org.name ~ " and everything in it (people, leads, searches)? This can’t be undone.")|tojson }})'>
+          <input type="hidden" name="org_id" value="{{ r.org.id }}">
+          <button class="text-xs text-red-700 hover:underline">🗑 Delete test company</button></form></td>
       <td class="p-3">{{ r.plan }}</td>
       <td class="p-3 whitespace-nowrap">{{ r.org.created_at.astimezone().strftime("%b %-d") }}</td>
       <td class="p-3 whitespace-nowrap">{{ r.last_login.astimezone().strftime("%b %-d") if r.last_login else "never" }}</td>

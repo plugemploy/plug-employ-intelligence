@@ -448,3 +448,32 @@ def test_free_search_starts_when_setup_is_saved(org, monkeypatch):
     assert r.headers["location"].startswith("/leads?search=")  # no "Run my free search" click
     with Session(engine) as db:
         assert search_jobs.latest(db, org["acct"]).status == "running"
+
+
+def test_owner_deletes_a_test_company(org):
+    from tests.conftest import login_as
+    with Session(engine) as db:
+        db.add(Lead(account_id=org["acct"], business_name="Test Gone Lead"))
+        owner_org = Organization(name="Test: Owner Deletes", plan="active", plan_tier="owner")
+        db.add(owner_org)
+        db.flush()
+        owner_acct = auth.new_account(db, owner_org.id, "Test: Owner Deletes Pub")
+        paying = Organization(name="Test: Paying Co", plan="active", plan_tier="pro", stripe_subscription_id="sub_x")
+        db.add(paying)
+        db.commit()
+        owner_acct_id, owner_org_id, paying_id = owner_acct.id, owner_org.id, paying.id
+    c = client(org["user"])
+    assert c.post("/beta/delete", data={"org_id": org["org"]}, follow_redirects=False).status_code == 404  # owner only
+    owner = TestClient(app)
+    login_as(owner, owner_acct_id)
+    assert "Delete test company" in owner.get("/beta").text
+    r = owner.post("/beta/delete", data={"org_id": owner_org_id}, follow_redirects=False)
+    assert "can%E2%80%99t%20be%20deleted" in r.headers["location"]  # not your own company
+    r = owner.post("/beta/delete", data={"org_id": paying_id}, follow_redirects=False)
+    assert "Cancel%20it%20in%20Stripe%20first" in r.headers["location"]
+    r = owner.post("/beta/delete", data={"org_id": org["org"]}, follow_redirects=False)
+    assert "Deleted%20Test%3A%20Billing%20Co" in r.headers["location"]
+    with Session(engine) as db:
+        assert db.get(Organization, org["org"]) is None and db.get(User, org["user"]) is None
+        assert db.get(Account, org["acct"]) is None
+        assert not db.scalars(select(Lead).where(Lead.business_name == "Test Gone Lead")).all()

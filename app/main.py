@@ -1431,6 +1431,25 @@ def require_owner(db: Session, user: User) -> None:
         raise HTTPException(404)
 
 
+@app.post("/beta/delete")
+def beta_delete_company(org_id: int = Form(...), db: Session = Depends(get_session), user: User = Depends(current_user)):
+    """The owner deletes a test company and everything in it (people, accounts, leads, searches), so its Google
+    accounts can sign up again as new. Can't be undone."""
+    from sqlalchemy import delete
+    require_owner(db, user)
+    org = db.get(Organization, org_id)
+    if org is None or org.id == user.org_id or org.plan_tier == "owner":
+        return RedirectResponse(f"/beta?msg={quote('That company can’t be deleted.')}", status_code=303)
+    if org.plan == "active" and org.stripe_subscription_id:
+        return RedirectResponse(f"/beta?msg={quote(f'{org.name} has an active subscription. Cancel it in Stripe first, then delete.')}",
+                                status_code=303)
+    name = org.name
+    db.execute(delete(Organization).where(Organization.id == org.id))  # the database removes everything under it
+    db.commit()
+    return RedirectResponse(f"/beta?msg={quote(f'Deleted {name}. Its Google accounts can sign up again as new.')}",
+                            status_code=303)
+
+
 @app.get("/beta")
 def beta_results(request: Request, db: Session = Depends(get_session), user: User = Depends(current_user)):
     require_owner(db, user)
