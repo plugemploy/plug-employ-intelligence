@@ -2,6 +2,18 @@
 {% if allow and allow.plan.unlimited and not allow.trial_over and allow.pct < 1 %}
 <div class="mb-4 rounded-xl bg-white shadow p-3 text-sm">♾️ <b>Unlimited searches</b> across your territory
   <span class="text-slate-500">({{ allow.plan.label }} plan: up to {{ allow.plan.max_zips }} ZIP codes × {{ allow.plan.max_industries }} business types, each searched once a month)</span></div>
+{% elif allow and allow.plan.lifetime %}
+{# Free search: its searches are once, not monthly. Once used, point to the subscription. #}
+{% if allow.searches_left %}
+<div class="mb-4 rounded-xl bg-white shadow p-3 text-sm">🔎 Your free search: <b>{{ allow.searches_left }}</b> of {{ allow.searches_total }} searches left
+  <span class="text-slate-500">(up to {{ allow.plan.max_zips }} ZIP codes × {{ allow.plan.max_industries }} business types)</span></div>
+{% else %}
+<form method="post" action="/billing/checkout" class="mb-4 rounded-xl bg-purple-50 border border-purple-200 p-4 text-sm flex flex-wrap items-center gap-3">
+  <input type="hidden" name="tier" value="pro">
+  <span class="flex-1 min-w-[16rem] text-purple-900">✅ <b>You've used your free search.</b> Subscribe to keep searching.</span>
+  <button class="rounded-lg bg-[#3b1578] text-white px-4 py-1.5 font-semibold whitespace-nowrap">Subscribe for ${{ pro.price }}/month</button>
+</form>
+{% endif %}
 {% elif allow and allow.plan.allowance_usd %}
 {% set pct = (allow.pct * 100)|round|int %}
 <div class="mb-4 rounded-xl bg-white shadow p-3 text-sm flex flex-wrap items-center gap-3

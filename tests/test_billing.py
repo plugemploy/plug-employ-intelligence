@@ -229,6 +229,9 @@ def test_free_search_is_one_search_ever_then_offer(org):
         assert plans.usage(db, db.get(Account, org["acct"]))["searches_left"] == 0
         with pytest.raises(places.BudgetExceeded, match="used your free search"):
             places.check_search(db, org["acct"])
+    usage_page = c.get("/usage").text
+    assert "You've used your free search." in usage_page and "Subscribe for $49/month" in usage_page
+    assert "paused until the 1st" not in usage_page and "this month" not in usage_page.split("free search")[0][-200:]
     page = c.get("/leads?sort=score").text
     assert "subscribe-modal" not in page and "subscribe-banner" not in page  # searched, but leads not ready yet
     from app.models import NightlyRun
