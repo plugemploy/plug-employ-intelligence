@@ -10,7 +10,7 @@
 <section class="mb-8">
   <h2 class="text-lg font-semibold mb-1">Free search sign-ups</h2>
   <p class="text-sm text-slate-500 mb-3">People who came from your app.plugemploy.com/try link. Clicked Subscribe but didn't subscribe = worth a personal email.</p>
-  <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-3">
+  <div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-3">
     {% for label, n in funnel %}
     <div class="bg-white rounded-xl shadow p-4"><p class="text-xs text-slate-500">{{ label }}</p><p class="text-2xl font-bold">{{ n }}</p></div>
     {% endfor %}
@@ -20,9 +20,10 @@
     <table class="w-full text-sm">
       <thead class="bg-slate-100 text-left text-slate-600"><tr>
         <th class="p-3">Company</th><th class="p-3">Signed up</th><th class="p-3">Their search</th><th class="p-3">Leads</th>
-        <th class="p-3">Time in app</th><th class="p-3">Saw offer</th><th class="p-3">Clicked Subscribe</th><th class="p-3">Subscribed</th></tr></thead>
+        <th class="p-3">Time in app</th><th class="p-3">Saw offer</th><th class="p-3">Clicked Subscribe</th><th class="p-3">Subscribed</th><th class="p-3">Wants a VA</th></tr></thead>
       <tbody>{% for r in free %}<tr class="border-t align-top">
-        <td class="p-3"><b>{{ r.org.name }}</b><span class="block text-xs text-slate-500">{{ r.emails }}</span></td>
+        <td class="p-3"><b>{{ r.org.name }}</b><span class="block text-xs text-slate-500">{{ r.emails }}</span>
+          <span class="block text-xs {{ 'text-slate-500' if r.agreed else 'text-amber-700' }}">{{ "agreed to terms " ~ r.agreed.astimezone().strftime("%b %-d") if r.agreed else "hasn't agreed to terms yet" }}</span></td>
         <td class="p-3 whitespace-nowrap">{{ r.org.created_at.astimezone().strftime("%b %-d, %-I:%M %p") }}</td>
         <td class="p-3">{{ r.search or "setup not finished" }}</td>
         <td class="p-3">{{ r.leads if r.leads_at else "—" }}</td>
@@ -30,7 +31,8 @@
           {%- if r.last_seen %} · last {{ r.last_seen.astimezone().strftime("%b %-d") }}{% endif %}</span>{% else %}—{% endif %}</td>
         <td class="p-3">{{ "yes" if r.org.offer_seen_at else "—" }}</td>
         <td class="p-3 {{ 'font-semibold text-amber-700' if r.org.checkout_started_at and not r.subscribed }}">{{ "yes" if r.org.checkout_started_at else "—" }}</td>
-        <td class="p-3 {{ 'font-semibold text-green-700' if r.subscribed }}">{{ "yes" if r.subscribed else "—" }}</td></tr>{% endfor %}</tbody>
+        <td class="p-3 {{ 'font-semibold text-green-700' if r.subscribed }}">{{ "yes" if r.subscribed else "—" }}</td>
+        <td class="p-3 whitespace-nowrap {{ 'font-semibold text-amber-700' if r.org.va_interest_at }}">{{ r.org.va_interest_at.astimezone().strftime("%b %-d") if r.org.va_interest_at else "—" }}</td></tr>{% endfor %}</tbody>
     </table>
   </div>
   {% endif %}
@@ -70,6 +72,7 @@
       <th class="p-3">MRR</th><th class="p-3">Contract value</th><th class="p-3">Ad Mgmt Fees</th><th class="p-3">Only via app</th><th class="p-3">Survey</th><th class="p-3">Feedback</th></tr></thead>
     <tbody>{% for r in rows %}<tr class="border-t align-top">
       <td class="p-3"><b>{{ r.org.name }}</b><span class="block text-xs text-slate-500">{{ r.emails }}</span>
+        <span class="block text-xs {{ 'text-slate-500' if r.agreed else 'text-amber-700' }}">{{ "agreed to terms " ~ r.agreed.astimezone().strftime("%b %-d") if r.agreed else "hasn't agreed to terms yet" }}</span>
         {% if not r.setup_done %}<span class="text-xs text-amber-700">setup not finished</span>{% endif %}
         {% for a in r.accounts %}<a href="/clients/import?account_id={{ a.id }}" class="block text-xs text-blue-700 hover:underline">
           ⬆ Import clients{% if r.accounts|length > 1 %} ({{ a.name }}){% endif %}</a>{% endfor %}</td>

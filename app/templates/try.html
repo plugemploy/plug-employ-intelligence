@@ -8,8 +8,8 @@
   <input type="hidden" name="offer" value="free">
   <label class="grid gap-1 text-sm">Company or publication name
     <input name="company" required maxlength="200" class="border rounded px-3 py-2" placeholder="e.g. Westside Living Magazine"></label>
+  {% include "_agree_box.html" %}
   <button class="rounded-lg bg-slate-800 text-white px-4 py-2 font-medium" {% if not ready %}disabled{% endif %}>Continue with Google</button>
-  <p class="text-xs text-slate-500">By continuing you agree to the <a href="/terms" class="underline">terms</a> and <a href="/privacy" class="underline">privacy policy</a>.</p>
 </form>
 <p class="mt-6 text-sm text-slate-600">Already have an account? <a href="/login" class="text-blue-700 hover:underline">Sign in</a></p>
 {% endblock %}

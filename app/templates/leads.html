@@ -168,6 +168,15 @@
       </div>
     </form>
   </div>
+  {% if leads %}
+  <div id="va-offer" class="mt-4 rounded-xl border bg-white p-4 text-sm text-slate-700 flex flex-wrap items-center gap-3">
+    {% if org.va_interest_at %}<span>✅ Thanks! We'll email you at {{ user.email }} within a day.</span>
+    {% else %}<span class="flex-1 min-w-[16rem]">{{ leads|length }} lead{{ "s" if leads|length != 1 }} ready. Short on time to call them?
+      We can hire and train someone to call them for you.</span>
+    <button hx-post="/va/interest" hx-target="#va-offer" hx-swap="outerHTML"
+      class="rounded-lg border border-[#3b1578] text-[#3b1578] px-3 py-1.5 text-sm font-semibold hover:bg-purple-50">I'm interested</button>{% endif %}
+  </div>
+  {% endif %}
   {% endif %}
 </div>
 {% endblock %}

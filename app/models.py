@@ -33,6 +33,7 @@ class Organization(Base):
     signup_offer: Mapped[str] = mapped_column(String(30), default="", server_default="")
     offer_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     checkout_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    va_interest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # "I'm interested" in VA hiring + training
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -379,6 +380,9 @@ class User(Base):
     active_seconds: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     visits: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # a new one after 30 quiet minutes
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When they ticked "I agree to the Terms and Privacy Policy..." and which version (auth.TERMS_VERSION).
+    terms_agreed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    terms_version: Mapped[str] = mapped_column(String(20), default="", server_default="")
 
     @property
     def is_admin(self) -> bool:

@@ -2,6 +2,7 @@
 
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
+from html import escape
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
@@ -54,6 +55,13 @@ def login_required(request: Request, exc: auth.LoginRequired):
     if request.headers.get("HX-Request"):
         return HTMLResponse("", headers={"HX-Redirect": "/login"})
     return RedirectResponse("/login", status_code=303)
+
+
+@app.exception_handler(auth.TermsRequired)
+def terms_required(request: Request, exc: auth.TermsRequired):
+    if request.headers.get("HX-Request"):
+        return HTMLResponse("", headers={"HX-Redirect": "/agree"})
+    return RedirectResponse("/agree", status_code=303)
 
 
 def render(request, name, db, account, **ctx):
@@ -127,8 +135,10 @@ def activity(people: list) -> dict:
     secs = sum(u.active_seconds or 0 for u in people)
     seen = [u.last_seen_at for u in people if u.last_seen_at]
     h, m = divmod(round(secs / 60), 60)
+    agreed = [u.terms_agreed_at for u in people if u.terms_agreed_at]
     return dict(active_seconds=secs, active=(f"{h}h {m}m" if h else f"{m} min") if secs else "",
-                visits=sum(u.visits or 0 for u in people), last_seen=max(seen) if seen else None)
+                visits=sum(u.visits or 0 for u in people), last_seen=max(seen) if seen else None,
+                agreed=min(agreed) if agreed else None)
 
 
 @app.get("/offer/teaser")
@@ -149,6 +159,16 @@ def offer_seen(db: Session = Depends(get_session), user: User = Depends(current_
         org.offer_seen_at = datetime.now(timezone.utc)
         db.commit()
     return HTMLResponse("")
+
+
+@app.post("/va/interest")
+def va_interest(request: Request, db: Session = Depends(get_session), user: User = Depends(current_user)):
+    """Free search "I'm interested" in us hiring and training a VA to call their leads. Shown on Beta results."""
+    org = db.get(Organization, user.org_id)
+    org.va_interest_at = org.va_interest_at or datetime.now(timezone.utc)
+    db.commit()
+    return HTMLResponse(f'<div id="va-offer" class="mt-4 rounded-xl border bg-white p-4 text-sm text-slate-700">'
+                        f"✅ Thanks! We'll email you at {escape(user.email)} within a day.</div>")
 
 
 def parse_day(raw: str) -> date | None:
@@ -202,6 +222,7 @@ def terms_page(request: Request):
 
 
 OFFER_COOKIE = "offer"  # "free" while someone from the /try link is away at Google signing in
+AGREE_COOKIE = "agreed"  # set when the sign-up box was ticked, read back when Google returns
 
 
 @app.get("/try")
@@ -211,10 +232,15 @@ def try_page(request: Request, msg: str = ""):
 
 
 @app.get("/auth/google")
-def auth_google(company: str = "", offer: str = ""):
+def auth_google(company: str = "", offer: str = "", agree: str = ""):
     if not gmail.configured():
         return RedirectResponse("/login?msg=Google%20sign-in%20isn%27t%20set%20up%20yet.", status_code=303)
+    if company and not agree:
+        back = "/try" if offer == "free" else "/signup"
+        return RedirectResponse(f"{back}?msg=Please%20tick%20the%20box%20to%20continue.", status_code=303)
     resp = RedirectResponse(auth.start_login(company), status_code=303)
+    if agree:
+        resp.set_cookie(AGREE_COOKIE, auth.TERMS_VERSION, max_age=1800, httponly=True, samesite="lax", secure=COOKIE_SECURE)
     if offer == "free":
         resp.set_cookie(OFFER_COOKIE, "free", max_age=1800, httponly=True, samesite="lax", secure=COOKIE_SECURE)
     else:
@@ -231,6 +257,9 @@ def auth_callback(request: Request, state: str = "", code: str = "", error: str 
     try:
         identity, company = auth.google_identity(state, code)
         user = auth.sign_in(db, identity["email"], identity["name"], company, tier)
+        if request.cookies.get(AGREE_COOKIE) == auth.TERMS_VERSION:
+            auth.agree(user)
+            db.commit()
     except Exception as exc:
         return RedirectResponse(f"/login?msg={quote(str(exc).splitlines()[0])}", status_code=303)
     resp = RedirectResponse("/setup" if company else "/leads", status_code=303)
@@ -238,7 +267,23 @@ def auth_callback(request: Request, state: str = "", code: str = "", error: str 
                     max_age=auth.SESSION_DAYS * 86400)
     resp.delete_cookie(ACCOUNT_COOKIE)
     resp.delete_cookie(OFFER_COOKIE)
+    resp.delete_cookie(AGREE_COOKIE)
     return resp
+
+
+@app.get("/agree")
+def agree_page(request: Request, msg: str = "", user: User = Depends(current_user)):
+    """People who signed up before the agreement box tick it once here."""
+    return page(request, "agree.html", message=msg, person=user)
+
+
+@app.post("/agree")
+def agree_submit(agree: str = Form(""), db: Session = Depends(get_session), user: User = Depends(current_user)):
+    if not agree:
+        return RedirectResponse("/agree?msg=Please%20tick%20the%20box%20to%20continue.", status_code=303)
+    auth.agree(user)
+    db.commit()
+    return RedirectResponse("/leads", status_code=303)
 
 
 @app.post("/logout")
@@ -1357,7 +1402,8 @@ def beta_results(request: Request, db: Session = Depends(get_session), user: Use
     funnel = [("Signed up", len(free)), ("Ran their search", sum(1 for r in free if r["leads_at"])),
               ("Saw the $49 offer", sum(1 for r in free if r["org"].offer_seen_at)),
               ("Clicked Subscribe", sum(1 for r in free if r["org"].checkout_started_at)),
-              ("Subscribed", sum(1 for r in free if r["subscribed"]))]
+              ("Subscribed", sum(1 for r in free if r["subscribed"])),
+              ("Interested in a VA", sum(1 for r in free if r["org"].va_interest_at))]
     return render(request, "beta.html", db, None, rows=rows, totals=results.total(rows) if rows else None, survey=survey,
                   message=message, free=free, funnel=funnel)
 
@@ -1370,14 +1416,15 @@ def beta_results_csv(db: Session = Depends(get_session), user: User = Depends(cu
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Company", "People", "Plan", "Signed up", "Setup done", "Last sign-in", "Minutes in app", "Visits",
-                "Last seen", "Leads contacted",
+                "Last seen", "Agreed to terms", "Leads contacted",
                 "Appointments set", "Appointments shown", "Sold", "Monthly recurring revenue $", "Contract value $",
                 "Ad Management Fees $", "Sales found only with Plug Employ", "Feedback notes", "Would pay",
                 "Recommend (0-10)", "Hours saved per week", "Quote", "OK to quote"])
     for r in beta_rows(db):
         w.writerow([r["org"].name, r["emails"], r["plan"], r["org"].created_at.date(), "yes" if r["setup_done"] else "no",
                     r["last_login"].date() if r["last_login"] else "", round(r["active_seconds"] / 60), r["visits"],
-                    r["last_seen"].date() if r["last_seen"] else "", r["contacted"], r["appts_set"],
+                    r["last_seen"].date() if r["last_seen"] else "",
+                    r["agreed"].date() if r["agreed"] else "", r["contacted"], r["appts_set"],
                     r["appts_shown"], r["sold"], round(r["mrr"]), round(r["contract_value"]), round(r["ad_fees"]),
                     r["found_only"], r["feedback"]] + survey_cells(r["survey"]))
     return HTMLResponse(buf.getvalue(), media_type="text/csv",

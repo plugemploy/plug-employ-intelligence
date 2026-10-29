@@ -138,7 +138,7 @@ def test_try_link_signs_up_on_free_search(monkeypatch):
     monkeypatch.setattr(auth, "google_identity", lambda s, c: ({"email": "new@free.test", "name": "Free Person"}, "Test: Free Co"))
     c = TestClient(app, follow_redirects=False)
     assert "one free lead search" in c.get("/try").text
-    c.get("/auth/google?company=Test:%20Free%20Co&offer=free")
+    c.get("/auth/google?company=Test:%20Free%20Co&offer=free&agree=yes")
     assert c.cookies.get(main.OFFER_COOKIE) == "free"
     assert c.get("/auth/callback?state=s&code=c").headers["location"] == "/setup"
     with Session(engine) as db:
@@ -241,6 +241,16 @@ def test_free_search_is_one_search_ever_then_offer(org):
     c.cookies.set("subscribe_later", "1")
     page = c.get("/leads?sort=score").text
     assert "subscribe-modal" not in page and "subscribe-banner" in page  # "Maybe later" hides only the pop-up
+    # the soft VA line under their leads, and "I'm interested" saved for Beta results
+    assert "Short on time to call them?" not in page  # no leads yet
+    with Session(engine) as db:
+        db.add(Lead(account_id=org["acct"], business_name="Test VA Lead", score=8))
+        db.commit()
+    assert "1 lead ready. Short on time to call them?" in c.get("/leads?sort=score").text
+    assert "We'll email you at" in c.post("/va/interest").text
+    assert "We'll email you at" in c.get("/leads?sort=score").text
+    with Session(engine) as db:
+        assert db.get(Organization, org["org"]).va_interest_at is not None
 
 
 def test_standard_plan_has_no_gmail(org, monkeypatch):
