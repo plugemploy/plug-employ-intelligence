@@ -91,8 +91,8 @@ def _look(url: str, lead, today: date) -> tuple[str, str, list[Reason], float]:
     return text, news_url, reasons, cost
 
 
-def _save(db: Session, lead: Lead, found: tuple[str, str, list[Reason], float], today: date) -> int:
-    """Save what _look found for one lead. Returns how many new reasons were added."""
+def save(db: Session, lead: Lead, found: tuple[str, str, list[Reason], float], today: date) -> int:
+    """Save what _look (or pipeline) found for one lead. Returns how many new reasons were added."""
     text, news_url, reasons, cost = found
     lead.signals_checked_at = datetime.now(timezone.utc)
     if not text:
@@ -120,7 +120,7 @@ def check_lead(db: Session, lead: Lead, today: date | None = None) -> int:
     """Re-read one lead's website and save new reasons. Returns how many were added."""
     today = today or date.today()
     check_budget(db, lead.account_id, EST_COST)
-    return _save(db, lead, _look(lead.website or "", _snapshot(lead), today), today)
+    return save(db, lead, _look(lead.website or "", _snapshot(lead), today), today)
 
 
 def _snapshot(lead: Lead) -> SimpleNamespace:
@@ -167,7 +167,7 @@ def check_account(db: Session, account_id: int, limit: int = CHECK_PER_NIGHT) ->
                 future = next(as_completed(looking))
                 lead = looking.pop(future)
                 try:
-                    stats["found"] += _save(db, lead, future.result(), today)
+                    stats["found"] += save(db, lead, future.result(), today)
                     stats["checked"] += 1
                 except Exception:  # one odd website or answer must never stop the rest
                     db.rollback()

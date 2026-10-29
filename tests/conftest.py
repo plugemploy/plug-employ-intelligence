@@ -66,3 +66,10 @@ def _no_background_reason_checks(monkeypatch):
     """A free search's background website check never runs in tests (test_billing calls the real one)."""
     from app import search_jobs
     monkeypatch.setattr(search_jobs, "reasons_after_free_search", lambda db, account_id: None)
+
+
+@pytest.fixture(autouse=True)
+def _no_website_reads(monkeypatch):
+    """Searches never read real websites in tests unless a test supplies a fake reader."""
+    from app import website
+    monkeypatch.setattr(website, "read_site", lambda url: ("no_site", "", "", "", ""))

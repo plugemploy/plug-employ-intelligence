@@ -166,6 +166,43 @@ def fetch_news(url: str) -> tuple[str, str]:
         return text, ""
 
 
+def read_site(url: str) -> tuple[str, str, str, str, str]:
+    """One visit for a new lead: (status, text, about_url, news_text, news_url). text is the homepage plus its
+    About/Team page (for scoring, like fetch_site); news_text is the homepage plus its News/Events page (for reasons
+    to reach out, like fetch_news). The homepage is fetched once. Same rules. Kept separate so tests can replace it."""
+    url = full_url(url)
+    if not url:
+        return "no_site", "", "", "", ""
+    with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=10, follow_redirects=True) as client:
+        if not robots_allows(url, client):
+            return "blocked", "", "", "", ""
+        try:
+            r = client.get(url)
+            r.raise_for_status()
+        except httpx.HTTPError:
+            return "error", "", "", "", ""
+        if "html" not in r.headers.get("content-type", ""):
+            return "error", "", "", "", ""
+        html = r.text[:MAX_BYTES]
+        text = html_to_text(html)
+        if not text:
+            return "error", "", "", "", ""  # unreadable page
+
+        def extra(link: str, label: str) -> str:
+            if not link or not robots_allows(link, client):
+                return ""
+            try:
+                page = client.get(link)
+                if page.status_code == 200 and "html" in page.headers.get("content-type", ""):
+                    return (text[: MAX_TEXT // 2] + f"\n[{label}] " + html_to_text(page.text[:MAX_BYTES]))[:MAX_TEXT]
+            except httpx.HTTPError:
+                pass
+            return ""
+        about, news = find_about_link(html, str(r.url)), find_about_link(html, str(r.url), NEWS_WORDS)
+        about_text, news_text = extra(about, "About page"), extra(news, "News/Events page")
+        return "ok", about_text or text, about if about_text else "", news_text or text, news if news_text else ""
+
+
 PARALLEL = 8  # websites read at once (each is a different site, so this is still one request at a time per site)
 
 

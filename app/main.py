@@ -1061,6 +1061,8 @@ def setup_save(request: Request, description: str = Form(""), zips: str = Form("
     if not zip_list or not inds:
         return RedirectResponse(f"/setup?msg={quote('Add at least one ZIP code and one industry.')}", status_code=303)
     setup_mod.finish(db, account)
+    if plan is plans.PLANS["free"] and not plans.first_leads_at(db, account.id):
+        return setup_first_run(db, account)  # a Free search starts right away: no extra click, leads show as found
     return RedirectResponse("/setup/first", status_code=303)
 
 

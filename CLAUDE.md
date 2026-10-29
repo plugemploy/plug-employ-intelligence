@@ -123,4 +123,9 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   signals.checking[account] = [checked, total] while it runs). After a free search the leads page stays live with a
   "Looking for reasons to reach out…" card until it's done. Leads list (every account, every sort) puts leads with an
   active reason first, red "🔔 Reason to reach out" pill + the first reason's text, row tinted.
+- One pass per lead (2026-10-29): app/pipeline.py reads each new lead's site once (website.read_site: homepage +
+  About + News pages), scores it right away and, for a Free search, asks for reasons from the same visit; 8 at once,
+  saved as each finishes. Used by search_jobs.run (Find leads, free search); nightly/rescore still use
+  website.check_unchecked + scoring.score_unscored. A Free search starts when setup is saved ("Find my leads →"),
+  no Run click. Tests: conftest blocks website.read_site.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

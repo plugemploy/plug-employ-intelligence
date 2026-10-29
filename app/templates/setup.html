@@ -35,7 +35,9 @@
     <div id="estimates" hx-get="/setup/estimates" hx-include="#zips" hx-trigger="load, change from:#zips"></div>
     <div id="picker">{% include "_industry_picker.html" %}</div>
   </section>
-  <button class="rounded-lg bg-slate-800 text-white px-5 py-2 font-medium justify-self-start">Save and continue →</button>
+  <button class="rounded-lg {{ 'bg-green-700' if free else 'bg-slate-800' }} text-white px-5 py-2 font-medium justify-self-start"
+    {% if free %}onclick="setTimeout(() => { this.disabled = true; this.textContent = 'Starting your search…'; })"{% endif %}>
+    {{ "Find my leads →" if free else "Save and continue →" }}</button>
 </form>
 </div>
 {% endblock %}

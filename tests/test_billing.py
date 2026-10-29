@@ -434,3 +434,17 @@ def test_reason_leads_on_top_and_page_live_while_checking(org):
     finally:
         signals.checking.pop(org["acct"], None)
     assert 'hx-trigger="every 4s"' not in c.get("/leads?sort=score").text
+
+
+def test_free_search_starts_when_setup_is_saved(org, monkeypatch):
+    from app import search_jobs
+    monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: None)  # leave it "running"
+    with Session(engine) as db:
+        db.get(Organization, org["org"]).plan_tier = "free"
+        db.commit()
+    c = client(org["user"])
+    r = c.post("/setup", data={"description": "Test: home mag", "zips": "37934, 37919", "industries": ["Florist"]},
+               follow_redirects=False)
+    assert r.headers["location"].startswith("/leads?search=")  # no "Run my free search" click
+    with Session(engine) as db:
+        assert search_jobs.latest(db, org["acct"]).status == "running"

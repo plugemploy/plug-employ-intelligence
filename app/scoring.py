@@ -141,7 +141,7 @@ def ask_claude(lead: Lead, system: str) -> tuple[LeadScore, float]:
 PARALLEL = 6  # Claude requests at once
 
 
-def _snapshot(lead: Lead) -> SimpleNamespace:
+def snapshot(lead: Lead) -> SimpleNamespace:
     """The lead's fields as plain values, so a scoring thread never touches the database session."""
     return SimpleNamespace(**{c.key: getattr(lead, c.key) for c in Lead.__table__.columns})
 
@@ -157,7 +157,7 @@ def _ask_in_parallel(db: Session, account_id: int, leads: list[Lead], system: st
             lead = next(queue, None)
             if lead is not None:
                 check_budget(db, account_id, EST_COST_PER_LEAD)
-                asking[pool.submit(ask_claude, _snapshot(lead), system)] = lead
+                asking[pool.submit(ask_claude, snapshot(lead), system)] = lead
         for _ in range(PARALLEL):
             ask_next()
         while asking:
@@ -182,22 +182,27 @@ def score_unscored(db: Session, account_id: int, limit: int = 100) -> dict:
             stats["failed"] += 1
             continue
         result, cost = outcome
-        lead.score, lead.score_reason = result.score, result.reason
-        if lead.website_text and result.contact_name.strip():
-            lead.contact_name = result.contact_name.strip()[:200]
-            lead.contact_title = result.contact_title.strip()[:100]
-        if not lead.industry and result.industry.strip():
-            lead.industry = result.industry.strip()[:100]
-        year = result.founded_year
-        if lead.website_text and year and 1800 <= year <= datetime.now().year:
-            lead.founded_year = year
-        lead.scored_at = datetime.now(timezone.utc)
-        db.add(ApiUsage(account_id=account_id, service="claude_scoring",
-                        detail=lead.business_name[:300], est_cost_usd=cost))
-        db.commit()
+        save(db, lead, result, cost)
         stats["scored"] += 1
         stats["cost"] += cost
     return stats
+
+
+def save(db: Session, lead: Lead, result: LeadScore, cost: float) -> None:
+    """Save one score (and what Claude read off the website) and log its cost."""
+    lead.score, lead.score_reason = result.score, result.reason
+    if lead.website_text and result.contact_name.strip():
+        lead.contact_name = result.contact_name.strip()[:200]
+        lead.contact_title = result.contact_title.strip()[:100]
+    if not lead.industry and result.industry.strip():
+        lead.industry = result.industry.strip()[:100]
+    year = result.founded_year
+    if lead.website_text and year and 1800 <= year <= datetime.now().year:
+        lead.founded_year = year
+    lead.scored_at = datetime.now(timezone.utc)
+    db.add(ApiUsage(account_id=lead.account_id, service="claude_scoring",
+                    detail=lead.business_name[:300], est_cost_usd=cost))
+    db.commit()
 
 
 _rescoring: set[int] = set()  # accounts being re-scored right now

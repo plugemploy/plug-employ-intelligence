@@ -13,8 +13,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import gmail, overture, places, plans, scoring, signals
-from app import website as site_check
+from app import gmail, overture, pipeline, places, plans, scoring, signals
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
 from app.models import Account, SearchJob
@@ -91,13 +90,12 @@ def run(job_id: int) -> None:
                         results.append(overture.search_and_save(db, job.account_id, z, ind))
                     job.results = json.dumps(results)
                     db.commit()
-            job.step = "reading websites"
+            job.step = "reading websites and scoring"
             db.commit()
-            site_check.check_unchecked(db, job.account_id)
+            free = plans.plan_for(db, db.get(Account, job.account_id)) is plans.PLANS["free"]
+            pipeline.run(db, job.account_id, reasons=free)  # each lead read, scored (and checked for news) in one go
             if ANTHROPIC_API_KEY:
-                job.step = "scoring"
-                db.commit()
-                scoring.score_unscored(db, job.account_id)
+                scoring.score_unscored(db, job.account_id)  # anything Claude couldn't answer the first time
             if db.get(Account, job.account_id).gmail_token_enc:
                 job.step = "checking Gmail"
                 db.commit()
