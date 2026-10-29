@@ -378,6 +378,8 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
                   f_q=text, f_status=status, f_zip=zip_code, f_industry=industry, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   from_search=from_search, f_from=added_from, f_to=added_to, reason_counts=reason_counts, f_reasons=reasons,
                   locked=locked, locked_high=sum(1 for l in locked if (l.score or 0) >= 8),
+                  free_shown=plans.FREE_SHOWN, live=bool(account and plans.plan_for(db, account) is plans.PLANS["free"]
+                            and (job := search_jobs.latest(db, account.id)) and job.status == "running"),
                   locked_reasons=sum(1 for l in locked if l.id in reason_counts),
                   working=scoring.whats_working(db, account.id) if account else {},
                   allow=plans.usage(db, account) if account else None,
@@ -1060,15 +1062,44 @@ def setup_save(request: Request, description: str = Form(""), zips: str = Form("
 
 @app.get("/setup/first")
 def setup_first(request: Request, db: Session = Depends(get_session), account=Depends(current_account)):
+    from app.models import ApiUsage
     st = nightly.get_settings(db, account.id)
     pairs = len(account.zip_list) * len(account.industry_list)
     n = min(setup_mod.STARTER_SEARCHES, pairs)
+    left = plans.usage(db, account)["searches_left"]
+    # where the counts in the "Finding your leads" pop-up start from
+    after_lead = db.scalar(select(func.max(Lead.id)).where(Lead.account_id == account.id)) or 0
+    after_usage = db.scalar(select(func.max(ApiUsage.id)).where(ApiUsage.account_id == account.id)) or 0
     return render(request, "setup_first.html", db, account, n=n, pairs=pairs, st=st, free_shown=plans.FREE_SHOWN,
+                  will_search=n if left is None else min(n, left), after_lead=after_lead, after_usage=after_usage,
                   cost=n * plans.SCORING_COST_PER_SEARCH, nights=-(-pairs // max(st.searches_per_night, 1)))
+
+
+@app.get("/setup/progress")
+def setup_progress(after_lead: int = 0, after_usage: int = 0, db: Session = Depends(get_session),
+                   account=Depends(current_account)):
+    """Live counts for the "Finding your leads" pop-up while the first search runs."""
+    from app.models import ApiUsage
+    new = (Lead.account_id == account.id, Lead.id > after_lead, Lead.deleted_at.is_(None))
+
+    def count(*where):
+        return db.scalar(select(func.count()).select_from(Lead).where(*new, *where)) or 0
+    return {"searches": db.scalar(select(func.count()).select_from(ApiUsage).where(
+                ApiUsage.account_id == account.id, ApiUsage.id > after_usage,
+                ApiUsage.service.in_(plans.SEARCH_SERVICES))) or 0,
+            "found": count(), "read": count(Lead.website_checked_at.is_not(None)),
+            "scored": count(Lead.website_checked_at.is_not(None), Lead.score.is_not(None)),
+            "high": count(Lead.website_checked_at.is_not(None), Lead.score >= 8)}
 
 
 @app.post("/setup/first")
 def setup_first_run(db: Session = Depends(get_session), account=Depends(current_account)):
+    if plans.plan_for(db, account) is plans.PLANS["free"]:
+        # A Free search runs in the background: leads show up on the leads page as they're found and scored.
+        running = search_jobs.latest(db, account.id)
+        if not (running and running.status == "running"):
+            running = search_jobs.start(db, account.id, account.zip_list, account.industry_list)
+        return RedirectResponse(f"/leads?search={running.id}&sort=score", status_code=303)
     s = setup_mod.starter_search(db, account)
     search_jobs.reasons_after_free_search(db, account.id)
     msg = (f"Your first search found {s['added']} leads; {s['high']} scored 8+. More arrive every night."

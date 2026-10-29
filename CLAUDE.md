@@ -114,4 +114,9 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   CSV; get_lead raises LeadLocked -> /leads?msg. Locked rows show score, type, town, 🔔; header counts 8+ and reasons;
   Gmail line. search_jobs.reasons_after_free_search checks up to 150 leads' sites in the background after a free
   search (starter or Find leads). Subscribing (plan_tier pro) unlocks all.
+- Faster searches (2026-10-29): website.check_unchecked reads 8 sites at once (PARALLEL; only URLs go to threads) and
+  scoring.score_unscored asks Claude 6 at a time (_ask_in_parallel, plain snapshots of leads, budget checked per request);
+  each lead is saved as it finishes. A Free search's /setup/first starts a background SearchJob and goes straight to
+  /leads?search=, which refreshes itself every 4s while it runs (#leads-live, "Finding your leads…" card). Beta's first
+  search keeps the "Finding your leads" pop-up (_finding.html, live counts from GET /setup/progress).
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

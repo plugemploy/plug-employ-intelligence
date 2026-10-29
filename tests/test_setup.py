@@ -80,3 +80,28 @@ def test_starter_search(newbie, monkeypatch):
 
 def test_catalog_has_no_duplicates():
     assert len(catalog.ALL) == len(set(catalog.ALL)) and len(catalog.ALL) > 100
+
+
+def test_finding_leads_popup_counts(newbie):
+    from datetime import datetime, timezone
+    from app.models import ApiUsage, Lead
+    with Session(engine) as db:
+        a = db.get(Account, newbie["acct"])
+        setup.finish(db, a)
+        db.add(Lead(account_id=a.id, business_name="Test Old Lead"))  # from before: not counted
+        db.commit()
+    c = client(newbie["user"])
+    page = c.get("/setup/first").text
+    assert 'id="finding"' in page and 'onsubmit="startFinding(this)"' in page
+    import re
+    after_lead = int(re.search(r"after_lead=(\d+)", page).group(1))
+    after_usage = int(re.search(r"after_usage=(\d+)", page).group(1))
+    now = datetime.now(timezone.utc)
+    with Session(engine) as db:
+        db.add(ApiUsage(account_id=newbie["acct"], service="overture_search", detail="Dentist in 37934", est_cost_usd=0))
+        db.add_all([Lead(account_id=newbie["acct"], business_name="Test New A", website_checked_at=now, score=9),
+                    Lead(account_id=newbie["acct"], business_name="Test New B", website_checked_at=now),
+                    Lead(account_id=newbie["acct"], business_name="Test New C")])
+        db.commit()
+    p = c.get(f"/setup/progress?after_lead={after_lead}&after_usage={after_usage}").json()
+    assert p == {"searches": 1, "found": 3, "read": 2, "scored": 1, "high": 1}

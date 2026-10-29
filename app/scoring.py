@@ -1,6 +1,8 @@
 """Score leads for advertising fit with Claude (official Anthropic SDK)."""
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import anthropic
 from pydantic import BaseModel, Field
@@ -136,19 +138,50 @@ def ask_claude(lead: Lead, system: str) -> tuple[LeadScore, float]:
     return response.parsed_output, cost
 
 
+PARALLEL = 6  # Claude requests at once
+
+
+def _snapshot(lead: Lead) -> SimpleNamespace:
+    """The lead's fields as plain values, so a scoring thread never touches the database session."""
+    return SimpleNamespace(**{c.key: getattr(lead, c.key) for c in Lead.__table__.columns})
+
+
+def _ask_in_parallel(db: Session, account_id: int, leads: list[Lead], system: str):
+    """Yield (lead, (result, cost) or the error) as each answer arrives, PARALLEL at a time.
+    The budget is checked before each request, as when they ran one by one."""
+    queue = iter(leads)
+    with ThreadPoolExecutor(PARALLEL) as pool:
+        asking = {}
+
+        def ask_next() -> None:
+            lead = next(queue, None)
+            if lead is not None:
+                check_budget(db, account_id, EST_COST_PER_LEAD)
+                asking[pool.submit(ask_claude, _snapshot(lead), system)] = lead
+        for _ in range(PARALLEL):
+            ask_next()
+        while asking:
+            future = next(as_completed(asking))
+            lead = asking.pop(future)
+            try:
+                outcome = future.result()
+            except (anthropic.APIError, ValueError) as exc:
+                outcome = exc
+            yield lead, outcome
+            ask_next()
+
+
 def score_unscored(db: Session, account_id: int, limit: int = 100) -> dict:
     """Score this account's leads that don't have a score yet."""
     stats = {"scored": 0, "failed": 0, "cost": 0.0}
     system = build_system(db.get(Account, account_id), past_results(db, account_id))
     leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.score.is_(None))
                        .order_by(Lead.id).limit(limit)).all()
-    for lead in leads:
-        check_budget(db, account_id, EST_COST_PER_LEAD)
-        try:
-            result, cost = ask_claude(lead, system)
-        except (anthropic.APIError, ValueError):
+    for lead, outcome in _ask_in_parallel(db, account_id, leads, system):
+        if isinstance(outcome, Exception):
             stats["failed"] += 1
             continue
+        result, cost = outcome
         lead.score, lead.score_reason = result.score, result.reason
         if lead.website_text and result.contact_name.strip():
             lead.contact_name = result.contact_name.strip()[:200]

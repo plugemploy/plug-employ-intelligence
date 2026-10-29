@@ -1,0 +1,92 @@
+{# "Finding your leads" pop-up while the first search runs: live counts from /setup/progress. #}
+<div id="finding" class="hidden fixed inset-0 z-50 bg-slate-900/60 grid place-items-center p-4" role="dialog" aria-modal="true" aria-labelledby="finding-title">
+  <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 grid gap-5">
+    <div class="text-center">
+      <h2 id="finding-title" class="text-xl font-bold">Finding your leads…</h2>
+      <p class="text-sm text-slate-500">This takes a few minutes. Keep this page open.</p>
+    </div>
+    <div class="text-center">
+      <p class="text-5xl font-bold text-[#3b1578] tabular-nums" id="f-found">0</p>
+      <p class="text-sm text-slate-600">local businesses found</p>
+    </div>
+    <div class="h-2 rounded-full bg-slate-100 overflow-hidden"><div id="f-bar" class="h-full bg-[#3b1578] transition-all duration-700" style="width:3%"></div></div>
+    <ol class="grid gap-2 text-sm">
+      <li data-step="search" class="flex items-center gap-2"><span class="f-icon w-5 text-center">⏳</span>
+        <span>Searching your ZIP codes <span class="text-slate-500 tabular-nums" id="f-search"></span></span></li>
+      <li data-step="read" class="flex items-center gap-2 text-slate-400"><span class="f-icon w-5 text-center">○</span>
+        <span>Reading their websites <span class="text-slate-500 tabular-nums" id="f-read"></span></span></li>
+      <li data-step="score" class="flex items-center gap-2 text-slate-400"><span class="f-icon w-5 text-center">○</span>
+        <span>Scoring each one 1 to 10 <span class="text-slate-500 tabular-nums" id="f-score"></span></span></li>
+      <li data-step="rank" class="flex items-center gap-2 text-slate-400"><span class="f-icon w-5 text-center">○</span>
+        <span>{% if org and org.plan_tier == "free" %}Picking your top {{ free_shown }}{% else %}Ranking your best leads{% endif %}
+          <span class="text-slate-500 tabular-nums" id="f-high"></span></span></li>
+    </ol>
+    <p id="f-tip" class="text-xs text-slate-500 text-center min-h-[2.5rem] transition-opacity duration-500"></p>
+  </div>
+</div>
+<script>
+(function () {
+  const total = {{ will_search or 1 }}, base = "/setup/progress?after_lead={{ after_lead }}&after_usage={{ after_usage }}";
+  const tips = [
+    "We skip businesses that are closed or have no phone or website.",
+    "Independent local businesses come before chains: local owners buy local ads.",
+    "Each lead's website is read so its score reflects what the business actually does.",
+    "Scores weigh how well a business fits the advertiser you described.",
+    "🔔 marks a business that posted news, like an opening or event: a perfect reason to call.",
+    "When a ZIP has only a few matches, we add the closest ones nearby.",
+  ];
+  let shown = {found: 0}, tipAt = 0;
+  function countUp(el, to) {  // ease the big number toward the real count
+    const from = shown.found;
+    if (to <= from) return;
+    const start = performance.now();
+    (function tick(now) {
+      const t = Math.min(1, (now - start) / 900);
+      el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) requestAnimationFrame(tick);
+    })(start);
+    shown.found = to;
+  }
+  function step(name, state) {  // state: todo | doing | done
+    const li = document.querySelector(`#finding [data-step="${name}"]`);
+    li.classList.toggle("text-slate-400", state === "todo");
+    li.querySelector(".f-icon").textContent = state === "done" ? "✅" : state === "doing" ? "⏳" : "○";
+  }
+  function showTip() {
+    const el = document.getElementById("f-tip");
+    el.style.opacity = 0;
+    setTimeout(() => { el.textContent = tips[tipAt++ % tips.length]; el.style.opacity = 1; }, 400);
+  }
+  async function poll() {
+    try {
+      const p = await (await fetch(base, {headers: {"Accept": "application/json"}})).json();
+      countUp(document.getElementById("f-found"), p.found);
+      document.getElementById("f-search").textContent = `(${Math.min(p.searches, total)} of ${total})`;
+      const searching = p.searches < total && p.read === 0;  // websites being read means the searches are done
+      const reading = !searching && p.found > 0 && p.read < p.found;
+      const scoring = !searching && !reading && p.found > 0 && p.scored < p.found;
+      step("search", searching ? "doing" : "done");
+      step("read", searching ? "todo" : reading ? "doing" : "done");
+      step("score", searching || reading ? "todo" : scoring ? "doing" : "done");
+      step("rank", searching || reading || scoring ? "todo" : "doing");
+      document.getElementById("f-read").textContent = searching ? "" : `(${p.read} of ${p.found})`;
+      document.getElementById("f-score").textContent = searching || reading ? "" : `(${p.scored} of ${p.found})`;
+      document.getElementById("f-high").textContent = p.high ? `· ${p.high} scored 8+ so far` : "";
+      // searching = first 30%, reading = next 35%, scoring = last 35%
+      const pct = searching ? 3 + 27 * p.searches / total
+        : 30 + 35 * (p.found ? p.read / p.found : 1) + 35 * (p.found ? p.scored / p.found : 0);
+      document.getElementById("f-bar").style.width = Math.min(98, pct) + "%";
+    } catch (e) { /* keep waiting; the search itself is still running */ }
+  }
+  window.startFinding = function (form) {
+    const btn = form.querySelector("button");
+    btn.disabled = true;
+    btn.textContent = "Finding your leads…";
+    document.getElementById("finding").classList.remove("hidden");
+    showTip();
+    setInterval(showTip, 6000);
+    poll();
+    setInterval(poll, 1500);
+  };
+})();
+</script>

@@ -5,6 +5,7 @@ identified with our own user agent. No logins, no workarounds.
 """
 
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from urllib.parse import urlsplit
@@ -165,20 +166,32 @@ def fetch_news(url: str) -> tuple[str, str]:
         return text, ""
 
 
+PARALLEL = 8  # websites read at once (each is a different site, so this is still one request at a time per site)
+
+
+def _read(url: str) -> tuple[str, str, str]:
+    try:
+        return fetch_site(url)
+    except Exception:  # one odd website must never stop the rest
+        return "error", "", ""
+
+
 def check_unchecked(db: Session, account_id: int, limit: int = 100) -> dict:
-    """Read the homepage of leads not checked yet. Clears their score so Claude re-scores with it."""
+    """Read the homepage of leads not checked yet, several sites at once; each is saved as soon as it's read.
+    Clears their score so Claude re-scores with it."""
     stats = {"ok": 0, "no_site": 0, "blocked": 0, "error": 0}
     leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.website_checked_at.is_(None))
                        .order_by(Lead.score.desc().nulls_first(), Lead.id).limit(limit)).all()
-    for lead in leads:
-        try:
-            status, text, about = fetch_site(lead.website or "")
-        except Exception:  # one odd website must never stop the rest
-            status, text, about = "error", "", ""
-        lead.website_status, lead.website_text, lead.website_about_url = status, text, about
-        lead.website_checked_at = datetime.now(timezone.utc)
-        if status == "ok":
-            lead.score = None  # re-score with the website facts
-        db.commit()
-        stats[status] += 1
+    if not leads:
+        return stats
+    with ThreadPoolExecutor(min(PARALLEL, len(leads))) as pool:
+        reading = {pool.submit(_read, lead.website or ""): lead for lead in leads}  # only URLs go to the threads
+        for future in as_completed(reading):
+            lead, (status, text, about) = reading[future], future.result()
+            lead.website_status, lead.website_text, lead.website_about_url = status, text, about
+            lead.website_checked_at = datetime.now(timezone.utc)
+            if status == "ok":
+                lead.score = None  # re-score with the website facts
+            db.commit()
+            stats[status] += 1
     return stats

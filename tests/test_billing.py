@@ -386,3 +386,26 @@ def test_free_search_shows_top_20_and_locks_the_rest(org, monkeypatch):
         assert len(spawned) == 1
     page = c.get("/leads?sort=score").text
     assert "Test Lead 25" in page and "more leads</b> from your search" not in page
+
+
+def test_free_search_runs_in_background_and_list_refreshes(org, monkeypatch):
+    from app import search_jobs
+    monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: None)  # leave it "running"
+    with Session(engine) as db:
+        db.get(Organization, org["org"]).plan_tier = "free"
+        a = db.get(Account, org["acct"])
+        a.setup_done_at, a.target_zips, a.industries = datetime.now(timezone.utc), "37934, 37919", "Florist"
+        db.add(Lead(account_id=a.id, business_name="Test Found Early"))
+        db.commit()
+    c = client(org["user"])
+    r = c.post("/setup/first", follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/leads?search=")
+    assert c.post("/setup/first", follow_redirects=False).headers["location"] == r.headers["location"]  # no second search
+    page = c.get("/leads?sort=score").text
+    assert 'hx-trigger="every 4s"' in page and "Finding your leads" in page and "Test Found Early" in page
+    with Session(engine) as db:
+        job = search_jobs.latest(db, org["acct"])
+        job.status = "done"
+        db.commit()
+    page = c.get("/leads?sort=score").text
+    assert 'hx-trigger="every 4s"' not in page and "Finding your leads" not in page

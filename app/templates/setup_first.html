@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Your first leads{% endblock %}
+{% block title %}Your first leads{% include "_finding.html" %}
+{% endblock %}
 {% block content %}
 <div class="max-w-2xl bg-white rounded-xl shadow p-6 grid gap-4">
   <h1 class="text-2xl font-bold">You're set up 🎉</h1>
@@ -7,7 +8,7 @@
   <p class="text-sm text-slate-700">Ready for your free search: <b>{{ account.industry_list|join(", ") }}</b> in
     <b>{{ account.zip_list|join(", ") }}</b>. We'll find them, read their websites and score each one, then show you the top {{ free_shown }} in full
     (takes a few minutes).</p>
-  <form method="post" action="/setup/first" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Finding your leads…'">
+  <form method="post" action="/setup/first" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Starting…'">
     <button class="rounded-lg bg-green-700 text-white px-5 py-2 font-medium">Run my free search</button>
   </form>
   {% else %}
@@ -17,11 +18,12 @@
   <p class="text-sm text-slate-700">Want leads right now? We'll run your first <b>{{ n }}</b> searches and score the results
     ({% if show_costs %}about <b>${{ "%.2f"|format(cost) }}</b>{% else %}uses {{ n }} of your searches{% endif %}; takes a minute or two).</p>
   <form method="post" action="/setup/first" class="flex flex-wrap gap-3 items-center"
-        onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Finding your leads…'">
+        onsubmit="startFinding(this)">
     <button class="rounded-lg bg-green-700 text-white px-5 py-2 font-medium">Find my first leads</button>
     <a href="/leads" class="text-sm text-slate-500 hover:underline">Skip, I'll wait for tonight</a>
   </form>
   <p class="text-xs text-slate-500">Optional: connect Gmail and your CRM any time on <a href="/business" class="text-blue-700 hover:underline">My business</a>.</p>
   {% endif %}
 </div>
+{% include "_finding.html" %}
 {% endblock %}

@@ -1,5 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
+{# While a Free search runs, the list refreshes itself so leads appear as they're found and scored. #}
+<div id="leads-live" {% if live %}hx-get="{{ request.url }}" hx-trigger="every 4s" hx-select="#leads-live" hx-swap="outerHTML"{% endif %}>
+{% if live %}
+<div class="mb-4 rounded-xl border border-purple-200 bg-purple-50 p-4 text-sm text-purple-900 flex items-start gap-3">
+  <svg class="animate-spin h-5 w-5 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".3"/><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3"/></svg>
+  <div><b>Finding your leads…</b> {{ leads|length + locked|length }} found so far{% if locked %}, showing your top {{ free_shown }}{% endif %}.
+    <span class="block text-purple-800">They show up here as we find them. Scroll through while we read their websites and score each one 1 to 10.
+      Your top {{ free_shown }} are final once scoring finishes.</span></div>
+</div>
+{% endif %}
 <div class="flex flex-wrap items-end justify-between gap-4 mb-4">
   <div><h1 class="text-2xl font-bold">Leads <span class="text-slate-400 text-lg">({{ leads|length }})</span></h1>
     {% if n_deleted %}<a href="/leads/deleted" class="text-xs text-slate-500 hover:underline">🗑 Deleted leads ({{ n_deleted }})</a>{% endif %}</div>
@@ -188,5 +198,6 @@
   </div>
   {% endif %}
   {% endif %}
+</div>
 </div>
 {% endblock %}
