@@ -13,6 +13,7 @@ from app import auth, billing, gmail, nightly, outreach, places, plans
 from app.db import engine
 from app.main import app
 from app.models import Account, Lead, Organization, User
+from app.search_jobs import reasons_after_free_search as real_reasons_after_free_search  # before conftest stubs it
 
 
 class FakeStripe:
@@ -137,7 +138,7 @@ def test_try_link_signs_up_on_free_search(monkeypatch):
     monkeypatch.setattr(auth, "start_login", lambda company: "https://accounts.google.test/")
     monkeypatch.setattr(auth, "google_identity", lambda s, c: ({"email": "new@free.test", "name": "Free Person"}, "Test: Free Co"))
     c = TestClient(app, follow_redirects=False)
-    assert "one free lead search" in c.get("/try").text
+    assert "Try a free lead search" in c.get("/try").text
     c.get("/auth/google?company=Test:%20Free%20Co&offer=free&agree=yes")
     assert c.cookies.get(main.OFFER_COOKIE) == "free"
     assert c.get("/auth/callback?state=s&code=c").headers["location"] == "/setup"
@@ -203,25 +204,27 @@ def test_free_search_is_one_search_ever_then_offer(org):
         a = db.get(Account, org["acct"])
         a.setup_done_at = datetime.now(timezone.utc)
         assert plans.trial_ends(o) is None
-        assert "1 ZIP code." in plans.territory_error(plans.PLANS["free"], ["37934", "37919"])
-        assert "1 business type." in plans.territory_error(plans.PLANS["free"], ["37934"], ["Florist", "Bakery"])
+        assert "3 ZIP codes." in plans.territory_error(plans.PLANS["free"], ["37934", "37919", "37922", "37923"])
+        assert "2 business types." in plans.territory_error(plans.PLANS["free"], ["37934"], ["Florist", "Bakery", "Dentist"])
         db.commit()
     setup_page = c.get("/setup").text
-    assert "one ZIP code" in setup_page and "Suggest from my description" not in setup_page
-    assert "maxPick = 1" in setup_page and "of 1 selected" in setup_page and "Select all" not in setup_page
-    # two business types: an error, but the description and ZIP aren't lost
-    r = c.post("/setup", data={"description": "Test: wedding mag", "zips": "37934", "industries": ["Florist", "Bakery"]},
-               follow_redirects=False)
-    assert "1%20business%20type" in r.headers["location"]
+    assert "3 ZIP codes" in setup_page and "Suggest from my description" not in setup_page
+    assert "maxPick = 2" in setup_page and "of 2 selected" in setup_page and "Select all" not in setup_page
+    # three business types: an error, but the description and ZIP aren't lost
+    r = c.post("/setup", data={"description": "Test: wedding mag", "zips": "37934",
+                               "industries": ["Florist", "Bakery", "Dentist"]}, follow_redirects=False)
+    assert "2%20business%20types" in r.headers["location"]
     with Session(engine) as db:
         a = db.get(Account, org["acct"])
         assert (a.business_description, a.zip_list) == ("Test: wedding mag", ["37934"])
     assert "Run my free search" in c.get("/setup/first").text
     assert "subscribe-modal" not in c.get("/leads?sort=score").text  # no search yet
     with Session(engine) as db:
-        # a search last month still counts: the free search is once, not once a month
-        db.add(ApiUsage(account_id=org["acct"], service="overture_search", detail="Florist in 37934", est_cost_usd=0,
-                        created_at=datetime.now(timezone.utc) - timedelta(days=40)))
+        # searches last month still count: the free search (up to 3 ZIPs x 2 types) is once, not once a month
+        for z in ("37934", "37919", "37922"):
+            for ind in ("Florist", "Bakery"):
+                db.add(ApiUsage(account_id=org["acct"], service="overture_search", detail=f"{ind} in {z}", est_cost_usd=0,
+                                created_at=datetime.now(timezone.utc) - timedelta(days=40)))
         db.commit()
         assert plans.usage(db, db.get(Account, org["acct"]))["searches_left"] == 0
         with pytest.raises(places.BudgetExceeded, match="used your free search"):
@@ -240,7 +243,6 @@ def test_free_search_is_one_search_ever_then_offer(org):
     assert str(int((done + timedelta(seconds=15)).timestamp() * 1000)) in page  # shows 15 seconds after leads are ready
     assert "subscribe-banner" in page
     assert "about 6 years" in page and "30-day money-back guarantee" in page  # payback line and guarantee
-    assert "Business name hidden" in page and 'hx-get="/offer/teaser?style=locked"' in page  # locked leads teaser
     assert "subscribe-modal" not in c.get("/billing").text and "subscribe-banner" not in c.get("/billing").text
     c.cookies.set("subscribe_later", "1")
     page = c.get("/leads?sort=score").text
@@ -341,3 +343,46 @@ def test_publishers_cannot_reach_billing(org):
         db.commit()
         uid = u.id
     assert client(uid).get("/billing", follow_redirects=False).status_code == 303
+
+
+def test_free_search_shows_top_20_and_locks_the_rest(org, monkeypatch):
+    from app import search_jobs
+    from app.models import LeadSignal, NightlyRun
+    with Session(engine) as db:
+        db.get(Organization, org["org"]).plan_tier = "free"
+        db.get(Account, org["acct"]).setup_done_at = datetime.now(timezone.utc)
+        leads = [Lead(account_id=org["acct"], business_name=f"Test Lead {i:02}", score=10 - i // 3, industry="Florist",
+                      zip_code="37934", website=f"https://lead{i}.test") for i in range(26)]
+        db.add_all(leads)
+        db.add(NightlyRun(account_id=org["acct"], searches=6, added=26, finished_at=datetime.now(timezone.utc)))
+        db.flush()
+        db.add(LeadSignal(account_id=org["acct"], lead_id=leads[24].id, kind="opening", text="Opened a new shop."))
+        db.commit()
+        top, hidden = leads[0].id, leads[25].id
+        assert len(plans.locked_ids(db, db.get(Account, org["acct"]))) == 6
+    c = client(org["user"])
+    page = c.get("/leads?sort=score").text
+    assert "Test Lead 00" in page and "Test Lead 19" in page
+    assert "Test Lead 20" not in page and "Test Lead 25" not in page and "lead25.test" not in page  # not even in the HTML
+    assert "6 more leads</b> from your search" in page and "1</b> has a reason to reach out right now" in page
+    assert "connect your Gmail" in page
+    assert c.get(f"/leads/{top}").status_code == 200
+    r = c.get(f"/leads/{hidden}", follow_redirects=False)
+    assert r.status_code == 303 and "Subscribe%20to%20see%20this%20lead" in r.headers["location"]
+    assert c.post(f"/leads/{hidden}/status", data={"status": "Contacted"}, follow_redirects=False).status_code == 303
+    assert "Opened a new shop" not in c.get("/dashboard").text  # locked lead's reason stays hidden
+    # deleting a visible lead doesn't unlock another
+    c.post(f"/leads/{top}/delete")
+    assert "Test Lead 20" not in c.get("/leads?sort=score").text
+    # reasons to reach out are checked right after a free search, locked leads too
+    spawned = []
+    monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: spawned.append(a))
+    with Session(engine) as db:
+        real_reasons_after_free_search(db, org["acct"])
+        assert spawned == [(org["acct"],)]
+        db.get(Organization, org["org"]).plan_tier = "pro"  # subscribed: everything opens, no extra check
+        db.commit()
+        real_reasons_after_free_search(db, org["acct"])
+        assert len(spawned) == 1
+    page = c.get("/leads?sort=score").text
+    assert "Test Lead 25" in page and "more leads</b> from your search" not in page

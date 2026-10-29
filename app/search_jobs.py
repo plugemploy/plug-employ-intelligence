@@ -13,7 +13,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import gmail, overture, places, scoring
+from app import gmail, overture, places, plans, scoring, signals
 from app import website as site_check
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
@@ -27,6 +27,21 @@ SHOW_DONE_FOR = timedelta(hours=1)  # a finished job's bar shows this long unles
 def spawn(fn, *args):
     """Run fn in the background. Kept separate so tests can run it right away instead."""
     threading.Thread(target=fn, args=args, daemon=True).start()
+
+
+FREE_REASON_CHECKS = 150  # a Free search checks every lead's website for reasons to reach out, locked ones too
+
+
+def reasons_after_free_search(db: Session, account_id: int) -> None:
+    """A Free search company sees reasons to reach out on its first visit, not after a nightly run."""
+    account = db.get(Account, account_id)
+    if account is None or plans.plan_for(db, account) is not plans.PLANS["free"]:
+        return
+
+    def check(acct_id: int):
+        with Session(engine) as s:
+            signals.check_account(s, acct_id, limit=FREE_REASON_CHECKS)
+    spawn(check, account_id)
 
 
 def latest(db: Session, account_id: int) -> SearchJob | None:
@@ -88,6 +103,7 @@ def run(job_id: int) -> None:
                     log.exception("Gmail check after search failed")
                     db.rollback()
             job.status = "done"
+            reasons_after_free_search(db, job.account_id)
         except places.BudgetExceeded as exc:
             db.rollback()
             job.status, job.error = "error", str(exc) + " Search stopped."

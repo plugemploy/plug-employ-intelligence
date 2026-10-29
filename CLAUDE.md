@@ -80,7 +80,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   else added) with MRR/months/fee/start date + renewal; Lead.source="import" is excluded from results metrics.
 - One $49 plan (2026-10-28): billing.SELLABLE = ("pro",), label "Plug Employ", everything included, $6.50 Claude cap;
   Stripe price lookup key includes the price (pei_pro_49_monthly). Survey asks "Yes, at $49/month".
-- Free search link (2026-10-28): /try signs up new companies on plan "free" (1 ZIP x 1 business type, one search ever,
+- Free search link (2026-10-28): /try signs up new companies on plan "free" (since 2026-10-29: up to 3 ZIPs x 2 business types, 6 searches ever,
   no Gmail/Close); existing users keep their plan. 15 seconds after its leads are ready (plans.first_leads_at) a $49 subscribe pop-up shows
   (main.subscribe_offer; "Maybe later" hides the pop-up a day). A purple Subscribe banner shows at once above every page (stays after Maybe later); banner load marks offer_seen_at. /signup still gives the 30-day Beta.
 - Free search tracker + legal pages (2026-10-28): /beta shows /try sign-ups (signup_offer, offer_seen_at,
@@ -109,4 +109,9 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - VA offer (2026-10-28): free search users see a soft line under their leads ("N leads ready. Short on time to call
   them? We can hire and train someone...") with "I'm interested" (POST /va/interest -> organizations.va_interest_at);
   shown on /beta (Wants a VA column + funnel). Savannah follows up by email by hand.
+- Free search top 20 (2026-10-29): plans.locked_ids = a free company's leads past its top FREE_SHOWN (20) by score
+  (deleted ones keep their place). Locked leads never reach the browser: filtered from /leads, dashboard reasons/breakdown,
+  CSV; get_lead raises LeadLocked -> /leads?msg. Locked rows show score, type, town, 🔔; header counts 8+ and reasons;
+  Gmail line. search_jobs.reasons_after_free_search checks up to 150 leads' sites in the background after a free
+  search (starter or Find leads). Subscribing (plan_tier pro) unlocks all.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

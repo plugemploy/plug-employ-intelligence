@@ -22,9 +22,10 @@ from app.models import Account, Organization
 PLANS = {
     "beta": {"label": "Beta", "price": 0, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True},
     "pro": {"label": "Plug Employ", "price": 49, "searches": 640, "allowance_usd": 6.5, "nightly_max": 30, "email": True, "close": True},
-    # Sign-ups from the /try link (email campaign, 2026-10-28): one search ever, then the $49 pop-up.
-    "free": {"label": "Free search", "price": 0, "searches": 1, "lifetime": True, "allowance_usd": 0.5, "nightly_max": 0,
-             "email": False, "close": False, "max_zips": 1, "max_industries": 1},
+    # Sign-ups from the /try link (email campaign): one run of up to 3 ZIPs x 2 business types, ever. The top
+    # FREE_SHOWN leads show in full; the rest are locked until they subscribe ($49 pop-up).
+    "free": {"label": "Free search", "price": 0, "searches": 6, "lifetime": True, "allowance_usd": 1.0, "nightly_max": 0,
+             "email": False, "close": False, "max_zips": 3, "max_industries": 2},
     # Earlier plans, kept for companies already on them. Not offered on the Billing page.
     "personal": {"label": "Standard", "price": 99, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": False, "close": False},
     "premium": {"label": "Premium", "price": 299, "searches": 1400, "allowance_usd": 55.0, "nightly_max": 50, "email": True, "close": True,
@@ -39,6 +40,22 @@ TRIAL_DAYS = 30  # a company that hasn't subscribed gets this long, then searche
 SCORING_COST_PER_SEARCH = 0.006  # measured ~$0.004 for Google's 20 results; Overture adds up to 30
 SEARCH_SERVICES = ("google_places_text_search", "overture_search")  # api_usage rows that count as a search
 WARN_AT = 0.8
+
+
+FREE_SHOWN = 20  # a Free search shows its best-scored leads in full
+
+
+def locked_ids(db: Session, account: Account | None) -> set[int]:
+    """Leads a Free search company can't open until it subscribes: everything past its top FREE_SHOWN by score.
+    Deleted leads keep their place, so deleting a lead never unlocks another."""
+    from sqlalchemy import select
+    from app.models import Lead
+    org = _org(db, account) if account else None
+    if org is None or org.plan_tier != "free":
+        return set()
+    ids = db.scalars(select(Lead.id).where(Lead.account_id == account.id)
+                     .order_by(Lead.score.desc().nulls_last(), Lead.id)).all()
+    return set(ids[FREE_SHOWN:])
 
 
 def _org(db: Session, account: Account) -> Organization | None:

@@ -1,8 +1,9 @@
 {% extends "public.html" %}
 {% block content %}
-<h1 class="text-2xl font-bold mb-1">Try one free lead search</h1>
-<p class="text-sm text-slate-600 mb-4">Pick one ZIP code and one kind of business. We'll find the local businesses there,
-  check their websites and score each one 1 to 10 on how likely it is to advertise with you. Takes about 2 minutes. No card needed.</p>
+<h1 class="text-2xl font-bold mb-1">Try a free lead search</h1>
+<p class="text-sm text-slate-600 mb-4">Pick up to 3 ZIP codes and 2 kinds of business. We'll find the local businesses there,
+  check their websites and score each one 1 to 10 on how likely it is to advertise with you, then show you your top 20
+  with any reasons to reach out right now. Takes a few minutes. No card needed.</p>
 {% if message %}<p class="mb-4 rounded bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">{{ message }}</p>{% endif %}
 <form method="get" action="/auth/google" class="grid gap-4">
   <input type="hidden" name="offer" value="free">

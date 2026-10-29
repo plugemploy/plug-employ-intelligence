@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -180,7 +181,21 @@ def get_lead(db: Session, account: Account | None, lead_id: int) -> Lead:
     lead = db.get(Lead, lead_id)
     if account is None or lead is None or lead.account_id != account.id:
         raise HTTPException(404, "Lead not found")
+    if lead.id in plans.locked_ids(db, account):
+        raise LeadLocked()
     return lead
+
+
+class LeadLocked(Exception):
+    """A Free search lead past the top plans.FREE_SHOWN: subscribe to open it."""
+
+
+@app.exception_handler(LeadLocked)
+def lead_locked(request: Request, exc: LeadLocked):
+    msg = "Subscribe to see this lead. The $49 plan unlocks every lead from your search."
+    if request.headers.get("HX-Request"):
+        return HTMLResponse("", headers={"HX-Redirect": f"/leads?msg={quote(msg)}"})
+    return RedirectResponse(f"/leads?msg={quote(msg)}", status_code=303)
 
 
 @app.get("/")
@@ -300,7 +315,7 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
         return resp
     if not request.query_params and saved:
         return RedirectResponse(f"/leads?{saved}", status_code=303)
-    leads, last_run, from_search, reason_counts = [], None, None, {}
+    leads, last_run, from_search, reason_counts, locked = [], None, None, {}, []
     if account:
         for sig in signals.active(db, account.id, limit=10_000):
             reason_counts[sig.lead_id] = reason_counts.get(sig.lead_id, 0) + 1
@@ -339,6 +354,10 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
         if day := parse_day(added_to):
             q = q.where(Lead.created_at < datetime.combine(day + timedelta(days=1), datetime.min.time()).astimezone())
         leads = list(db.scalars(q.order_by(Lead.business_name)))
+        if locked_ids := plans.locked_ids(db, account):  # a Free search: the rest unlock when they subscribe
+            leads = [l for l in leads if l.id not in locked_ids]
+            locked = sorted(db.scalars(select(Lead).where(Lead.id.in_(locked_ids), Lead.deleted_at.is_(None))),
+                            key=lambda l: (-(l.score or 0), l.id))
         if sort == "score":
             leads.sort(key=lambda l: -(l.score or 0))
         elif sort == "newest":
@@ -358,6 +377,8 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
     resp = render(request, "leads.html", db, account, leads=leads, n_deleted=n_deleted, zips=zips, industries=industries, has_filters=bool(chosen),
                   f_q=text, f_status=status, f_zip=zip_code, f_industry=industry, sort=sort, unscored=unscored, f_new=new, f_hide=hide_contacted, last_run=last_run,
                   from_search=from_search, f_from=added_from, f_to=added_to, reason_counts=reason_counts, f_reasons=reasons,
+                  locked=locked, locked_high=sum(1 for l in locked if (l.score or 0) >= 8),
+                  locked_reasons=sum(1 for l in locked if l.id in reason_counts),
                   working=scoring.whats_working(db, account.id) if account else {},
                   allow=plans.usage(db, account) if account else None,
                   has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.enabled_for(db, account), can_draft=can_draft(db, account), message=request.query_params.get("msg", ""))
@@ -1042,13 +1063,14 @@ def setup_first(request: Request, db: Session = Depends(get_session), account=De
     st = nightly.get_settings(db, account.id)
     pairs = len(account.zip_list) * len(account.industry_list)
     n = min(setup_mod.STARTER_SEARCHES, pairs)
-    return render(request, "setup_first.html", db, account, n=n, pairs=pairs, st=st,
+    return render(request, "setup_first.html", db, account, n=n, pairs=pairs, st=st, free_shown=plans.FREE_SHOWN,
                   cost=n * plans.SCORING_COST_PER_SEARCH, nights=-(-pairs // max(st.searches_per_night, 1)))
 
 
 @app.post("/setup/first")
 def setup_first_run(db: Session = Depends(get_session), account=Depends(current_account)):
     s = setup_mod.starter_search(db, account)
+    search_jobs.reasons_after_free_search(db, account.id)
     msg = (f"Your first search found {s['added']} leads; {s['high']} scored 8+. More arrive every night."
            if not s["error"] else f"First search stopped early: {s['error']}")
     return back_to_leads(msg)
@@ -1222,6 +1244,10 @@ def dashboard_page(request: Request, status: str = "", db: Session = Depends(get
                checking_news=bool(account and account.id in _checking_news), message=request.query_params.get("msg", ""))
     if chosen:
         ctx.update(breakdown_ctx(db, account, chosen))
+    if locked := plans.locked_ids(db, account):  # a Free search's locked leads stay hidden here too
+        ctx["reasons"] = [r for r in ctx["reasons"] if r.lead_id not in locked]
+        for group in ctx["like_customers"]:
+            group["top"] = [l for l in group["top"] if l.id not in locked]
     return render(request, "dashboard.html", db, account, **ctx)
 
 
@@ -1290,6 +1316,10 @@ def dashboard_breakdown(request: Request, status: str = "", db: Session = Depend
 
 def breakdown_ctx(db: Session, account: Account, status: str) -> dict:
     leads, total = dashboard.leads_in(db, account.id, status)
+    if locked := plans.locked_ids(db, account):
+        leads = [l for l in leads if l.id not in locked]
+        total = db.scalar(select(func.count()).select_from(Lead).where(
+            Lead.account_id == account.id, Lead.deleted_at.is_(None), Lead.status == status, Lead.id.not_in(locked)))
     return dict(status=status, label=dashboard.LABELS.get(status, status), color=dashboard.COLORS[status],
                 b_leads=leads, b_total=total)
 

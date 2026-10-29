@@ -154,20 +154,30 @@
     })();
   </script>
   {% endif %}
-  {% if subscribe_banner %}
-  <div class="relative mt-4 rounded-xl overflow-hidden border">
-    <div class="blur-sm select-none pointer-events-none" aria-hidden="true">
-      {% for i in range(3) %}<div class="grid grid-cols-4 gap-4 p-4 border-t bg-white text-sm text-slate-500">
-        <span class="font-semibold text-slate-700">Business name hidden</span><span>(865) 555-0000</span><span>Score 8</span><span>New</span></div>{% endfor %}
-    </div>
-    <form method="post" action="/billing/checkout" class="absolute inset-0 grid place-items-center bg-white/60 p-4 text-center">
+  {% if subscribe_banner and locked %}
+  <div class="mt-4 rounded-xl border overflow-hidden bg-white">
+    <form method="post" action="/billing/checkout" class="p-4 bg-purple-50 border-b grid gap-2 sm:flex sm:items-center sm:justify-between">
       <input type="hidden" name="tier" value="pro">
-      <div class="grid gap-2 justify-items-center max-w-md">
-        <p class="text-sm text-slate-800">🔒 <span hx-get="/offer/teaser?style=locked" hx-trigger="load" hx-swap="outerHTML">More leads are waiting in your area.</span></p>
-        <button class="rounded-lg bg-[#3b1578] text-white px-4 py-1.5 text-sm font-semibold">Subscribe for ${{ pro.price }}/month to see them</button>
-      </div>
+      <p class="text-sm text-slate-800">🔒 <b>{{ locked|length }} more lead{{ "s" if locked|length != 1 }}</b> from your search
+        {%- if locked_high %}, <b>{{ locked_high }}</b> scored 8 or higher{% endif %}.
+        {%- if locked_reasons %} 🔔 <b>{{ locked_reasons }}</b> {{ "has" if locked_reasons == 1 else "have" }} a reason to reach out right now.{% endif %}
+        Subscribe to see who.</p>
+      <button class="rounded-lg bg-[#3b1578] text-white px-4 py-1.5 text-sm font-semibold whitespace-nowrap">Unlock all for ${{ pro.price }}/month</button>
     </form>
+    <ul class="divide-y text-sm">
+      {% for l in locked[:10] %}<li class="grid grid-cols-[1fr_auto] sm:grid-cols-[2fr_1fr_1fr_auto] gap-2 px-4 py-2.5 text-slate-500">
+        <span class="font-semibold text-slate-400 blur-[3px] select-none" aria-hidden="true">Business name hidden</span>
+        <span class="hidden sm:block">{{ l.industry }}</span>
+        <span class="hidden sm:block">{{ l.nearby.split(",")[0] if l.nearby else l.zip_code }}</span>
+        <span class="whitespace-nowrap">{% if l.id in reason_counts %}🔔 {% endif %}{% if l.score %}<b class="text-slate-700">Score {{ l.score }}</b>{% else %}scoring…{% endif %} 🔒</span>
+      </li>{% endfor %}
+      {% if locked|length > 10 %}<li class="px-4 py-2.5 text-slate-500">and {{ locked|length - 10 }} more…</li>{% endif %}
+    </ul>
+    <p class="px-4 py-3 border-t text-sm text-slate-700">📧 Want to know which of these you've already reached out to?
+      Subscribe and connect your Gmail. We'll tag every lead you've emailed.</p>
   </div>
+  {% endif %}
+  {% if subscribe_banner %}
   {% if leads %}
   <div id="va-offer" class="mt-4 rounded-xl border bg-white p-4 text-sm text-slate-700 flex flex-wrap items-center gap-3">
     {% if org.va_interest_at %}<span>✅ Thanks! We'll email you at {{ user.email }} within a day.</span>

@@ -59,3 +59,10 @@ def _no_overture_network(monkeypatch):
     monkeypatch.setattr(overture, "_read_area", blocked)
     monkeypatch.setattr(overture, "fetch_nearby", lambda zip_code: [])
 
+
+
+@pytest.fixture(autouse=True)
+def _no_background_reason_checks(monkeypatch):
+    """A free search's background website check never runs in tests (test_billing calls the real one)."""
+    from app import search_jobs
+    monkeypatch.setattr(search_jobs, "reasons_after_free_search", lambda db, account_id: None)

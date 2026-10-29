@@ -5,7 +5,8 @@
   <h1 class="text-2xl font-bold">You're set up 🎉</h1>
   {% if org and org.plan_tier == "free" %}
   <p class="text-sm text-slate-700">Ready for your free search: <b>{{ account.industry_list|join(", ") }}</b> in
-    <b>{{ account.zip_list|join(", ") }}</b>. We'll find them, read their websites and score each one (takes a minute or two).</p>
+    <b>{{ account.zip_list|join(", ") }}</b>. We'll find them, read their websites and score each one, then show you the top {{ free_shown }} in full
+    (takes a few minutes).</p>
   <form method="post" action="/setup/first" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Finding your leads…'">
     <button class="rounded-lg bg-green-700 text-white px-5 py-2 font-medium">Run my free search</button>
   </form>

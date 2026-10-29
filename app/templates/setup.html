@@ -6,7 +6,7 @@
 <p class="text-sm text-slate-600 mb-6">Three quick steps. You can change any of this later on My business.</p>
 {% set free = org and org.plan_tier == "free" %}
 {% if free %}<p class="mb-4 rounded bg-purple-50 border border-purple-200 p-3 text-sm text-purple-900">Your free search covers
-  <b>one ZIP code</b> and <b>one kind of business</b>. Pick the pair you'd most like to see leads for.</p>{% endif %}
+  up to <b>3 ZIP codes</b> and <b>2 kinds of business</b>. Pick the ones you'd most like to see leads for.</p>{% endif %}
 {% if request.query_params.get("msg") %}<p class="mb-4 rounded bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">{{ request.query_params.get("msg") }}</p>{% endif %}
 <form method="post" action="/setup" class="grid gap-6">
   {% if user and user.role == "owner" %}
@@ -23,12 +23,12 @@
   </section>
   <section class="bg-white rounded-xl shadow p-6 grid gap-2">
     <h2 class="font-semibold">2. Your territory</h2>
-    <p class="text-xs text-slate-500">{% if free %}One ZIP code.{% else %}ZIP codes, separated by commas. Put the most important first: they're searched first and count most.{% endif %}</p>
+    <p class="text-xs text-slate-500">{% if free %}Up to 3 ZIP codes, separated by commas.{% else %}ZIP codes, separated by commas. Put the most important first: they're searched first and count most.{% endif %}</p>
     <input id="zips" name="zips" value="{{ account.zip_list|join(', ') }}" class="border rounded px-3 py-2 text-sm">
   </section>
   <section class="bg-white rounded-xl shadow p-6 grid gap-3">
     <div class="flex flex-wrap items-center justify-between gap-2">
-      <h2 class="font-semibold">3. {% if free %}Which kind of business? Pick one.{% else %}Which kinds of businesses?{% endif %}</h2>
+      <h2 class="font-semibold">3. {% if free %}Which kinds of business? Pick up to two.{% else %}Which kinds of businesses?{% endif %}</h2>
       {% if not free %}<button type="button" hx-post="/setup/suggest" hx-include="#desc, #zips" hx-target="#picker" hx-disabled-elt="this"
         class="rounded bg-purple-700 text-white px-3 py-1 text-sm">✨ Suggest from my description</button>{% endif %}
     </div>
