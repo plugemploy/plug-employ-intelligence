@@ -2,6 +2,7 @@
 {% block content %}
 {# While a Free search runs, the list refreshes itself so leads appear as they're found and scored. #}
 <div id="leads-live" {% if live or reasons_checking %}hx-get="{{ request.url }}" hx-trigger="every 4s" hx-select="#leads-live" hx-swap="outerHTML"{% endif %}>
+{% if subscribe_banner %}<div id="offer-ready" hidden></div>{% endif %}
 {% if live %}
 <div class="mb-4 rounded-xl border border-purple-200 bg-purple-50 p-4 text-sm text-purple-900 flex items-start gap-3">
   <svg class="animate-spin h-5 w-5 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".3"/><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3"/></svg>
@@ -208,4 +209,13 @@
   {% endif %}
 </div>
 </div>
+{% if live or reasons_checking %}
+<script>
+  // While a Free search runs, only #leads-live refreshes. Once the leads are ready (the list
+  // says so), reload once so the subscribe banner and its 15-second pop-up timer come in with the rest of the page.
+  document.body.addEventListener("htmx:afterSwap", () => {
+    if (document.getElementById("offer-ready") && !document.getElementById("subscribe-banner")) location.reload();
+  });
+</script>
+{% endif %}
 {% endblock %}

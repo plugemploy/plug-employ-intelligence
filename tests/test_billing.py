@@ -405,10 +405,11 @@ def test_free_search_runs_in_background_and_list_refreshes(org, monkeypatch):
     assert 'hx-trigger="every 4s"' in page and "Finding your leads" in page and "Test Found Early" in page
     with Session(engine) as db:
         job = search_jobs.latest(db, org["acct"])
-        job.status = "done"
+        job.status, job.finished_at = "done", datetime.now(timezone.utc)
         db.commit()
     page = c.get("/leads?sort=score").text
     assert 'hx-trigger="every 4s"' not in page and "Finding your leads" not in page
+    assert 'id="offer-ready"' in page and "subscribe-banner" in page  # the refreshed list tells the page to reload
 
 
 def test_reason_leads_on_top_and_page_live_while_checking(org):
