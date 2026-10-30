@@ -745,9 +745,14 @@ def follow_up_done(fu_id: int, request: Request, db: Session = Depends(get_sessi
     return render(request, "_follow_ups.html", db, account, lead=lead)
 
 
+SEARCH_MAX_ZIPS = 5  # one Find leads search covers at most this many ZIPs...
+SEARCH_MAX_TYPES = 6  # ...and business types (the nightly search still covers the whole territory)
+
+
 def search_ctx(db, account):
     return dict(allow=plans.usage(db, account) if account else None,zips=account.zip_list if account else [], industries=account.industry_list if account else [],
-                min_confidence=overture.MIN_CONFIDENCE, max_added=overture.MAX_ADDED)
+                min_confidence=overture.MIN_CONFIDENCE, max_added=overture.MAX_ADDED,
+                max_zips=SEARCH_MAX_ZIPS, max_types=SEARCH_MAX_TYPES)
 
 
 @app.get("/search")
@@ -767,6 +772,9 @@ def run_search(request: Request, zips: list[str] = Form(default=[]), industries:
     error = None
     if not zips or not industries:
         error = "Pick at least one ZIP and one industry."
+    elif len(zips) > SEARCH_MAX_ZIPS or len(industries) > SEARCH_MAX_TYPES:
+        error = (f"One search covers up to {SEARCH_MAX_ZIPS} ZIP codes and {SEARCH_MAX_TYPES} business types. "
+                 "Pick fewer, then search again for the rest.")
     elif search_jobs.latest(db, account.id) and search_jobs.latest(db, account.id).status == "running":
         error = "A search is already running. It'll show at the top of the page when it's done."
     if error:

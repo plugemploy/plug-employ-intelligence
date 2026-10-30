@@ -4,7 +4,7 @@
 <h1 class="text-2xl font-bold mb-1">Find leads</h1>
 <p class="text-sm text-slate-600 mb-4">Searches Overture's open business listings. Skips closed businesses, listings that
   look unreliable or have no phone or website, and ones already in your list. Adds up to {{ max_added }} new leads per search, best first.</p>
-<p class="text-sm mb-4">Each ZIP × industry you pick is one search.{% if show_costs and allow %} Claude cost this month:
+<p class="text-sm mb-4">Each ZIP × business type you pick is one search, so a full search (5 × 6) uses 30.{% if show_costs and allow %} Claude cost this month:
   <b>${{ "%.2f"|format(allow.spent) }}</b> of ${{ "%.0f"|format(allow.limit) }} (searches themselves are free).{% endif %}</p>
 {% include "_allowance.html" %}
 {% if running %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">A search is running now.
@@ -29,14 +29,27 @@
 {% endif %}
 <form method="post" class="bg-white rounded-xl shadow p-6 grid gap-6 max-w-2xl"
       onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Starting…'">
-  <fieldset><legend class="font-semibold mb-2">ZIP codes</legend>
+  <fieldset data-max="{{ max_zips }}"><legend class="font-semibold mb-2">ZIP codes <span class="font-normal text-sm text-slate-500">(up to {{ max_zips }} per search · <span class="pick-count">0</span> picked)</span></legend>
     <div class="flex flex-wrap gap-3 text-sm">{% for z in zips %}
       <label class="flex items-center gap-1"><input type="checkbox" name="zips" value="{{ z }}"> {{ z }}</label>{% endfor %}</div>
   </fieldset>
-  <fieldset><legend class="font-semibold mb-2">Industries</legend>
+  <fieldset data-max="{{ max_types }}"><legend class="font-semibold mb-2">Business types <span class="font-normal text-sm text-slate-500">(up to {{ max_types }} per search · <span class="pick-count">0</span> picked)</span></legend>
     <div class="flex flex-wrap gap-3 text-sm">{% for i in industries %}
       <label class="flex items-center gap-1"><input type="checkbox" name="industries" value="{{ i }}"> {{ i }}</label>{% endfor %}</div>
   </fieldset>
+  <script>
+    // Once a group has its most, the rest of its boxes grey out until one is unticked.
+    document.querySelectorAll("fieldset[data-max]").forEach(group => {
+      const max = +group.dataset.max, boxes = [...group.querySelectorAll("input[type=checkbox]")];
+      const update = () => {
+        const n = boxes.filter(b => b.checked).length;
+        group.querySelector(".pick-count").textContent = n;
+        boxes.forEach(b => { b.disabled = !b.checked && n >= max; b.parentElement.classList.toggle("opacity-40", b.disabled); });
+      };
+      boxes.forEach(b => b.addEventListener("change", update));
+      update();
+    });
+  </script>
   <p class="text-sm text-slate-500">Change your ZIP codes and industries on <a href="/business" class="text-blue-700 hover:underline">My business</a>.</p>
   <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Find leads</button>
   <p class="text-xs text-slate-500 -mt-4">The search runs in the background. You'll go to your leads, and a bar at the top shows when the new ones are ready.</p>

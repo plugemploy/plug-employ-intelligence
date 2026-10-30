@@ -131,4 +131,6 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Any B2B (2026-10-30): sign-up, /try, sign-in and setup wording is for any B2B seller, not magazines. Scoring
   (build_system) tells Claude existing Sold customers are the best guide when there are some (clearly like several
   -> 8+, unlike any -> rarely above 7); Sold examples include "about: <score_reason>".
+- Search caps (2026-10-30): one Find leads search covers up to main.SEARCH_MAX_ZIPS (5) ZIPs x SEARCH_MAX_TYPES (6)
+  types (checked in POST /search; boxes grey out on the page). Territory on My business and the nightly search are unchanged.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

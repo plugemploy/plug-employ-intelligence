@@ -146,3 +146,20 @@ def test_every_plan_keeps_77_percent():
     prem = plans.PLANS["premium"]
     assert prem["max_zips"] * prem["max_industries"] == prem["searches"]  # every pair once a month
     assert prem["searches"] * plans.SCORING_COST_PER_SEARCH <= prem["allowance_usd"]
+
+
+def test_one_search_is_capped_at_5_zips_and_6_types(acct, monkeypatch):
+    from app import search_jobs
+    started = []
+    monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: started.append(a))
+    c = TestClient(app)
+    c.cookies.set(auth.SESSION_COOKIE, auth.make_session(acct["user"]))
+    assert "up to 5 per search" in c.get("/search").text
+    six_zips = ["37934", "37922", "37932", "37923", "37919", "37909"]
+    r = c.post("/search", data={"zips": six_zips, "industries": ["Dentist"]})
+    assert "up to 5 ZIP codes and 6 business types" in r.text and not started
+    seven_types = ["Dentist", "Salon", "Florist", "Bakery", "Roofing", "HVAC", "Plumber"]
+    r = c.post("/search", data={"zips": ["37934"], "industries": seven_types})
+    assert "up to 5 ZIP codes and 6 business types" in r.text and not started
+    r = c.post("/search", data={"zips": six_zips[:5], "industries": seven_types[:6]}, follow_redirects=False)
+    assert r.status_code == 303 and len(started) == 1
