@@ -23,6 +23,11 @@
         <th class="p-3">Time in app</th><th class="p-3">Saw offer</th><th class="p-3">Clicked Subscribe</th><th class="p-3">Subscribed</th><th class="p-3">Wants a VA</th></tr></thead>
       <tbody>{% for r in free %}<tr class="border-t align-top">
         <td class="p-3"><b>{{ r.org.name }}</b><span class="block text-xs text-slate-500">{{ r.emails }}</span>
+          {% if r.org.plan_tier == "free" %}<form method="post" action="/beta/give-beta" class="mt-1"
+            onsubmit='return confirm({{ ("Give " ~ r.org.name ~ " the free 30-day Beta, starting now? Their leads stay and all unlock.")|tojson }})'>
+            <input type="hidden" name="org_id" value="{{ r.org.id }}">
+            <button class="text-xs text-purple-700 font-medium hover:underline">🎁 Give 30-day Beta</button></form>
+          {% elif r.org.plan_tier == "beta" %}<span class="block text-xs text-purple-700">moved to the 30-day Beta</span>{% endif %}
           <span class="block text-xs {{ 'text-slate-500' if r.agreed else 'text-amber-700' }}">{{ "agreed to terms " ~ r.agreed.astimezone().strftime("%b %-d") if r.agreed else "hasn't agreed to terms yet" }}</span>
           <form method="post" action="/beta/delete" class="mt-1"
           onsubmit='return confirm({{ ("Delete " ~ r.org.name ~ " and everything in it (people, leads, searches)? This can’t be undone.")|tojson }})'>

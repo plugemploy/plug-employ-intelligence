@@ -33,7 +33,9 @@ class Organization(Base):
     signup_offer: Mapped[str] = mapped_column(String(30), default="", server_default="")
     offer_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     checkout_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    va_interest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # "I'm interested" in VA hiring + training
+    va_interest_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When the 30-day Beta started, if not at sign-up (a free search company the owner moved to Beta).
+    trial_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # "I'm interested" in VA hiring + training
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -67,11 +67,16 @@ def plan_for(db: Session, account: Account) -> dict:
     return PLANS.get(org.plan_tier if org else "personal", PLANS["personal"])
 
 
+def trial_start(org: Organization) -> datetime | None:
+    """When the free 30 days began: sign-up, or when the owner moved a free search company to Beta."""
+    return org.trial_started_at or org.created_at
+
+
 def trial_ends(org: Organization) -> datetime | None:
     """When an unpaid company's free time runs out (None once they subscribe, or for the owner)."""
-    if org.plan != "trial" or org.plan_tier in ("owner", "free") or org.created_at is None:  # free: its one search is the limit
+    if org.plan != "trial" or org.plan_tier in ("owner", "free") or trial_start(org) is None:  # free: its one search is the limit
         return None
-    return org.created_at + timedelta(days=TRIAL_DAYS)
+    return trial_start(org) + timedelta(days=TRIAL_DAYS)
 
 
 def trial_over(org: Organization | None) -> bool:

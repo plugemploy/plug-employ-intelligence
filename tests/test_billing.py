@@ -480,3 +480,33 @@ def test_owner_deletes_a_test_company(org):
         assert db.get(Organization, org["org"]) is None and db.get(User, org["user"]) is None
         assert db.get(Account, org["acct"]) is None
         assert not db.scalars(select(Lead).where(Lead.business_name == "Test Gone Lead")).all()
+
+
+def test_owner_gives_a_free_searcher_the_30_day_beta(org):
+    from tests.conftest import login_as
+    with Session(engine) as db:
+        o = db.get(Organization, org["org"])
+        o.plan_tier, o.signup_offer = "free", "free"
+        o.created_at = datetime.now(timezone.utc) - timedelta(days=40)  # signed up long ago: the 30 days start now
+        db.add_all([Lead(account_id=org["acct"], business_name=f"Test Beta Lead {i:02}", score=5) for i in range(25)])
+        owner_org = Organization(name="Test: Owner Gives", plan="active", plan_tier="owner")
+        db.add(owner_org)
+        db.flush()
+        owner_acct = auth.new_account(db, owner_org.id, "Test: Owner Gives Pub")
+        db.commit()
+        owner_acct_id = owner_acct.id
+        assert plans.locked_ids(db, db.get(Account, org["acct"]))
+    owner = TestClient(app)
+    login_as(owner, owner_acct_id)
+    assert "Give 30-day Beta" in owner.get("/beta").text
+    r = owner.post("/beta/give-beta", data={"org_id": org["org"]}, follow_redirects=False)
+    assert "30-day%20Beta%20until" in r.headers["location"]
+    with Session(engine) as db:
+        o = db.get(Organization, org["org"])
+        assert (o.plan_tier, o.plan) == ("beta", "trial") and not plans.trial_over(o)
+        assert 29 <= (plans.trial_ends(o) - datetime.now(timezone.utc)).days <= 30
+        assert not plans.locked_ids(db, db.get(Account, org["acct"]))  # every lead unlocked
+    page = owner.get("/beta").text
+    assert "moved to the 30-day Beta" in page
+    again = owner.post("/beta/give-beta", data={"org_id": org["org"]}, follow_redirects=False)
+    assert "Only%20a%20free%20search%20company" in again.headers["location"]

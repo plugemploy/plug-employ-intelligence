@@ -133,4 +133,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   -> 8+, unlike any -> rarely above 7); Sold examples include "about: <score_reason>".
 - Search caps (2026-10-30): one Find leads search covers up to main.SEARCH_MAX_ZIPS (5) ZIPs x SEARCH_MAX_TYPES (6)
   types (checked in POST /search; boxes grey out on the page). Territory on My business and the nightly search are unchanged.
+- Give 30-day Beta (2026-10-30): owner button on /beta free search rows (POST /beta/give-beta) moves a free company
+  to plan_tier beta, trial starting now (organizations.trial_started_at; plans.trial_start used by trial_ends and the
+  survey). Leads stay and unlock. Testers table now hides only plan_tier "free" companies.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

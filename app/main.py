@@ -83,9 +83,9 @@ SURVEY_LATER_COOKIE = "survey_later"
 
 def survey_is_due(db: Session, org: Organization, account: Account, request: Request) -> bool:
     """Beta companies get the survey once per account, from day 25, unless they said "later" recently."""
-    if org.plan_tier != "beta" or org.created_at is None or request.cookies.get(SURVEY_LATER_COOKIE):
+    if org.plan_tier != "beta" or plans.trial_start(org) is None or request.cookies.get(SURVEY_LATER_COOKIE):
         return False
-    if datetime.now(timezone.utc) < org.created_at + timedelta(days=SURVEY_AFTER_DAYS):
+    if datetime.now(timezone.utc) < plans.trial_start(org) + timedelta(days=SURVEY_AFTER_DAYS):
         return False
     return not db.scalar(select(func.count()).select_from(BetaSurvey).where(BetaSurvey.account_id == account.id))
 
@@ -1404,7 +1404,7 @@ def beta_rows(db: Session) -> list[dict]:
         people = [u for u in users if u.org_id == o.id]
         if not people:  # demo companies nobody signs in to aren't testers
             continue
-        if o.signup_offer == "free" and o.plan != "active":  # free search sign-ups have their own table until they pay
+        if o.plan_tier == "free":  # free search sign-ups have their own table until they pay or move to the Beta
             continue
         logins = [u.last_login_at for u in people if u.last_login_at]
         rows.append(dict(org=o, accounts=mine, plan=plans.PLANS.get(o.plan_tier, {}).get("label", o.plan_tier),
@@ -1447,6 +1447,20 @@ def survey_cells(s: BetaSurvey | None) -> list:
 def require_owner(db: Session, user: User) -> None:
     if db.get(Organization, user.org_id).plan_tier != "owner":
         raise HTTPException(404)
+
+
+@app.post("/beta/give-beta")
+def beta_give_trial(org_id: int = Form(...), db: Session = Depends(get_session), user: User = Depends(current_user)):
+    """The owner moves a free search company to the 30-day Beta, starting now. Their leads stay and all unlock."""
+    require_owner(db, user)
+    org = db.get(Organization, org_id)
+    if org is None or org.plan_tier != "free":
+        return RedirectResponse(f"/beta?msg={quote('Only a free search company can be moved to the Beta.')}", status_code=303)
+    org.plan_tier, org.plan, org.trial_started_at = "beta", "trial", datetime.now(timezone.utc)
+    db.commit()
+    ends = plans.trial_ends(org).astimezone().strftime("%b %-d")
+    return RedirectResponse(f"/beta?msg={quote(f'{org.name} is on the 30-day Beta until {ends}. Their leads are all unlocked.')}",
+                            status_code=303)
 
 
 @app.post("/beta/delete")
