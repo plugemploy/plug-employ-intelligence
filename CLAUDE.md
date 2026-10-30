@@ -128,4 +128,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   saved as each finishes. Used by search_jobs.run (Find leads, free search); nightly/rescore still use
   website.check_unchecked + scoring.score_unscored. A Free search starts when setup is saved ("Find my leads →"),
   no Run click. Tests: conftest blocks website.read_site.
+- Any B2B (2026-10-30): sign-up, /try, sign-in and setup wording is for any B2B seller, not magazines. Scoring
+  (build_system) tells Claude existing Sold customers are the best guide when there are some (clearly like several
+  -> 8+, unlike any -> rarely above 7); Sold examples include "about: <score_reason>".
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

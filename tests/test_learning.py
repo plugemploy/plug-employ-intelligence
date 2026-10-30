@@ -73,3 +73,13 @@ def test_all_customers_counted_by_type(ids):
 
 def test_no_results_means_no_section():
     assert "<past_results>" not in scoring.build_system(Account(business_description="x", target_zips=""), "")
+
+
+def test_scoring_leans_on_customers_when_there_are_some():
+    from types import SimpleNamespace
+    from app import scoring
+    acct = SimpleNamespace(zip_list=["37934"], business_description="We sell local ads.")
+    with_customers = scoring.build_system(acct, "Became customers:\n- Glow Spa | Med spa | ZIP 37934 | rating unknown")
+    assert "existing customers are the best guide" in with_customers and "8 or higher" in with_customers
+    only_noes = scoring.build_system(acct, "Said no:\n- Big Box | Retail | ZIP 37934 | rating unknown")
+    assert "existing customers are the best guide" not in only_noes and "said no" in only_noes

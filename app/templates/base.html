@@ -137,7 +137,7 @@
         <input type="hidden" name="tier" value="pro">
         <button class="rounded-lg bg-slate-800 text-white px-5 py-2 font-medium">Subscribe for ${{ pro.price }}/month</button>
       </form>
-      <p class="text-sm text-purple-900 bg-purple-50 rounded-lg px-3 py-2 text-center">💡 One $300/month advertiser on a 12-month contract
+      <p class="text-sm text-purple-900 bg-purple-50 rounded-lg px-3 py-2 text-center">💡 One $300/month customer on a 12-month contract
         pays for about {{ (300 * 12 / (pro.price * 12))|round|int }} years of {{ pro.label }}.</p>
       <p class="text-xs text-slate-500 text-center"><b>30-day money-back guarantee.</b> Cancel anytime. Payments are handled securely by Stripe.</p>
       <button type="button" onclick="laterSubscribe()" class="text-sm text-slate-500 hover:underline">Maybe later</button>
