@@ -1380,6 +1380,13 @@ def beta_rows(db: Session) -> list[dict]:
     per_account = results.metrics(db, [a.id for a in accounts])
     users = db.scalars(select(User).where(User.org_id.in_([o.id for o in orgs] or [0]))).all()
     notes = dict(db.execute(select(Feedback.account_id, func.count()).group_by(Feedback.account_id)).all())
+    # Leads the app found for them (imported clients don't count; deleted ones do: they were still found)
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    found = {a: (n, high, week) for a, n, high, week in db.execute(
+        select(Lead.account_id, func.count(), func.count().filter(Lead.score >= 8),
+               func.count().filter(Lead.created_at >= week_ago))
+        .where(Lead.account_id.in_([a.id for a in accounts] or [0]), Lead.source != "import")
+        .group_by(Lead.account_id)).all()}
     surveys = {}
     for s in db.scalars(select(BetaSurvey).order_by(BetaSurvey.created_at)):  # latest answer per account wins
         surveys[s.account_id] = s
@@ -1397,6 +1404,9 @@ def beta_rows(db: Session) -> list[dict]:
                          setup_done=all(a.setup_done_at for a in mine) if mine else False,
                          last_login=max(logins) if logins else None,
                          feedback=sum(notes.get(a.id, 0) for a in mine),
+                         leads_found=sum(found.get(a.id, (0, 0, 0))[0] for a in mine),
+                         leads_high=sum(found.get(a.id, (0, 0, 0))[1] for a in mine),
+                         leads_week=sum(found.get(a.id, (0, 0, 0))[2] for a in mine),
                          survey=next((surveys[a.id] for a in mine if a.id in surveys), None),
                          **activity(people), **results.total([per_account[a.id] for a in mine])))
     return rows
@@ -1480,7 +1490,7 @@ def beta_results_csv(db: Session = Depends(get_session), user: User = Depends(cu
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Company", "People", "Plan", "Signed up", "Setup done", "Last sign-in", "Minutes in app", "Visits",
-                "Last seen", "Agreed to terms", "Leads contacted",
+                "Last seen", "Agreed to terms", "Leads found", "Leads scored 8+", "Leads found last 7 days", "Leads contacted",
                 "Appointments set", "Appointments shown", "Sold", "Monthly recurring revenue $", "Contract value $",
                 "Ad Management Fees $", "Sales found only with Plug Employ", "Feedback notes", "Would pay",
                 "Recommend (0-10)", "Hours saved per week", "Quote", "OK to quote"])
@@ -1488,7 +1498,8 @@ def beta_results_csv(db: Session = Depends(get_session), user: User = Depends(cu
         w.writerow([r["org"].name, r["emails"], r["plan"], r["org"].created_at.date(), "yes" if r["setup_done"] else "no",
                     r["last_login"].date() if r["last_login"] else "", round(r["active_seconds"] / 60), r["visits"],
                     r["last_seen"].date() if r["last_seen"] else "",
-                    r["agreed"].date() if r["agreed"] else "", r["contacted"], r["appts_set"],
+                    r["agreed"].date() if r["agreed"] else "", r["leads_found"], r["leads_high"], r["leads_week"],
+                    r["contacted"], r["appts_set"],
                     r["appts_shown"], r["sold"], round(r["mrr"]), round(r["contract_value"]), round(r["ad_fees"]),
                     r["found_only"], r["feedback"]] + survey_cells(r["survey"]))
     # Free search sign-ups (from the /try link) below the testers, in their own section.

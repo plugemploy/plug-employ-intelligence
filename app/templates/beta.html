@@ -72,7 +72,7 @@
   <table class="w-full text-sm">
     <thead class="bg-slate-100 text-left text-slate-600"><tr>
       <th class="p-3">Company</th><th class="p-3">Plan</th><th class="p-3">Signed up</th><th class="p-3">Last sign-in</th><th class="p-3">Time in app</th>
-      <th class="p-3">Contacted</th><th class="p-3">Appts set</th><th class="p-3">Shown</th><th class="p-3">Sold</th>
+      <th class="p-3">Leads found</th><th class="p-3">Contacted</th><th class="p-3">Appts set</th><th class="p-3">Shown</th><th class="p-3">Sold</th>
       <th class="p-3">MRR</th><th class="p-3">Contract value</th><th class="p-3">Ad Mgmt Fees</th><th class="p-3">Only via app</th><th class="p-3">Survey</th><th class="p-3">Feedback</th></tr></thead>
     <tbody>{% for r in rows %}<tr class="border-t align-top">
       <td class="p-3"><b>{{ r.org.name }}</b><span class="block text-xs text-slate-500">{{ r.emails }}</span>
@@ -89,6 +89,8 @@
       <td class="p-3 whitespace-nowrap">{{ r.last_login.astimezone().strftime("%b %-d") if r.last_login else "never" }}</td>
       <td class="p-3 whitespace-nowrap">{% if r.active %}{{ r.active }}<span class="block text-xs text-slate-500">{{ r.visits }} visit{{ "s" if r.visits != 1 }}
           {%- if r.last_seen %} · last {{ r.last_seen.astimezone().strftime("%b %-d") }}{% endif %}</span>{% else %}—{% endif %}</td>
+      <td class="p-3 whitespace-nowrap"><b>{{ "{:,}".format(r.leads_found) }}</b>
+        <span class="block text-xs text-slate-500">{{ r.leads_high }} scored 8+{% if r.leads_week %} · {{ r.leads_week }} this week{% endif %}</span></td>
       <td class="p-3">{{ r.contacted }}</td><td class="p-3">{{ r.appts_set }}</td><td class="p-3">{{ r.appts_shown }}</td>
       <td class="p-3 font-semibold text-green-700">{{ r.sold }}</td>
       <td class="p-3">${{ "{:,.0f}".format(r.mrr) }}</td><td class="p-3">${{ "{:,.0f}".format(r.contract_value) }}</td>
@@ -97,7 +99,7 @@
       <td class="p-3 text-xs">{% if r.survey %}{{ would_pay_labels.get(r.survey.would_pay, "") }}<br>Recommend {{ r.survey.recommend }}/10
         {% else %}<span class="text-slate-400">not yet</span>{% endif %}</td>
       <td class="p-3">{% if r.feedback %}<a href="/feedback" class="text-blue-700 hover:underline">{{ r.feedback }}</a>{% else %}0{% endif %}</td></tr>
-    {% else %}<tr><td colspan="14" class="p-6 text-center text-slate-500">No testers have signed up yet.</td></tr>{% endfor %}</tbody>
+    {% else %}<tr><td colspan="16" class="p-6 text-center text-slate-500">No testers have signed up yet.</td></tr>{% endfor %}</tbody>
   </table>
 </div>
 {% if survey and survey.quotes %}

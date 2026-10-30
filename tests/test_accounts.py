@@ -141,6 +141,7 @@ def test_results_pages_and_beta_dashboard():
                  appt_shown_at=now, sold_at=now, mrr=300, contract_months=12, ad_mgmt_fee=500),
             Lead(account_id=theirs.id, business_name="No Show", status="Not interested", contacted_at=now, appt_set_at=now),
             Lead(account_id=theirs.id, business_name="Deleted Win", status="Sold", sold_at=now, mrr=9999, deleted_at=now),
+            Lead(account_id=theirs.id, business_name="Imported Client", status="New", score=10, source="import"),
         ])
         db.add(User(org_id=tester_org.id, account_id=theirs.id, email="tester@results.test", role="owner",
                     last_login_at=now))
@@ -157,8 +158,10 @@ def test_results_pages_and_beta_dashboard():
     assert "Test: Tester Co" in html and "tester@results.test" in html and "Test: Owner Co" not in html
     csv_text = owner.get("/beta.csv").text
     line = [l for l in csv_text.splitlines() if l.startswith("Test: Tester Co")][0]
-    # contacted, set, shown, sold, MRR, contract value, ad fees, found only via app, feedback, then 5 empty survey cells
-    assert line.endswith(",4,3,1,1,300,3600,500,0,0,,,,,")
+    # leads found (not the imported client), scored 8+, found this week, then contacted, set, shown, sold, MRR,
+    # contract value, ad fees, found only via app, feedback, then 5 empty survey cells
+    assert line.endswith(",6,1,6,4,3,1,1,300,3600,500,0,0,,,,,")
+    assert "Leads found" in html and "1 scored 8+ · 6 this week" in html
 
 
 
