@@ -21,8 +21,8 @@
 {% endfor %}</textarea>
     {% for p in watched %}{% if p.last_checked_at %}<span class="text-xs text-slate-500">{{ p.url }}: last read
       {{ p.last_checked_at.astimezone().strftime("%b %-d") }}, {{ p.last_status }}</span>{% endif %}{% endfor %}</label>
-  {% if plan.max_zips %}<p class="text-xs text-slate-500">Your {{ plan.label }} plan covers up to {{ plan.max_zips }} ZIP codes
-    and {{ plan.max_industries }} business types.</p>{% endif %}
+  {% if plan.max_zips or plan.max_industries %}<p class="text-xs text-slate-500">Your {{ plan.label }} plan covers up to
+    {% if plan.max_zips %}{{ plan.max_zips }} ZIP codes and {% endif %}{{ plan.max_industries }} business types.</p>{% endif %}
   <button class="rounded bg-slate-800 text-white px-4 py-2 justify-self-start">Save</button>
 </form>
 {% if watched %}<form method="post" action="/local-pages/check" class="max-w-3xl mb-2 -mt-3 text-sm">

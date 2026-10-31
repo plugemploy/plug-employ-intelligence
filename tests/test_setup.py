@@ -40,7 +40,7 @@ def test_new_account_goes_through_setup(newbie, monkeypatch):
     r = c.get("/leads", follow_redirects=False)
     assert r.headers["location"] == "/setup"
     page = c.get("/setup").text
-    assert "Select all" in page and "Florist" in page and "37934" in page
+    assert "of 6 selected" in page and "Select all" not in page and "Florist" in page and "37934" in page
 
     monkeypatch.setattr(setup, "ask_claude", lambda d: (["Florist", "wedding venue", "Balloon artist, LLC"], 0.001))
     monkeypatch.setattr(setup, "ANTHROPIC_API_KEY", "x")

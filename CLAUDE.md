@@ -137,4 +137,9 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Give 30-day Beta (2026-10-30): owner button on /beta free search rows (POST /beta/give-beta) moves a free company
   to plan_tier beta, trial starting now (organizations.trial_started_at; plans.trial_start used by trial_ends and the
   survey). Leads stay and unlock. Testers table now hides only plan_tier "free" companies.
+- Many searches at once (2026-10-31): app/limits.py caps website reads (16) and Claude requests (12) across the whole
+  app (decorators on website.fetch_site/fetch_news/read_site, local_pages.fetch_page, scoring/signals.ask_claude); no
+  waiting list. DB pool 10 + 30 overflow (app/db.py). Overture reads stay at OVERTURE_PARALLEL.
+- Territory types cap (2026-10-31): every plan's max_industries = plans.MAX_TYPES (6; free 2, owner none) on setup and
+  My business. Accounts saved earlier with more keep them until they next save My business.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

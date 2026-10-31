@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import website
+from app import limits, website
 from app.config import ANTHROPIC_API_KEY
 from app.dedupe import _name_key, find_duplicate
 from app.models import ApiUsage, Lead, LeadSignal, WatchedPage
@@ -53,6 +53,7 @@ class Mentions(BaseModel):
     businesses: list[Mention]
 
 
+@limits.website
 def fetch_page(url: str) -> str:
     """The page's text when robots.txt allows reading it, else "". Kept separate so tests can replace it."""
     if not url.startswith(("http://", "https://")):

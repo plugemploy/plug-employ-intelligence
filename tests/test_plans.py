@@ -127,8 +127,8 @@ def test_premium_territory_limits_and_unlimited_meter(acct):
     zips = ", ".join(str(37000 + i) for i in range(21))
     r = c.post("/business", data={"description": "x", "zips": zips, "industries": ["Dentist"]})
     assert "up to 20 ZIP codes" in r.text
-    r = c.post("/business", data={"description": "x", "zips": "37934", "extra_industries": ", ".join(f"Type {i}" for i in range(71))})
-    assert "up to 70 business types" in r.text
+    r = c.post("/business", data={"description": "x", "zips": "37934", "extra_industries": ", ".join(f"Type {i}" for i in range(7))})
+    assert "up to 6 business types" in r.text
     with Session(engine) as db:
         assert db.get(Account, acct["acct"]).target_zips == "37934"  # nothing saved
     c.post("/business", data={"description": "x", "zips": ", ".join(str(37000 + i) for i in range(20)), "industries": ["Dentist"]})
@@ -144,7 +144,7 @@ def test_every_plan_keeps_77_percent():
         kept = p["price"] - p["allowance_usd"] - (p["price"] * 0.036 + 0.30) - 2.50
         assert kept / p["price"] >= 0.77, tier
     prem = plans.PLANS["premium"]
-    assert prem["max_zips"] * prem["max_industries"] == prem["searches"]  # every pair once a month
+    assert prem["max_zips"] * prem["max_industries"] <= prem["searches"]  # every pair once a month
     assert prem["searches"] * plans.SCORING_COST_PER_SEARCH <= prem["allowance_usd"]
 
 

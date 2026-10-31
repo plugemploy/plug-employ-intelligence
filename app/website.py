@@ -15,6 +15,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app import limits
 from app.models import Lead
 
 USER_AGENT = "PlugEmployIntelligence/0.1 (local business lead research)"
@@ -106,6 +107,7 @@ def full_url(url: str) -> str:
     return url if url.lower().startswith(("http://", "https://")) else "https://" + url
 
 
+@limits.website
 def fetch_site(url: str) -> tuple[str, str, str]:
     """Returns (status, text, about_url): the homepage, plus its About/Team page when linked and allowed.
     Kept separate so tests can replace it."""
@@ -137,6 +139,7 @@ def fetch_site(url: str) -> tuple[str, str, str]:
         return "ok", text, ""
 
 
+@limits.website
 def fetch_news(url: str) -> tuple[str, str]:
     """Returns (text, news_url): the homepage plus its News / Events / Blog page when linked and allowed, for
     spotting timely reasons to reach out. Same rules as fetch_site. Kept separate so tests can replace it."""
@@ -166,6 +169,7 @@ def fetch_news(url: str) -> tuple[str, str]:
         return text, ""
 
 
+@limits.website
 def read_site(url: str) -> tuple[str, str, str, str, str]:
     """One visit for a new lead: (status, text, about_url, news_text, news_url). text is the homepage plus its
     About/Team page (for scoring, like fetch_site); news_text is the homepage plus its News/Events page (for reasons

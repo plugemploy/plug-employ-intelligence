@@ -19,19 +19,20 @@ from app.models import Account, Organization
 # max_zips / max_industries: territory size ("unlimited" searches within it).
 # Since 2026-10-28 one plan is sold: "pro", $49/month with everything. Its $6.50 Claude cap keeps a 77% margin
 # at full use (640 searches x ~$0.006 = ~$3.84, the rest covers drafts, reasons to reach out and re-scores).
+MAX_TYPES = 6  # business types in a territory (setup, My business), like one Find leads search; the owner has no cap
 PLANS = {
-    "beta": {"label": "Beta", "price": 0, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True},
-    "pro": {"label": "Plug Employ", "price": 49, "searches": 640, "allowance_usd": 6.5, "nightly_max": 30, "email": True, "close": True},
+    "beta": {"label": "Beta", "price": 0, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True, "max_industries": MAX_TYPES},
+    "pro": {"label": "Plug Employ", "price": 49, "searches": 640, "allowance_usd": 6.5, "nightly_max": 30, "email": True, "close": True, "max_industries": MAX_TYPES},
     # Sign-ups from the /try link (email campaign): one run of up to 3 ZIPs x 2 business types, ever. The top
     # FREE_SHOWN leads show in full; the rest are locked until they subscribe ($49 pop-up).
     "free": {"label": "Free search", "price": 0, "searches": 6, "lifetime": True, "allowance_usd": 1.0, "nightly_max": 0,
              "email": False, "close": False, "max_zips": 3, "max_industries": 2},
     # Earlier plans, kept for companies already on them. Not offered on the Billing page.
-    "personal": {"label": "Standard", "price": 99, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": False, "close": False},
+    "personal": {"label": "Standard", "price": 99, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": False, "close": False, "max_industries": MAX_TYPES},
     "premium": {"label": "Premium", "price": 299, "searches": 1400, "allowance_usd": 55.0, "nightly_max": 50, "email": True, "close": True,
-                "max_zips": 20, "max_industries": 70, "unlimited": True},
-    "founding": {"label": "Founding member", "price": 79, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True},
-    "wholesale": {"label": "Wholesale (per publisher)", "price": 60, "searches": 256, "allowance_usd": 10.0, "nightly_max": 20, "email": True, "close": True},
+                "max_zips": 20, "max_industries": MAX_TYPES, "unlimited": True},
+    "founding": {"label": "Founding member", "price": 79, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True, "max_industries": MAX_TYPES},
+    "wholesale": {"label": "Wholesale (per publisher)", "price": 60, "searches": 256, "allowance_usd": 10.0, "nightly_max": 20, "email": True, "close": True, "max_industries": MAX_TYPES},
     "owner": {"label": "Owner", "price": 0, "searches": None, "allowance_usd": None, "nightly_max": 100, "email": True, "close": True},  # only the .env cap applies
 }
 EMAIL_PLAN_MSG = "Gmail features are included in the $49 Plug Employ plan. Switch on the Billing page."

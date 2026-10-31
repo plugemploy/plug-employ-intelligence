@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app import website
+from app import limits, website
 from app.config import ANTHROPIC_API_KEY
 from app.models import SIGNAL_KINDS, ApiUsage, Lead, LeadSignal
 from app.places import BudgetExceeded, check_budget
@@ -59,6 +59,7 @@ class Reasons(BaseModel):
     reasons: list[Reason]
 
 
+@limits.claude
 def ask_claude(lead: Lead, text: str, today: date) -> tuple[list[Reason], float]:
     """One request to Claude. Kept separate so tests can replace it with fake answers."""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)

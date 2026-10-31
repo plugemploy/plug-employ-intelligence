@@ -4,7 +4,8 @@ from sqlalchemy import create_engine, text
 
 from app.config import DATABASE_URL
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True) if DATABASE_URL else None
+# Room for many searches at once: each running search holds a connection, and so do the pages people have open.
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=10, max_overflow=30) if DATABASE_URL else None
 
 
 def check_database() -> dict:

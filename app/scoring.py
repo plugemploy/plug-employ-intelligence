@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
+from app import limits
 from app.config import ANTHROPIC_API_KEY
 from app.models import Account, ApiUsage, Lead
 from app.places import check_budget
@@ -130,6 +131,7 @@ def describe(lead: Lead) -> str:
          if lead.contact_name else []) + ([f"Website text (homepage excerpt):\n<website>\n{lead.website_text}\n</website>"] if lead.website_text else []))
 
 
+@limits.claude
 def ask_claude(lead: Lead, system: str) -> tuple[LeadScore, float]:
     """One request to Claude. Kept separate so tests can replace it with fake answers."""
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
