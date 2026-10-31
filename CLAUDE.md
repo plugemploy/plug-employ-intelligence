@@ -81,7 +81,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - One $49 plan (2026-10-28): billing.SELLABLE = ("pro",), label "Plug Employ", everything included, $6.50 Claude cap;
   Stripe price lookup key includes the price (pei_pro_49_monthly). Survey asks "Yes, at $49/month".
 - Free search link (2026-10-28): /try signs up new companies on plan "free" (since 2026-10-29: up to 3 ZIPs x 2 business types, 6 searches ever,
-  no Gmail/Close); existing users keep their plan. 15 seconds after its leads are ready (plans.first_leads_at) a $49 subscribe pop-up shows
+  no Gmail/Close); existing users keep their plan. Since 2026-10-31 only /signup (offer=beta cookie) gives the Beta; any other new
+  sign-in (Sign in page, /try) gets the free search, and Sign in's "New here?" links to /try. 15 seconds after its leads are ready (plans.first_leads_at) a $49 subscribe pop-up shows
   (main.subscribe_offer; "Maybe later" hides the pop-up a day). A purple Subscribe banner shows at once above every page (stays after Maybe later); banner load marks offer_seen_at. /signup still gives the 30-day Beta.
 - Free search tracker + legal pages (2026-10-28): /beta shows /try sign-ups (signup_offer, offer_seen_at,
   checkout_started_at) apart from testers. /privacy and /terms are DRAFTS for the attorney; CONTACT_EMAIL env shows there.

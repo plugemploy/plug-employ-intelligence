@@ -17,7 +17,7 @@ def test_signup_needs_the_box_ticked(monkeypatch):
     page = c.get("/signup").text
     assert "Privacy Policy" in page and "N2" not in page and "East TN" not in page
     assert "not affiliated with or endorsed by N2" in c.get("/terms").text
-    assert c.get("/auth/google?company=Test:%20Terms%20Co").headers["location"].startswith("/signup?msg=Please%20tick")
+    assert c.get("/auth/google?company=Test:%20Terms%20Co&offer=beta").headers["location"].startswith("/signup?msg=Please%20tick")
     assert c.get("/auth/google?company=Test:%20Terms%20Co&offer=free").headers["location"].startswith("/try?msg=")
     assert c.get("/auth/google?company=Test:%20Terms%20Co&agree=yes").headers["location"] == "https://accounts.google.test/"
 
@@ -27,7 +27,7 @@ def test_signup_saves_when_they_agreed(monkeypatch):
     monkeypatch.setattr(auth, "start_login", lambda company: "https://accounts.google.test/")
     monkeypatch.setattr(auth, "google_identity", lambda s, c: ({"email": "new@terms.test", "name": "Terms Person"}, "Test: Terms Co"))
     c = TestClient(app, follow_redirects=False)
-    c.get("/auth/google?company=Test:%20Terms%20Co&agree=yes")
+    c.get("/auth/google?company=Test:%20Terms%20Co&offer=beta&agree=yes")
     assert c.get("/auth/callback?state=s&code=c").headers["location"] == "/setup"
     with Session(engine) as db:
         u = db.scalars(select(User).where(User.email == "new@terms.test")).one()

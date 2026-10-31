@@ -510,3 +510,23 @@ def test_owner_gives_a_free_searcher_the_30_day_beta(org):
     assert "moved to the 30-day Beta" in page
     again = owner.post("/beta/give-beta", data={"org_id": org["org"]}, follow_redirects=False)
     assert "Only%20a%20free%20search%20company" in again.headers["location"]
+
+
+def test_only_the_signup_link_gives_the_beta(monkeypatch):
+    from app import main
+    monkeypatch.setattr(gmail, "configured", lambda: True)
+    monkeypatch.setattr(auth, "start_login", lambda company: "https://accounts.google.test/")
+    c = TestClient(app, follow_redirects=False)
+    assert 'href="/try"' in c.get("/login").text and 'href="/signup"' not in c.get("/login").text
+    assert 'name="offer" value="beta"' in c.get("/signup").text
+    for email, url, tier in (("new@login.test", "/auth/google", "free"),
+                             ("new@beta-link.test", "/auth/google?company=Test:%20Beta%20Link%20Co&offer=beta&agree=yes", "beta")):
+        monkeypatch.setattr(auth, "google_identity", lambda s, c, e=email: ({"email": e, "name": "Test: Person"}, ""))
+        c.cookies.clear()
+        c.get(url)
+        c.get("/auth/callback?state=s&code=c")
+        with Session(engine) as db:
+            u = db.scalars(select(User).where(User.email == email)).one()
+            assert db.get(Organization, u.org_id).plan_tier == tier
+            db.delete(db.get(Organization, u.org_id))
+            db.commit()

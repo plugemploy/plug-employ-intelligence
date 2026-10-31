@@ -229,7 +229,7 @@ def terms_page(request: Request):
     return page(request, "terms.html", contact=CONTACT_EMAIL, pro=plans.PLANS["pro"])
 
 
-OFFER_COOKIE = "offer"  # "free" while someone from the /try link is away at Google signing in
+OFFER_COOKIE = "offer"  # "free" (/try) or "beta" (/signup) while someone is away at Google signing in
 AGREE_COOKIE = "agreed"  # set when the sign-up box was ticked, read back when Google returns
 
 
@@ -244,13 +244,13 @@ def auth_google(company: str = "", offer: str = "", agree: str = ""):
     if not gmail.configured():
         return RedirectResponse("/login?msg=Google%20sign-in%20isn%27t%20set%20up%20yet.", status_code=303)
     if company and not agree:
-        back = "/try" if offer == "free" else "/signup"
+        back = "/signup" if offer == "beta" else "/try"
         return RedirectResponse(f"{back}?msg=Please%20tick%20the%20box%20to%20continue.", status_code=303)
     resp = RedirectResponse(auth.start_login(company), status_code=303)
     if agree:
         resp.set_cookie(AGREE_COOKIE, auth.TERMS_VERSION, max_age=1800, httponly=True, samesite="lax", secure=COOKIE_SECURE)
-    if offer == "free":
-        resp.set_cookie(OFFER_COOKIE, "free", max_age=1800, httponly=True, samesite="lax", secure=COOKIE_SECURE)
+    if offer in ("free", "beta"):
+        resp.set_cookie(OFFER_COOKIE, offer, max_age=1800, httponly=True, samesite="lax", secure=COOKIE_SECURE)
     else:
         resp.delete_cookie(OFFER_COOKIE)
     return resp
@@ -261,7 +261,8 @@ def auth_callback(request: Request, state: str = "", code: str = "", error: str 
     from urllib.parse import quote
     if error:
         return RedirectResponse(f"/login?msg={quote('Sign-in cancelled.')}", status_code=303)
-    tier = "free" if request.cookies.get(OFFER_COOKIE) == "free" else "beta"
+    # Only the /signup link (testers) gives the 30-day Beta; any other new company gets the free search.
+    tier = "beta" if request.cookies.get(OFFER_COOKIE) == "beta" else "free"
     try:
         identity, company = auth.google_identity(state, code)
         user = auth.sign_in(db, identity["email"], identity["name"], company, tier)

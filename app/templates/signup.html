@@ -4,6 +4,7 @@
 <p class="text-sm text-slate-600 mb-6">For B2B companies and sales teams that sell to local businesses. Setup takes about 5 minutes.</p>
 {% if message %}<p class="mb-4 rounded bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">{{ message }}</p>{% endif %}
 <form method="get" action="/auth/google" class="grid gap-4">
+  <input type="hidden" name="offer" value="beta">
   <label class="grid gap-1 text-sm">Company name
     <input name="company" required maxlength="200" class="border rounded px-3 py-2" placeholder="e.g. Westside Marketing Co."></label>
   {% include "_agree_box.html" %}
