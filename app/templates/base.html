@@ -102,7 +102,7 @@
         Get {{ pro.searches }} searches a month, new leads every night, scored for you.</span></p>
       <div class="grid gap-0.5 justify-items-center">
         <button class="rounded-lg bg-white text-[#3b1578] px-4 py-1.5 text-sm font-semibold hover:bg-purple-50">Subscribe for ${{ pro.price }}/month</button>
-        <span class="text-[11px] text-purple-200">30-day money-back guarantee</span></div>
+        <span class="text-[11px] text-purple-200">Cancel anytime</span></div>
     </form>
     {% endif %}
     {% if not account and not (user and user.is_admin) %}
@@ -139,7 +139,7 @@
       </form>
       <p class="text-sm text-purple-900 bg-purple-50 rounded-lg px-3 py-2 text-center">💡 One $300/month customer on a 12-month contract
         pays for about {{ (300 * 12 / (pro.price * 12))|round|int }} years of {{ pro.label }}.</p>
-      <p class="text-xs text-slate-500 text-center"><b>30-day money-back guarantee.</b> Cancel anytime. Payments are handled securely by Stripe.</p>
+      <p class="text-xs text-slate-500 text-center">Cancel anytime. Payments are handled securely by Stripe.</p>
       <button type="button" onclick="laterSubscribe()" class="text-sm text-slate-500 hover:underline">Maybe later</button>
     </div>
   </div>
