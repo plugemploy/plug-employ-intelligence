@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-{# While a Free search runs, the list refreshes itself so leads appear as they're found and scored. #}
+{# While a search runs, the list refreshes itself so leads appear as they're found and scored. #}
 <div id="leads-live" {% if live or reasons_checking %}hx-get="{{ request.url }}" hx-trigger="every 4s" hx-select="#leads-live" hx-swap="outerHTML"{% endif %}>
 {% if subscribe_banner %}<div id="offer-ready" hidden></div>{% endif %}
 {% if live %}

@@ -118,8 +118,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Faster searches (2026-10-29): website.check_unchecked reads 8 sites at once (PARALLEL; only URLs go to threads) and
   scoring.score_unscored asks Claude 6 at a time (_ask_in_parallel, plain snapshots of leads, budget checked per request);
   each lead is saved as it finishes. A Free search's /setup/first starts a background SearchJob and goes straight to
-  /leads?search=, which refreshes itself every 4s while it runs (#leads-live, "Finding your leads…" card). Beta's first
-  search keeps the "Finding your leads" pop-up (_finding.html, live counts from GET /setup/progress).
+  /leads?search=, which refreshes itself every 4s while it runs (#leads-live, "Finding your leads…" card). Since 2026-10-31
+  every plan's first search does this (main.starter_pairs: all ZIPs x as many types as fit in 10); the pop-up and /setup/progress are gone.
 - Reasons first (2026-10-29): signals.check_account checks 6 sites at once (_look in threads, _save in the session;
   signals.checking[account] = [checked, total] while it runs). After a free search the leads page stays live with a
   "Looking for reasons to reach out…" card until it's done. Leads list (every account, every sort) puts leads with an

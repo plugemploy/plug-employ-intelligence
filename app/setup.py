@@ -60,8 +60,3 @@ def finish(db: Session, account: Account) -> None:
     settings.enabled = True
     db.commit()
 
-
-def starter_search(db: Session, account: Account) -> dict:
-    """The first batch of leads, right now, so a new customer sees results immediately."""
-    run = nightly.run_for_account(account.id, max_searches=STARTER_SEARCHES)
-    return {"searches": run.searches, "added": run.added, "high": run.high_scores, "error": run.error}

@@ -69,39 +69,23 @@ def test_setup_requires_zip_and_industry(newbie):
 
 
 def test_starter_search(newbie, monkeypatch):
-    from app import nightly
-    monkeypatch.setattr(nightly, "run_for_account",
-                        lambda aid, max_searches=None: NightlyRun(account_id=aid, searches=max_searches, added=7, high_scores=3, error=""))
+    from app import search_jobs
+    started = []
+    monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: started.append(a))  # leave it "running"
     with Session(engine) as db:
-        setup.finish(db, db.get(Account, newbie["acct"]))
-    r = client(newbie["user"]).post("/setup/first")
-    assert "found 7 leads; 3 scored 8+" in r.text
+        a = db.get(Account, newbie["acct"])
+        a.target_zips, a.industries = "37934,37919,37922", "Dentist,Florist,Roofer,Gym,Spa"
+        setup.finish(db, a)
+    c = client(newbie["user"])
+    page = c.get("/setup/first").text
+    assert "<b>9</b> searches" in page and "finding" not in page.split("<body")[0]
+    r = c.post("/setup/first", follow_redirects=False)
+    assert r.headers["location"].startswith("/leads?search=")
+    with Session(engine) as db:
+        job = search_jobs.latest(db, newbie["acct"])
+        assert (job.zip_list, job.industry_list) == (["37934", "37919", "37922"], ["Dentist", "Florist", "Roofer"])
+    assert 'hx-trigger="every 4s"' in c.get("/leads?sort=score").text  # leads show up as they're found
 
 
 def test_catalog_has_no_duplicates():
     assert len(catalog.ALL) == len(set(catalog.ALL)) and len(catalog.ALL) > 100
-
-
-def test_finding_leads_popup_counts(newbie):
-    from datetime import datetime, timezone
-    from app.models import ApiUsage, Lead
-    with Session(engine) as db:
-        a = db.get(Account, newbie["acct"])
-        setup.finish(db, a)
-        db.add(Lead(account_id=a.id, business_name="Test Old Lead"))  # from before: not counted
-        db.commit()
-    c = client(newbie["user"])
-    page = c.get("/setup/first").text
-    assert 'id="finding"' in page and 'onsubmit="startFinding(this)"' in page
-    import re
-    after_lead = int(re.search(r"after_lead=(\d+)", page).group(1))
-    after_usage = int(re.search(r"after_usage=(\d+)", page).group(1))
-    now = datetime.now(timezone.utc)
-    with Session(engine) as db:
-        db.add(ApiUsage(account_id=newbie["acct"], service="overture_search", detail="Dentist in 37934", est_cost_usd=0))
-        db.add_all([Lead(account_id=newbie["acct"], business_name="Test New A", website_checked_at=now, score=9),
-                    Lead(account_id=newbie["acct"], business_name="Test New B", website_checked_at=now),
-                    Lead(account_id=newbie["acct"], business_name="Test New C")])
-        db.commit()
-    p = c.get(f"/setup/progress?after_lead={after_lead}&after_usage={after_usage}").json()
-    assert p == {"searches": 1, "found": 3, "read": 2, "scored": 1, "high": 1}
