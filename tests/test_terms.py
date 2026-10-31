@@ -14,7 +14,9 @@ def test_signup_needs_the_box_ticked(monkeypatch):
     monkeypatch.setattr(gmail, "configured", lambda: True)
     monkeypatch.setattr(auth, "start_login", lambda company: "https://accounts.google.test/")
     c = TestClient(app, follow_redirects=False)
-    assert "not affiliated with or endorsed by N2" in c.get("/signup").text
+    page = c.get("/signup").text
+    assert "Privacy Policy" in page and "N2" not in page and "East TN" not in page
+    assert "not affiliated with or endorsed by N2" in c.get("/terms").text
     assert c.get("/auth/google?company=Test:%20Terms%20Co").headers["location"].startswith("/signup?msg=Please%20tick")
     assert c.get("/auth/google?company=Test:%20Terms%20Co&offer=free").headers["location"].startswith("/try?msg=")
     assert c.get("/auth/google?company=Test:%20Terms%20Co&agree=yes").headers["location"] == "https://accounts.google.test/"

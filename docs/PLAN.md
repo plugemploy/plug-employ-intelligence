@@ -92,6 +92,6 @@ ZIP codes: **37934, 37922, 37932, 37923, 37919, 37909**
 
 ## Terms agreement (2026-10-28)
 At the regional director's suggestion, sign-up and the free search page need a ticked box before Google sign-in:
-agree to the Terms and Privacy Policy, and understand Plug Employ is an independent tool owned by East TN Publication LLC,
-not affiliated with or endorsed by N2. The date and terms version are saved per person. People who signed up earlier
+agree to the Terms and Privacy Policy. Since 2026-10-31 the "independent tool, not affiliated with or endorsed by N2"
+line is in the terms instead (the box no longer names N2 or the LLC). The date and terms version are saved per person. People who signed up earlier
 are not asked (it could put them off). Beta results show who has agreed. Wording to be reviewed by the attorney.

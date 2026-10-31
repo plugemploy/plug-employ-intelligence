@@ -102,8 +102,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   terms draft says payments aren't refunded.
 - Pick leads for Close (2026-10-28): leads list has a 📞 checkbox column when Close is on; "select the top 20/50/100"
   ticks the highest scores, header box selects all, untick to skip, POST /close/send-selected (close_crm.sendable: not in Close, open, has phone).
-- Terms agreement (2026-10-28): /signup and /try need a ticked box (Terms + Privacy, "independent tool owned by East TN
-  Publication LLC, not affiliated with or endorsed by N2"; templates/_agree_box.html) before Google sign-in. users.terms_agreed_at +
+- Terms agreement (2026-10-28): /signup and /try need a ticked box (Terms + Privacy; templates/_agree_box.html;
+  the "not affiliated with or endorsed by N2" line moved into the terms 2026-10-31, LLC name not shown) before Google sign-in. users.terms_agreed_at +
   terms_version (auth.TERMS_VERSION). Earlier users are NOT asked (Savannah removed the one-time /agree page so it
   doesn't put testers off). Shown on /beta + CSV.
 - VA offer (2026-10-28): free search users see a soft line under their leads ("N leads ready. Short on time to call

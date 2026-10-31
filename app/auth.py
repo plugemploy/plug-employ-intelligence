@@ -29,7 +29,7 @@ REDIRECT_URI = f"{APP_BASE_URL}/auth/callback"
 FIRST_OWNER_ORG = "Plug Employ"
 
 # New sign-ups tick the agreement box; the version they saw is saved with the date.
-TERMS_VERSION = "2026-10-28"
+TERMS_VERSION = "2026-10-31"
 
 _pending: dict[str, dict] = {}  # sign-in in progress: state -> {"verifier", "signup_company"}
 
