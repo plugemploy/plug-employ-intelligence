@@ -61,6 +61,10 @@ TYPES: dict[str, tuple[list[str], list[str]]] = {
     "Landscaping": (["landscaping", "landscape_architect", "gardener"], ["landscap"]),
     "Lawn care": (["lawn_service"], ["lawn"]),
     "Tree service": (["tree_service"], ["tree"]),
+    # Overture has no category for these two: names only (lighting stores selling bulbs aren't landscape lighting)
+    "Generator company": ([], ["generator", "generac"]),
+    "Landscape lighting": ([], ["landscape light", "outdoor light", "nightscape"]),
+    "Irrigation": (["irrigation_service"], ["irrigation", "sprinkler system", "lawn sprinkler"]),
     "Painter": (["painting"], ["painting"]),
     "Flooring": (["flooring_contractor", "flooring_store", "carpet_store"], ["floor"]),
     "Cabinet maker": (["cabinet_sales_service"], ["cabinet"]),

@@ -20,6 +20,7 @@ CATEGORIES: dict[str, list[str]] = {
         "Painter", "Flooring", "Cabinet maker", "Countertops", "Window and door company", "Garage door company",
         "Fence company", "Home cleaning service", "Carpet cleaning", "Pressure washing", "Solar installer",
         "Home security", "Moving company", "Junk removal", "Handyman", "Gutter company", "Closet organizer",
+        "Generator company", "Landscape lighting", "Irrigation",
     ],
     "Food & Drink": [
         "Restaurant", "Fine dining restaurant", "Cafe", "Coffee shop", "Bakery", "Brewery", "Winery",

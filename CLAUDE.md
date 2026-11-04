@@ -145,4 +145,6 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Send all to Close (2026-11-04): "📞 Send all N to Close" on the leads list (POST /close/send-all, close_crm.unsent_query).
   Sends over close_crm.BACKGROUND_OVER (25) run in a thread (close_crm.sending/finished; green progress card in #leads-live).
   send_leads saves each lead as it goes and matches existing Close leads by website domain or name, so re-sending never dupes.
+- New types (2026-11-04, tester request): Generator company (names only; few in Overture), Landscape lighting (names
+  only), Irrigation (irrigation_service + names) in Home Services.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.
