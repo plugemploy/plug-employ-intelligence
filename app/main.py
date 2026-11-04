@@ -387,7 +387,12 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
                   locked_reasons=sum(1 for l in locked if l.id in reason_counts),
                   working=scoring.whats_working(db, account.id) if account else {},
                   allow=plans.usage(db, account) if account else None,
-                  has_claude_key=bool(ANTHROPIC_API_KEY), has_close=close_crm.enabled_for(db, account), can_draft=can_draft(db, account), message=request.query_params.get("msg", ""))
+                  has_claude_key=bool(ANTHROPIC_API_KEY), has_close=(has_close := close_crm.enabled_for(db, account)),
+                  close_unsent=db.scalar(select(func.count()).select_from(close_crm.unsent_query(account.id).order_by(None).subquery()))
+                  if has_close else 0,
+                  close_sending=close_crm.sending.get(account.id) if account else None,
+                  close_finished=close_result(close_crm.finished.pop(account.id)) if account and account.id in close_crm.finished else "",
+                  can_draft=can_draft(db, account), message=request.query_params.get("msg", ""))
     if "msg" not in request.query_params:  # a status message page keeps the earlier filters
         if chosen:
             resp.set_cookie(LEADS_FILTER_COOKIE, urlencode(chosen), httponly=True, samesite="lax", secure=COOKIE_SECURE, max_age=30 * 86400)
@@ -627,8 +632,7 @@ def close_send_top(count: int = Form(close_crm.TOP_N), db: Session = Depends(get
         s = close_crm.send_leads(db, close_crm.top_unsent(db, account.id, limit=count), close_crm.client_for(db, account))
     except Exception as exc:
         return back_to_leads(f"Close error: {str(exc).splitlines()[0]}")
-    return back_to_leads(f"Sent {s['sent']} leads to Close as Potential. {s['already_in_close']} were already in Close."
-                         + (f" {s['failed']} failed." if s["failed"] else ""))
+    return back_to_leads(close_result(s))
 
 
 @app.post("/close/send-selected")
@@ -642,12 +646,39 @@ def close_send_selected(lead_ids: list[int] = Form(default=[]), db: Session = De
     leads = [l for l in leads if close_crm.sendable(l)]
     if not leads:
         return back_to_leads("Tick the leads you want to send to Close first.")
+    return send_to_close(db, account, leads)
+
+
+@app.post("/close/send-all")
+def close_send_all(db: Session = Depends(get_session), account=Depends(current_account)):
+    """Every lead that can go to Close (not there yet, still open, has a phone), best scores first."""
+    if not close_crm.enabled_for(db, account):
+        return back_to_leads("Close isn't connected for this account.")
+    leads = db.scalars(close_crm.unsent_query(account.id)).all()
+    if not leads:
+        return back_to_leads("Every lead with a phone number is already in Close.")
+    return send_to_close(db, account, leads)
+
+
+def send_to_close(db: Session, account, leads: list[Lead]):
+    """A few leads go right away; bigger sends run in the background while the leads page shows progress."""
+    if account.id in close_crm.sending:
+        return back_to_leads("A send to Close is still running. It shows its progress at the top of your leads.")
+    if len(leads) > close_crm.BACKGROUND_OVER:
+        close_crm.send_in_background(account.id, [l.id for l in leads])
+        return back_to_leads(f"Sending {len(leads)} leads to Close. Each one gets a ✓ here once it's in Close.")
     try:
         s = close_crm.send_leads(db, leads, close_crm.client_for(db, account))
     except Exception as exc:
         return back_to_leads(f"Close error: {str(exc).splitlines()[0]}")
-    return back_to_leads(f"Sent {s['sent']} leads to Close as Potential. {s['already_in_close']} were already in Close."
-                         + (f" {s['failed']} failed." if s["failed"] else ""))
+    return back_to_leads(close_result(s))
+
+
+def close_result(s: dict) -> str:
+    if "error" in s:
+        return f"Close stopped with an error: {s['error']} The leads sent before it are marked ✓; send again to finish."
+    return (f"Sent {s['sent']} leads to Close as Potential. {s['already_in_close']} were already in Close."
+            + (f" {s['failed']} failed." if s["failed"] else ""))
 
 
 @app.post("/close/sync")

@@ -4,6 +4,8 @@ Calling stays in Close (local numbers, caller verification). This app never plac
 API docs: https://developer.close.com
 """
 
+import logging
+import threading
 import time
 from datetime import date, datetime, timedelta, timezone
 
@@ -13,7 +15,9 @@ from sqlalchemy.orm import Session
 
 from app.config import CLOSE_API_KEY
 from app.gmail import site_domain
-from app.models import OUTCOMES, FollowUp, Lead
+from app.models import OUTCOMES, Account, FollowUp, Lead
+
+log = logging.getLogger(__name__)
 
 BASE_URL = "https://api.close.com/api/v1/"
 NEW_STATUS = "Potential"
@@ -170,8 +174,9 @@ def note_text(lead: Lead) -> str:
     return "\n".join(lines)
 
 
-def send_leads(db: Session, leads: list[Lead], client: CloseClient) -> dict:
-    """Create these leads in Close as Potential, skipping ones already there."""
+def send_leads(db: Session, leads: list[Lead], client: CloseClient, progress=None) -> dict:
+    """Create these leads in Close as Potential, skipping ones already there (same website or business name).
+    Each lead is saved as it goes, so a send that stops halfway never sends the same lead twice."""
     stats = {"sent": 0, "already_in_close": 0, "failed": 0}
     if not leads:
         return stats
@@ -182,21 +187,71 @@ def send_leads(db: Session, leads: list[Lead], client: CloseClient) -> dict:
     by_domain = {site_domain(c["url"]): c for c in existing if c.get("url")}
     by_name = {_norm(c.get("display_name", "")): c for c in existing}
     for lead in leads:
+        if progress:
+            progress()
         match = (by_domain.get(site_domain(lead.website)) if lead.website else None) or by_name.get(_norm(lead.business_name))
         if match:
             lead.close_lead_id, lead.close_status = match["id"], match.get("status_label", "")
             stats["already_in_close"] += 1
+            db.commit()
             continue
         try:
             close_id = client.create_lead(lead_body(lead, status_id))
-            client.add_note(close_id, note_text(lead))
         except httpx.HTTPError:
             stats["failed"] += 1
             continue
         lead.close_lead_id, lead.close_status = close_id, NEW_STATUS
+        db.commit()
         stats["sent"] += 1
+        # sent leads are matched by name/website from now on, even another account's send to the same Close
+        by_name[_norm(lead.business_name)] = {"id": close_id, "status_label": NEW_STATUS}
+        if lead.website:
+            by_domain[site_domain(lead.website)] = by_name[_norm(lead.business_name)]
+        try:
+            client.add_note(close_id, note_text(lead))
+        except httpx.HTTPError:
+            log.warning("Close note failed for lead %s", lead.id)
     db.commit()
     return stats
+
+
+BACKGROUND_OVER = 25  # bigger sends run in the background with a progress card on the leads page
+sending: dict[int, list[int]] = {}  # account id -> [done, total] while a background send runs
+finished: dict[int, dict] = {}  # account id -> the last background send's result, shown once on the leads page
+
+
+def spawn(fn, *args):
+    """Run fn in the background. Kept separate so tests can run it right away instead."""
+    threading.Thread(target=fn, args=args, daemon=True).start()
+
+
+def unsent_query(account_id: int):
+    """Every lead this account could send to Close (see sendable), best scores first."""
+    return select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.close_lead_id == "",
+                              Lead.status.not_in(OUTCOMES), Lead.phone != "").order_by(
+        Lead.score.desc().nulls_last(), Lead.review_count.desc().nulls_last(), Lead.id)
+
+
+def send_in_background(account_id: int, lead_ids: list[int]) -> None:
+    sending[account_id] = [0, len(lead_ids)]
+    finished.pop(account_id, None)
+
+    def run():
+        from app.db import engine
+
+        def step():
+            sending[account_id][0] += 1
+        try:
+            with Session(engine) as db:
+                leads = [l for l in db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.id.in_(lead_ids))
+                                               .order_by(Lead.score.desc().nulls_last())) if sendable(l)]
+                finished[account_id] = send_leads(db, leads, client_for(db, db.get(Account, account_id)), step)
+        except Exception as exc:
+            log.exception("Close send failed")
+            finished[account_id] = {"error": str(exc).splitlines()[0][:200]}
+        finally:
+            sending.pop(account_id, None)
+    spawn(run)
 
 
 def sendable(lead: Lead) -> bool:

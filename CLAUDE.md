@@ -38,7 +38,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - My business page (description, ZIPs, industries per account) built (2026-10-21). Gmail connect (gmail.readonly, token encrypted with APP_SECRET_KEY) replaces the contacts upload: Emailed tag + follow-up after 14 quiet days. Setup: docs/GMAIL_SETUP.md. Connect only via http://127.0.0.1:8000. Full re-score of real leads is saved for the final test run.
 - Learning from results built (2026-10-21): Won/Not interested + reason feed past_results into scoring; What's working panel.
 - #3 built (2026-10-21): Gmail drafts (app/outreach.py, never sends to leads), Monday 8am digest to self (app/digest.py), renewal follow-up 30 days before contract_end. Needs gmail.compose scope + reconnect.
-- Close CRM built (2026-10-21): app/close_crm.py sends leads as Potential (dedupe by domain/name), syncs VA statuses back nightly (STATUS_MAP), optional nightly auto-send of 9+. CLOSE_API_KEY is one org for now; per-account later.
+- Close CRM built (2026-10-21): app/close_crm.py sends leads as Potential (dedupe by domain/name), syncs VA statuses back nightly (STATUS_MAP), optional nightly auto-send (since 2026-11-04: every unsent lead with a phone, any score). CLOSE_API_KEY is one org for now; per-account later.
 - Multi-company + Google sign-in built (2026-10-21): organizations > accounts > users (owner/admin/publisher), app/auth.py (encrypted session cookie), /signup, /admin team page. First sign-in on an empty users table claims the "Plug Employ" org. Close limited to that org (close_crm.OWNER_ORG).
 - Setup wizard + industry picker built (2026-10-21): /setup (description, ZIPs, ~145 grouped business types in app/catalog.py with search, select all, custom; Claude suggests from description), /setup/first starter search (10 searches). New accounts redirect to /setup until done.
 - Plans built (2026-10-21): app/plans.py Personal $99 ($15 allowance), Wholesale $60/publisher ($10), Owner (only .env cap). organizations.plan_tier. Searches-left meter, nightly pacing (nightly_quota), Find leads skips searches done in last 30 days.
@@ -142,4 +142,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   waiting list. DB pool 10 + 30 overflow (app/db.py). Overture reads stay at OVERTURE_PARALLEL.
 - Territory types cap (2026-10-31): every plan's max_industries = plans.MAX_TYPES (6; free 2, owner none) on setup and
   My business. Accounts saved earlier with more keep them until they next save My business.
+- Send all to Close (2026-11-04): "📞 Send all N to Close" on the leads list (POST /close/send-all, close_crm.unsent_query).
+  Sends over close_crm.BACKGROUND_OVER (25) run in a thread (close_crm.sending/finished; green progress card in #leads-live).
+  send_leads saves each lead as it goes and matches existing Close leads by website domain or name, so re-sending never dupes.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

@@ -26,7 +26,7 @@
 {% if has_close %}
 <form method="post" action="/close/settings" class="bg-white rounded-xl shadow p-4 max-w-3xl mb-6 flex flex-wrap gap-3 items-center text-sm">
   <label class="flex items-center gap-2"><input type="checkbox" name="close_auto_send" value="1" {% if account.close_auto_send %}checked{% endif %}>
-    Each night, send new leads scored 9+ to Close for my VA</label>
+    Each night, send every new lead with a phone number to Close for my VA (any score)</label>
   <button class="rounded border px-3 py-1 hover:bg-slate-50">Save</button>
   <span class="text-xs text-slate-500">Statuses from Close sync back every night either way.</span>
 </form>

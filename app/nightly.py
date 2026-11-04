@@ -76,7 +76,7 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
                     client = close_crm.client_for(db, account)
                     close_crm.sync_back(db, account_id, client)
                     if account.close_auto_send:
-                        close_crm.send_leads(db, close_crm.top_unsent(db, account_id, min_score=9, limit=50), client)
+                        close_crm.send_leads(db, db.scalars(close_crm.unsent_query(account_id)).all(), client)  # every lead with a phone
                 except Exception:  # a Close hiccup shouldn't stop the lead search
                     log.exception("Close sync failed")
                     db.rollback()

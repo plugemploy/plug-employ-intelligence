@@ -93,7 +93,7 @@ def test_pages_show_close(ids, monkeypatch):
     login_as(c, ids)
     page = c.get("/leads").text
     assert "select the top" in page and 'id="close-all"' in page and page.count('class="close-box"') == 2  # Top Spa, Known Dental; not No Phone / Won
-    assert "send new leads scored 9+ to Close" in c.get("/nightly").text
+    assert "send every new lead with a phone number to Close" in c.get("/nightly").text
 
 
 def test_send_only_the_ticked_leads(ids, monkeypatch):
@@ -179,3 +179,26 @@ def test_send_uses_first_status_when_potential_was_renamed(ids):
     with Session(engine) as db:
         close_crm.send_leads(db, close_crm.top_unsent(db, ids, limit=1), fake)
     assert fake.created[0]["status_id"] == "stat_new"
+
+
+def test_send_all_runs_in_the_background_and_never_twice(ids, monkeypatch):
+    fake = FakeClose(existing=[])
+    monkeypatch.setattr(close_crm, "enabled_for", lambda db, a: True)
+    monkeypatch.setattr(close_crm, "client_for", lambda db, a: fake)
+    monkeypatch.setattr(close_crm, "BACKGROUND_OVER", 1)
+    later = []
+    monkeypatch.setattr(close_crm, "spawn", lambda fn: later.append(fn))
+    c = TestClient(app)
+    login_as(c, ids)
+    page = c.get("/leads").text
+    assert "Send all 2 to Close" in page  # Top Spa and Known Dental: not No Phone or the sold one
+    r = c.post("/close/send-all", follow_redirects=False)
+    assert "Sending%202%20leads" in r.headers["location"]
+    assert "Sending to Close" in c.get("/leads").text and 'hx-trigger="every 4s"' in c.get("/leads").text
+    assert "still%20running" in c.post("/close/send-all", follow_redirects=False).headers["location"]
+    later[0]()  # the background send
+    assert [b["name"] for b in fake.created] == ["Top Spa", "Known Dental"]
+    page = c.get("/leads").text
+    assert "Sent 2 leads to Close" in page and "Send all" not in page
+    assert "already%20in%20Close" in c.post("/close/send-all", follow_redirects=False).headers["location"]
+    assert len(fake.created) == 2  # sending all again adds nothing

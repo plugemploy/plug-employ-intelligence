@@ -1,8 +1,17 @@
 {% extends "base.html" %}
 {% block content %}
 {# While a search runs, the list refreshes itself so leads appear as they're found and scored. #}
-<div id="leads-live" {% if live or reasons_checking %}hx-get="{{ request.url }}" hx-trigger="every 4s" hx-select="#leads-live" hx-swap="outerHTML"{% endif %}>
+<div id="leads-live" {% if live or reasons_checking or close_sending %}hx-get="{{ request.url }}" hx-trigger="every 4s" hx-select="#leads-live" hx-swap="outerHTML"{% endif %}>
 {% if subscribe_banner %}<div id="offer-ready" hidden></div>{% endif %}
+{% if close_sending %}
+<div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 flex items-start gap-3">
+  <svg class="animate-spin h-5 w-5 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".3"/><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3"/></svg>
+  <div><b>📞 Sending to Close…</b> {{ close_sending[0] }} of {{ close_sending[1] }} done.
+    <span class="block text-emerald-800">Leads already in Close are matched, not added twice. You can leave this page; it keeps going.</span></div>
+</div>
+{% elif close_finished %}
+<div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">📞 {{ close_finished }}</div>
+{% endif %}
 {% if live %}
 <div class="mb-4 rounded-xl border border-purple-200 bg-purple-50 p-4 text-sm text-purple-900 flex items-start gap-3">
   <svg class="animate-spin h-5 w-5 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity=".3"/><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3"/></svg>
@@ -100,6 +109,9 @@
     <button type="button" id="close-clear" class="text-sm text-slate-500 hover:underline">clear</button>
     <button id="close-send" disabled class="rounded bg-emerald-700 text-white px-3 py-1 text-sm disabled:opacity-50">📞 Send <b id="close-n">0</b> to Close</button>
   </form>
+  {% if close_unsent %}<form method="post" action="/close/send-all"
+        onsubmit='if (!confirm({{ ("Send all " ~ close_unsent ~ " leads that have a phone number to Close? Leads already in Close are skipped.")|tojson }})) return false; this.querySelector("button").disabled = true; this.querySelector("button").textContent = "Starting…"'>
+    <button class="rounded border border-emerald-700 text-emerald-800 px-3 py-1 text-sm hover:bg-emerald-50">📞 Send all {{ close_unsent }} to Close</button></form>{% endif %}
   <form method="post" action="/close/sync" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').textContent='Syncing…'">
     <button class="rounded border px-3 py-1 text-sm hover:bg-slate-50">↻ Sync from Close</button></form>
   <span class="text-xs text-slate-500">Your VA calls from Close; statuses come back here each night.</span>
@@ -209,7 +221,7 @@
   {% endif %}
 </div>
 </div>
-{% if live or reasons_checking %}
+{% if live or reasons_checking or close_sending %}
 <script>
   // While a Free search runs, only #leads-live refreshes. Once the leads are ready (the list
   // says so), reload once so the subscribe banner and its 15-second pop-up timer come in with the rest of the page.
