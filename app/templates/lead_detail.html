@@ -4,8 +4,12 @@
 <div class="flex justify-between items-center">
   <a href="/leads" class="text-sm text-blue-700 hover:underline">← Back to leads</a>
   {% if not lead.deleted_at %}
+  <div class="flex gap-2">
+  <form method="post" action="/leads/{{ lead.id }}/closed" onsubmit="return confirm('Remove this business as closed? You can restore it from Deleted leads.')">
+    <button class="rounded border border-slate-300 text-slate-700 px-3 py-1 text-sm hover:bg-slate-50">🚪 Business closed</button></form>
   <form method="post" action="/leads/{{ lead.id }}/delete" onsubmit="return confirm('Delete this lead? You can restore it from Deleted leads.')">
     <button class="rounded border border-red-300 text-red-700 px-3 py-1 text-sm hover:bg-red-50">🗑 Delete lead</button></form>
+  </div>
   {% endif %}
 </div>
 {% if lead.deleted_at %}
@@ -16,6 +20,7 @@
 {% endif %}
 <div class="mt-2 mb-6">
   <h1 class="text-2xl font-bold">{{ lead.business_name }}</h1>
+  {% if lead.closed_reason and not lead.deleted_at %}{% with l = lead, back = "lead" %}{% include "_maybe_closed.html" %}{% endwith %}{% endif %}
   {% if lead.founded_year %}<p class="mt-1 text-sm text-slate-600">Established {{ lead.founded_year }}
     ({{ today.year - lead.founded_year }} year{{ "s" if today.year - lead.founded_year != 1 }} in business, per their website)</p>{% endif %}
   {% if lead.contact_name %}<p class="mt-1 text-sm">👤 <b>{{ lead.contact_name }}</b>{% if lead.contact_title %}, {{ lead.contact_title }}{% endif %}
@@ -40,7 +45,9 @@
 <div class="mb-6 rounded-xl bg-white shadow p-4 flex gap-4 items-start">
   <span class="text-3xl font-bold {{ 'text-green-700' if lead.score >= 8 else 'text-amber-700' if lead.score >= 5 else 'text-slate-500' }}">{{ lead.score }}<span class="text-base text-slate-400">/10</span></span>
   <div><p class="text-sm text-slate-700">{{ lead.score_reason }}</p>
-    {% set ws = {"ok": "Website read ✓", "blocked": "Website not read: robots.txt says no", "error": "Website couldn't be read", "no_site": "No website"} %}
+    {% set ws = {"ok": "Website read ✓", "blocked": "Website not read: robots.txt says no", "error": "Website couldn't be read", "no_site": "No website",
+                "dead_dns": "Website address no longer exists", "dead_404": "Website is gone (page not found)",
+                "dead_parked": "Website is a \"domain for sale\" page"} %}
     {% if lead.website_status %}<p class="text-xs text-slate-400 mt-1">{{ ws.get(lead.website_status, "") }}</p>{% endif %}</div>
 </div>
 {% endif %}

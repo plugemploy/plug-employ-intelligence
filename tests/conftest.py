@@ -73,3 +73,11 @@ def _no_website_reads(monkeypatch):
     """Searches never read real websites in tests unless a test supplies a fake reader."""
     from app import website
     monkeypatch.setattr(website, "read_site", lambda url: ("no_site", "", "", "", ""))
+    monkeypatch.setattr(website, "site_status", lambda url: "no_site")
+
+
+@pytest.fixture(autouse=True)
+def _no_background_closed_checks(monkeypatch):
+    """The "May be closed" second look (a few minutes after a search) never waits in a background thread in tests."""
+    from app import closed
+    monkeypatch.setattr(closed, "spawn", lambda fn, *a: None)

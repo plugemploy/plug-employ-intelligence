@@ -142,4 +142,10 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   waiting list. DB pool 10 + 30 overflow (app/db.py). Overture reads stay at OVERTURE_PARALLEL.
 - Territory types cap (2026-10-31): every plan's max_industries = plans.MAX_TYPES (6; free 2, owner none) on setup and
   My business. Accounts saved earlier with more keep them until they next save My business.
+- May be closed (2026-11-02): app/closed.py flags (never removes) leads whose listed website is gone (website.dead_status:
+  DNS name gone, homepage 404/410, "domain for sale" page; seen twice >= 5 min apart) or whose site says it closed
+  (scoring LeadScore.closed_sign). Grey "⚠️ May be closed" tag + reason (_maybe_closed.html), sorted last, never in a free
+  top 20 (plans.locked_ids). Still open (final) / Closed (deletes, closed_reported_at) buttons; "🚪 Business closed" on any
+  lead. Checks: after each search (closed.double_check_soon), nightly closed.check_account (second looks, weekly re-look
+  of flagged, monthly light look via website.site_status). No website / slow / blocked / SSL never count. Counts on /beta + CSV.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

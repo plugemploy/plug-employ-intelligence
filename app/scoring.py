@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from app import limits
+from app import closed, limits
 from app.config import ANTHROPIC_API_KEY
 from app.models import Account, ApiUsage, Lead
 from app.places import check_budget
@@ -50,6 +50,11 @@ Founded: if the website text clearly states the year the business was founded or
 
 Industry: only when the lead's industry is unknown, give its business type in one to three words, using one of
 these when one fits: {types}. Otherwise return an empty string.
+
+Closed: only if the website text clearly says the business itself has closed for good, retired, stopped
+operating or become part of another company, quote those words briefly (under 15 words); otherwise return an
+empty string. Holiday or seasonal closures, changed hours, moving to a new address, one closed location of a
+business that's still open, or simply an old-looking website don't count.
 
 Contact: if the website text explicitly names the business's owner, founder, president, lead doctor or a
 manager (general, office or practice manager), give that person's name and title as written there, preferring
@@ -113,6 +118,7 @@ class LeadScore(BaseModel):
     contact_title: str
     founded_year: int | None = None  # only when the website clearly states it
     industry: str = ""  # only when the lead had none (e.g. an imported client)
+    closed_sign: str = ""  # the website's own words saying the business closed, else ""
 
 
 def describe(lead: Lead) -> str:
@@ -211,6 +217,8 @@ def save(db: Session, lead: Lead, result: LeadScore, cost: float) -> None:
     year = result.founded_year
     if lead.website_text and year and 1800 <= year <= datetime.now().year:
         lead.founded_year = year
+    if lead.website_text:
+        closed.saw_closing_words(lead, result.closed_sign)
     lead.scored_at = datetime.now(timezone.utc)
     db.add(ApiUsage(account_id=lead.account_id, service="claude_scoring",
                     detail=lead.business_name[:300], est_cost_usd=cost))

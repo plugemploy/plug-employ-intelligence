@@ -368,7 +368,8 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
             leads.sort(key=lambda l: ((l.industry or "~").lower(), -(l.score or 0)))
         elif sort == "follow_up":
             leads.sort(key=lambda l: l.next_follow_up.due_date if l.next_follow_up else date.max)
-        leads.sort(key=lambda l: l.id not in reason_counts)  # a reason to reach out now goes to the top (sort kept below)
+        # a reason to reach out now goes to the top, "May be closed" to the bottom (the chosen sort is kept within)
+        leads.sort(key=lambda l: (bool(l.closed_reason), l.id not in reason_counts))
     if export == "csv":
         return leads_csv(leads)
     industries = sorted({i for i in db.scalars(select(Lead.industry).where(
@@ -494,6 +495,26 @@ def delete_lead(lead_id: int, db: Session = Depends(get_session), account=Depend
     lead.deleted_at = datetime.now(timezone.utc)
     db.commit()
     return back_to_leads(f"Deleted {lead.business_name}. You can bring it back from Deleted leads.")
+
+
+@app.post("/leads/{lead_id}/still-open")
+def lead_still_open(lead_id: int, back: str = Form(""), db: Session = Depends(get_session), account=Depends(current_account)):
+    """ "May be closed" was wrong: clear it for good."""
+    lead = get_lead(db, account, lead_id)
+    lead.open_confirmed_at, lead.closed_reason, lead.dead_since = datetime.now(timezone.utc), "", None
+    db.commit()
+    if back == "lead":
+        return RedirectResponse(f"/leads/{lead.id}", status_code=303)
+    return back_to_leads(f"Thanks. {lead.business_name} is marked still open.")
+
+
+@app.post("/leads/{lead_id}/closed")
+def lead_closed(lead_id: int, db: Session = Depends(get_session), account=Depends(current_account)):
+    """The business really is closed: take it off the list (it can be restored from Deleted leads)."""
+    lead = get_lead(db, account, lead_id)
+    lead.closed_reported_at = lead.deleted_at = datetime.now(timezone.utc)
+    db.commit()
+    return back_to_leads(f"Removed {lead.business_name} as closed. You can bring it back from Deleted leads.")
 
 
 @app.post("/leads/{lead_id}/restore")
@@ -1363,6 +1384,13 @@ def my_results(request: Request, db: Session = Depends(get_session), account=Dep
     return render(request, "results.html", db, account, **ctx)
 
 
+def closed_counts():
+    """ "May be closed" counts: flagged, of those marked Still open, and marked Closed (flagged or not)."""
+    return (func.count().filter(Lead.closed_flagged_at.is_not(None)),
+            func.count().filter(Lead.closed_flagged_at.is_not(None), Lead.open_confirmed_at.is_not(None)),
+            func.count().filter(Lead.closed_reported_at.is_not(None)))
+
+
 def beta_rows(db: Session) -> list[dict]:
     """One row per customer company (not the owner's), with its results added up."""
     orgs = db.scalars(select(Organization).where(Organization.plan_tier != "owner").order_by(Organization.created_at)).all()
@@ -1372,9 +1400,9 @@ def beta_rows(db: Session) -> list[dict]:
     notes = dict(db.execute(select(Feedback.account_id, func.count()).group_by(Feedback.account_id)).all())
     # Leads the app found for them (imported clients don't count; deleted ones do: they were still found)
     week_ago = datetime.now(timezone.utc) - timedelta(days=7)
-    found = {a: (n, high, week) for a, n, high, week in db.execute(
+    found = {a: counts for a, *counts in db.execute(
         select(Lead.account_id, func.count(), func.count().filter(Lead.score >= 8),
-               func.count().filter(Lead.created_at >= week_ago))
+               func.count().filter(Lead.created_at >= week_ago), *closed_counts())
         .where(Lead.account_id.in_([a.id for a in accounts] or [0]), Lead.source != "import")
         .group_by(Lead.account_id)).all()}
     surveys = {}
@@ -1394,9 +1422,8 @@ def beta_rows(db: Session) -> list[dict]:
                          setup_done=all(a.setup_done_at for a in mine) if mine else False,
                          last_login=max(logins) if logins else None,
                          feedback=sum(notes.get(a.id, 0) for a in mine),
-                         leads_found=sum(found.get(a.id, (0, 0, 0))[0] for a in mine),
-                         leads_high=sum(found.get(a.id, (0, 0, 0))[1] for a in mine),
-                         leads_week=sum(found.get(a.id, (0, 0, 0))[2] for a in mine),
+                         **{key: sum(found.get(a.id, [0] * 6)[i] for a in mine) for i, key in enumerate(
+                             ("leads_found", "leads_high", "leads_week", "maybe_closed", "still_open", "reported_closed"))},
                          survey=next((surveys[a.id] for a in mine if a.id in surveys), None),
                          **activity(people), **results.total([per_account[a.id] for a in mine])))
     return rows
@@ -1482,8 +1509,11 @@ def beta_results(request: Request, db: Session = Depends(get_session), user: Use
               ("Clicked Subscribe", sum(1 for r in free if r["org"].checkout_started_at)),
               ("Subscribed", sum(1 for r in free if r["subscribed"])),
               ("Interested in a VA", sum(1 for r in free if r["org"].va_interest_at))]
+    owner_accounts = select(Account.id).join(Organization, Account.org_id == Organization.id).where(Organization.plan_tier == "owner")
+    flagged, still_open, reported = db.execute(select(*closed_counts()).where(Lead.account_id.not_in(owner_accounts))).one()
     return render(request, "beta.html", db, None, rows=rows, totals=results.total(rows) if rows else None, survey=survey,
-                  message=message, free=free, funnel=funnel)
+                  message=message, free=free, funnel=funnel,
+                  maybe_closed=dict(flagged=flagged, still_open=still_open, reported=reported))
 
 
 @app.get("/beta.csv")
@@ -1494,7 +1524,8 @@ def beta_results_csv(db: Session = Depends(get_session), user: User = Depends(cu
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["Company", "People", "Plan", "Signed up", "Setup done", "Last sign-in", "Minutes in app", "Visits",
-                "Last seen", "Agreed to terms", "Leads found", "Leads scored 8+", "Leads found last 7 days", "Leads contacted",
+                "Last seen", "Agreed to terms", "Leads found", "Leads scored 8+", "Leads found last 7 days", "Flagged may be closed",
+                "Marked still open", "Marked closed", "Leads contacted",
                 "Appointments set", "Appointments shown", "Sold", "Monthly recurring revenue $", "Contract value $",
                 "Ad Management Fees $", "Sales found only with Plug Employ", "Feedback notes", "Would pay",
                 "Recommend (0-10)", "Hours saved per week", "Quote", "OK to quote"])
@@ -1503,7 +1534,7 @@ def beta_results_csv(db: Session = Depends(get_session), user: User = Depends(cu
                     r["last_login"].date() if r["last_login"] else "", round(r["active_seconds"] / 60), r["visits"],
                     r["last_seen"].date() if r["last_seen"] else "",
                     r["agreed"].date() if r["agreed"] else "", r["leads_found"], r["leads_high"], r["leads_week"],
-                    r["contacted"], r["appts_set"],
+                    r["maybe_closed"], r["still_open"], r["reported_closed"], r["contacted"], r["appts_set"],
                     r["appts_shown"], r["sold"], round(r["mrr"]), round(r["contract_value"]), round(r["ad_fees"]),
                     r["found_only"], r["feedback"]] + survey_cells(r["survey"]))
     # Free search sign-ups (from the /try link) below the testers, in their own section.

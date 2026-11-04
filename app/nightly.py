@@ -12,7 +12,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from app import billing, close_crm, digest, gmail, local_pages, new_in_area, overture, places, plans, scoring, signals, website
+from app import billing, close_crm, closed, digest, gmail, local_pages, new_in_area, overture, places, plans, scoring, signals, website
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
 from app.models import Account, ApiUsage, Lead, NightlyRun, NightlySettings
@@ -90,6 +90,11 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
                     signals.check_account(db, account_id)  # reasons to reach out, from websites
             except Exception:
                 log.exception("Reasons-to-reach-out check failed")
+                db.rollback()
+            try:
+                closed.check_account(db, account_id)  # "May be closed": second looks, weekly re-looks, monthly sweep
+            except Exception:
+                log.exception("May-be-closed check failed")
                 db.rollback()
         except Exception as exc:  # keep the error for the morning summary
             log.exception("Nightly run failed")

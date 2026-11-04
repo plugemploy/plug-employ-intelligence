@@ -121,7 +121,7 @@
     <tbody>
     {% for l in leads %}
       {% set fu = l.next_follow_up %}
-      <tr class="border-t {{ 'bg-red-50/60 hover:bg-red-50' if l.id in reason_counts else 'hover:bg-slate-50' }}">
+      <tr class="border-t {{ 'bg-slate-50 text-slate-500' if l.closed_reason else 'bg-red-50/60 hover:bg-red-50' if l.id in reason_counts else 'hover:bg-slate-50' }}">
         {% if has_close %}<td class="p-3">{% if l.close_lead_id %}<span class="text-xs text-emerald-700" title="Already in Close">✓</span>
           {% elif close_sendable(l) %}<input type="checkbox" name="lead_ids" value="{{ l.id }}" form="close-pick" data-score="{{ l.score or 0 }}"
             class="close-box" aria-label="Send {{ l.business_name }} to Close">
@@ -132,6 +132,7 @@
           {% if l.contact_name %}<span class="block text-xs text-slate-500">👤 {{ l.contact_name }}{% if l.contact_title %}, {{ l.contact_title }}{% endif %}</span>{% endif %}
           {% if reason_counts.get(l.id) %}<span class="mt-1 inline-block rounded-full bg-red-600 text-white px-2 py-0.5 text-xs font-semibold" title="Open the lead to see why">🔔 Reason to reach out{% if reason_counts[l.id] > 1 %} ({{ reason_counts[l.id] }}){% endif %}</span>
           <span class="block text-xs text-red-800 mt-0.5">{{ first_reason[l.id] }}</span>{% endif %}
+          {% if l.closed_reason %}{% include "_maybe_closed.html" %}{% endif %}
           {% if l.last_emailed_at %}<span class="ml-1 inline-block rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs" title="Latest email to/from {{ l.emailed_domain }}">Emailed · {{ l.last_emailed_at.astimezone().strftime("%b %-d") }}</span>{% endif %}</td>
         <td class="p-3">{{ l.industry }}</td>
         <td class="p-3">{{ l.zip_code }}{% if l.nearby %}<br><span class="text-xs rounded bg-purple-50 text-purple-800 px-1.5 py-0.5 whitespace-nowrap" title="{{ l.nearby }}">Nearby</span>{% endif %}</td>

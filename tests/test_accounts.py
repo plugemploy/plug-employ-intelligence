@@ -158,9 +158,9 @@ def test_results_pages_and_beta_dashboard():
     assert "Test: Tester Co" in html and "tester@results.test" in html and "Test: Owner Co" not in html
     csv_text = owner.get("/beta.csv").text
     line = [l for l in csv_text.splitlines() if l.startswith("Test: Tester Co")][0]
-    # leads found (not the imported client), scored 8+, found this week, then contacted, set, shown, sold, MRR,
-    # contract value, ad fees, found only via app, feedback, then 5 empty survey cells
-    assert line.endswith(",6,1,6,4,3,1,1,300,3600,500,0,0,,,,,")
+    # leads found (not the imported client), scored 8+, found this week, may be closed / still open / closed, then
+    # contacted, set, shown, sold, MRR, contract value, ad fees, found only via app, feedback, then 5 empty survey cells
+    assert line.endswith(",6,1,6,0,0,0,4,3,1,1,300,3600,500,0,0,,,,,")
     assert "Leads found" in html and "1 scored 8+ · 6 this week" in html
 
 
