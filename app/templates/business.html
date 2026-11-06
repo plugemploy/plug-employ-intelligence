@@ -11,6 +11,11 @@
   <label class="grid gap-1"><span class="font-semibold">Your ZIP codes</span>
     <span class="text-xs text-slate-500">Separate with commas. List the most important first: they're searched first and count most.</span>
     <input id="zips" name="zips" value="{{ account.zip_list|join(', ') }}" class="border rounded px-3 py-2 text-sm"></label>
+  {% if plan.label != "Free search" %}<label class="flex items-start gap-2 text-sm -mt-2"><input type="checkbox" name="include_nearby" value="1" class="mt-1"
+      {% if account.include_nearby %}checked{% endif %}>
+    <span>Also include businesses just outside my ZIP codes when a ZIP has only a few
+      <span class="block text-xs text-slate-500">Off: searches stay inside your ZIP codes. On: thin ZIPs are topped up with the closest
+        businesses nearby, tagged "Nearby".</span></span></label>{% endif %}
   <div><p class="font-semibold mb-2">Industries to search</p>
     <div id="estimates" class="mb-2" hx-get="/setup/estimates" hx-include="#zips" hx-trigger="load, change from:#zips"></div>
     {% with selected=account.industry_list, zip_count=account.zip_list|length %}{% include "_industry_picker.html" %}{% endwith %}</div>

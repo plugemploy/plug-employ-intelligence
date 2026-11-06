@@ -116,7 +116,11 @@ def test_thin_zip_fills_with_nearby(acct, monkeypatch):
     monkeypatch.setattr(overture, "fetch_nearby", lambda z: near)
     with Session(engine) as db:
         s = overture.search_and_save(db, acct, "37934", "Roofing")
-        assert (s["added"], s["added_nearby"]) == (overture.FILL_TO, overture.FILL_TO - 1)
+        assert (s["added"], s["added_nearby"]) == (1, 0)  # off by default: searches stay inside the ZIP
+        db.get(Account, acct).include_nearby = True  # the My business box
+        db.commit()
+        s = overture.search_and_save(db, acct, "37934", "Roofing")
+        assert (s["added"], s["added_nearby"]) == (overture.FILL_TO - 1, overture.FILL_TO - 1)
         leads = {l.business_name: l for l in db.scalars(select(Lead).where(Lead.account_id == acct, Lead.overture_id.is_not(None)))}
         assert leads["Sample Roofing Here"].nearby == ""
         assert (leads["Sample Roofing 0"].nearby, leads["Sample Roofing 0"].zip_code) == ("Farragut, 2 mi from 37934", "37922")
@@ -208,6 +212,11 @@ def test_setup_counts_by_type(monkeypatch):
         counts = overture.estimates(["37934"], ["Roofing", "Dentist", "Florist"])
         assert counts == {"Roofing": (2, 1), "Dentist": (1, 0), "Florist": (0, 0)}  # the unreliable one isn't counted
         page = c.get("/setup/estimates?zips=37934").text
+        assert '"Roofing": [2, 0]' in page and "Searches stay inside" in page  # nearby off: only in-ZIP counts
+        with Session(engine) as db:
+            db.get(Account, aid).include_nearby = True
+            db.commit()
+        page = c.get("/setup/estimates?zips=37934").text
         assert '"Roofing": [2, 1]' in page and "applyIndCounts" in page
         assert 'hx-get="/setup/estimates"' in c.get("/setup").text
     finally:
@@ -248,3 +257,22 @@ def test_offer_teaser_counts_whats_waiting(monkeypatch):
     finally:
         overture._zip_cache.clear()
         overture._counts.clear()
+
+
+def test_nearby_box_on_my_business_and_free_search_always_tops_up(acct):
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from tests.conftest import login_as, on_plan
+    c = TestClient(app)
+    login_as(c, acct)
+    assert "Also include businesses just outside my ZIP codes" in c.get("/business").text
+    c.post("/business", data={"description": "x", "zips": "37934", "industries": ["Dentist"], "include_nearby": "1"})
+    with Session(engine) as db:
+        assert db.get(Account, acct).include_nearby and overture.includes_nearby(db, acct)
+    c.post("/business", data={"description": "x", "zips": "37934", "industries": ["Dentist"]})
+    with Session(engine) as db:
+        assert not db.get(Account, acct).include_nearby and not overture.includes_nearby(db, acct)
+    on_plan(acct, "free")
+    with Session(engine) as db:
+        assert overture.includes_nearby(db, acct)  # a Free search shows a full list
+    assert "Also include businesses just outside" not in c.get("/business").text

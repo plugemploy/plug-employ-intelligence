@@ -147,4 +147,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   send_leads saves each lead as it goes and matches existing Close leads by website domain or name, so re-sending never dupes.
 - New types (2026-11-04, tester request): Generator company (names only; few in Overture), Landscape lighting (names
   only), Irrigation (irrigation_service + names) in Home Services.
+- Nearby off by default (2026-11-06): thin-ZIP top-up only when accounts.include_nearby (My business checkbox "Also
+  include businesses just outside my ZIP codes") or plan free (overture.includes_nearby). /setup/estimates hides +nearby
+  counts when off. Leads already tagged Nearby stay.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

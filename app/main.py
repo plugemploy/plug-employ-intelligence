@@ -886,7 +886,7 @@ def business_page(request: Request, db: Session = Depends(get_session), account=
 
 @app.post("/business")
 def save_business(description: str = Form(""), zips: str = Form(""), industries: list[str] = Form(default=[]),
-                  extra_industries: str = Form(""), watch_pages: str = Form(""),
+                  extra_industries: str = Form(""), watch_pages: str = Form(""), include_nearby: str = Form(""),
                   db: Session = Depends(get_session), account=Depends(current_account)):
     if account is None:
         raise HTTPException(400, "Create an account first")
@@ -896,6 +896,7 @@ def save_business(description: str = Form(""), zips: str = Form(""), industries:
         return back_to_business(err + " Nothing was saved.")
     account.business_description = description.strip()[:3000]
     account.target_zips, account.industries = ",".join(zip_list), ",".join(inds)
+    account.include_nearby = bool(include_nearby)
     db.commit()
     local_pages.set_pages(db, account.id, watch_pages.splitlines())
     return RedirectResponse("/business?msg=Saved%20%E2%9C%93", status_code=303)
@@ -1069,13 +1070,17 @@ def setup_suggest(request: Request, description: str = Form(""), zips: str = For
 
 
 @app.get("/setup/estimates")
-def setup_estimates(request: Request, zips: str = Query(""), account=Depends(current_account)):
+def setup_estimates(request: Request, zips: str = Query(""), db: Session = Depends(get_session),
+                    account=Depends(current_account)):
     """How many businesses each type has in these ZIPs (and nearby), for the counts beside the types."""
     zip_list = [z for z in clean_list(zips) if z.isdigit() and len(z) == 5]
     counts = overture.estimates(zip_list, catalog.ALL) if zip_list else {}
+    nearby = bool(account) and overture.includes_nearby(db, account.id)
+    if counts and not nearby:  # searches won't reach outside the ZIPs: don't count those businesses
+        counts = {t: (here, 0) for t, (here, _) in counts.items()}
     return templates.TemplateResponse(request, "_estimates.html", {
         "counts": counts, "zips": ", ".join(zip_list), "more_zips": len(zip_list) > overture.ESTIMATE_ZIPS,
-        "max_zips": overture.ESTIMATE_ZIPS})
+        "max_zips": overture.ESTIMATE_ZIPS, "nearby": nearby})
 
 
 @app.post("/setup")

@@ -61,6 +61,9 @@ class Account(Base):
     digest_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     setup_done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # finished the setup wizard
     close_auto_send: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # nightly: every lead with a phone
+    # Top up thin ZIPs with the closest businesses just outside them (tagged Nearby). Off: searches stay inside the
+    # chosen ZIPs (territory sellers). A Free search always tops up, to show a full list.
+    include_nearby: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     # This account's own Close API key, stored encrypted (APP_SECRET_KEY), and the Close organization it opens.
     close_key_enc: Mapped[str] = mapped_column(Text, default="", server_default="")
     close_org_name: Mapped[str] = mapped_column(String(200), default="", server_default="")

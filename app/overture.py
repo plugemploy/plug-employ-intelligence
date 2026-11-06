@@ -26,7 +26,7 @@ from app import overture_types
 from app.config import OVERTURE_PARALLEL
 from app.dedupe import find_duplicate
 from app.gmail import site_domain
-from app.models import ApiUsage, Lead
+from app.models import Account, ApiUsage, Lead
 from app.places import check_search
 
 SERVICE = "overture_search"  # how a search is logged in api_usage (it costs nothing)
@@ -183,7 +183,8 @@ def _website(urls: list[str]) -> str:
 
 def search_and_save(db: Session, account_id: int, zip_code: str, industry: str) -> dict:
     """Search one business type in one ZIP and save the reliable new ones as New leads. When the ZIP has fewer
-    than FILL_TO good matches, the closest ones nearby are added too (marked Nearby)."""
+    than FILL_TO good matches and the account wants it (see includes_nearby), the closest ones nearby are added too
+    (marked Nearby)."""
     stats = {"zip": zip_code, "industry": industry, "requests": 1, "found": 0, "added": 0, "added_nearby": 0,
              "skipped_closed": 0, "skipped_unreliable": 0, "skipped_duplicate": 0, "skipped_over_limit": 0}
     check_search(db, account_id)
@@ -199,7 +200,7 @@ def search_and_save(db: Session, account_id: int, zip_code: str, industry: str) 
     for p in sorted(found, key=lambda p: (bool(p["brand"]), -p["confidence"])):
         if _consider(db, account_id, p, zip_code, industry, known, stats, ""):
             good += 1
-    if good < FILL_TO:
+    if good < FILL_TO and includes_nearby(db, account_id):
         nearby = [p for p in fetch_nearby(zip_code) if matches(p, cats, pattern)]
         for p in sorted(nearby, key=lambda p: (bool(p["brand"]), p["miles"])):
             if good >= FILL_TO:
@@ -211,6 +212,14 @@ def search_and_save(db: Session, account_id: int, zip_code: str, industry: str) 
             good += stats["added"] - before  # nearby ones already saved don't count: the next closest come next time
     db.commit()
     return stats
+
+
+def includes_nearby(db: Session, account_id: int) -> bool:
+    """Whether thin ZIPs are topped up from just outside them: when the account turned it on (My business), and
+    always for a Free search, which should show a full list."""
+    from app import plans
+    account = db.get(Account, account_id)
+    return bool(account) and (account.include_nearby or plans.plan_for(db, account) is plans.PLANS["free"])
 
 
 def _consider(db: Session, account_id: int, p: dict, zip_code: str, industry: str, known: set, stats: dict,
