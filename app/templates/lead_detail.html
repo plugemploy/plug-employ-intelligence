@@ -57,7 +57,7 @@
           class="rounded bg-purple-700 text-white px-3 py-1 text-sm">✉️ {{ "Draft another email" if lead.draft_created_at else "Draft an email" }}</button>
   <span class="text-xs text-slate-500 ml-2">Claude writes it; it's saved in your Gmail Drafts. Nothing is sent.
     {% if lead.draft_created_at %}Last draft {{ lead.draft_created_at.astimezone().strftime("%b %-d") }}.{% endif %}</span>
-  <div id="draft" class="mt-3"></div>
+  <div id="draft" class="mt-3" aria-live="polite"></div>
 </div>
 {% endif %}
 <div class="grid md:grid-cols-3 gap-6">
@@ -65,16 +65,16 @@
     <div id="status" hx-on::after-swap="htmx.ajax('GET', '/leads/{{ lead.id }}/follow-ups', '#follow-ups')">{% include "_status.html" %}</div></section>
   <section class="bg-white rounded-xl shadow p-4"><h2 class="font-semibold mb-2">Follow-ups</h2>
     <form hx-post="/leads/{{ lead.id }}/follow-ups" hx-target="#follow-ups" hx-on::after-request="this.reset()" class="grid gap-2 mb-3 text-sm">
-      <input type="date" name="due_date" required class="border rounded px-2 py-1">
-      <input name="task" placeholder="What to do" class="border rounded px-2 py-1">
+      <input type="date" name="due_date" required aria-label="Follow-up date" class="border rounded px-2 py-1">
+      <input name="task" placeholder="What to do" aria-label="What to do" class="border rounded px-2 py-1">
       <button class="rounded bg-slate-800 text-white px-3 py-1 justify-self-start">Add follow-up</button>
     </form>
-    <div id="follow-ups">{% include "_follow_ups.html" %}</div></section>
+    <div id="follow-ups" aria-live="polite">{% include "_follow_ups.html" %}</div></section>
   <section class="bg-white rounded-xl shadow p-4"><h2 class="font-semibold mb-2">Notes</h2>
     <form hx-post="/leads/{{ lead.id }}/notes" hx-target="#notes" hx-on::after-request="this.reset()" class="grid gap-2 mb-3 text-sm">
-      <textarea name="text" rows="3" required placeholder="Add a note" class="border rounded px-2 py-1"></textarea>
+      <textarea name="text" rows="3" required placeholder="Add a note" aria-label="Note" class="border rounded px-2 py-1"></textarea>
       <button class="rounded bg-slate-800 text-white px-3 py-1 justify-self-start">Save note</button>
     </form>
-    <div id="notes">{% include "_notes.html" %}</div></section>
+    <div id="notes" aria-live="polite">{% include "_notes.html" %}</div></section>
 </div>
 {% endblock %}

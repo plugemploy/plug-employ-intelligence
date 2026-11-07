@@ -22,14 +22,19 @@
     .text-blue-700 { color: #6d28d9; }
     input:not([type=checkbox]):not([type=radio]):not([type=hidden]) { background-color: #ede9fe; border-color: #c4b5fd; }
     input:focus { outline: 2px solid #a78bfa; outline-offset: 0; }
+    /* Accessibility: focus ring for keyboard users, underlined links in sentences, no motion when turned off */
+    a:focus-visible, button:focus-visible, input[type=checkbox]:focus-visible { outline: 3px solid #7c3aed; outline-offset: 2px; }
+    header a:focus-visible, footer a:focus-visible { outline-color: #fff; }
+    main p a, main label a { text-decoration: underline; text-underline-offset: 2px; }
+    @media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation: none !important; transition: none !important; } }
   </style>
 </head>
 <body class="min-h-screen bg-gradient-to-b from-[#3b1578] to-[#1e0b40] text-slate-800 flex flex-col items-center justify-center gap-6 p-4 py-10">
-  <a href="/login"><img src="/static/logo.png" alt="Plug Employ" class="h-12 w-auto"></a>
+  <header><a href="/login"><img src="/static/logo.png" alt="Plug Employ home" class="h-12 w-auto"></a></header>
   <main class="bg-white shadow-xl rounded-2xl p-8 {% block width %}max-w-md{% endblock %} w-full">
     <p class="text-xs font-semibold uppercase tracking-wider text-[#6d28d9] mb-4">Plug Employ Intelligence</p>
     {% block content %}{% endblock %}
   </main>
-  <p class="text-xs text-purple-200"><a href="/privacy" class="hover:underline">Privacy policy</a> · <a href="/terms" class="hover:underline">Terms of service</a></p>
+  <footer class="text-xs text-purple-100"><a href="/privacy" class="underline">Privacy policy</a> · <a href="/terms" class="underline">Terms of service</a> · <a href="/accessibility" class="underline">Accessibility</a></footer>
 </body>
 </html>

@@ -4,22 +4,22 @@
 <div id="ind-picker" class="grid gap-3">
   {% if note %}<p class="text-sm text-purple-800 bg-purple-50 border border-purple-200 rounded p-2">{{ note }}</p>{% endif %}
   <div class="flex flex-wrap gap-2 items-center">
-    <input id="ind-search" list="ind-options" placeholder="Search or type a business type, e.g. Florist"
+    <input id="ind-search" list="ind-options" aria-label="Search or add a business type" placeholder="Search or type a business type, e.g. Florist"
            class="border rounded px-3 py-2 text-sm w-72" autocomplete="off">
     <datalist id="ind-options">{% for n in all_catalog %}<option value="{{ n }}">{% endfor %}</datalist>
     <button type="button" id="ind-add" class="rounded border px-3 py-2 text-sm hover:bg-slate-50">Add</button>
     {% if not max_pick %}<button type="button" data-all="1" class="ind-bulk text-sm text-blue-700 hover:underline">Select all</button>{% endif %}
     <button type="button" data-all="0" class="ind-bulk text-sm text-slate-500 hover:underline">Clear</button>
   </div>
-  {% if max_pick %}<p class="text-xs text-slate-600"><b id="ind-count">0</b> of {{ max_pick }} selected{% if max_pick == 1 %}. To pick a
+  {% if max_pick %}<p class="text-xs text-slate-600"><span aria-live="polite"><b id="ind-count">0</b></span> of {{ max_pick }} selected{% if max_pick == 1 %}. To pick a
     different one, untick your choice first.{% endif %}<b id="ind-searches" class="hidden">0</b></p>
-  {% else %}<p class="text-xs text-slate-600"><b id="ind-count">0</b> selected · about <b id="ind-searches">0</b> searches across your ZIP codes
+  {% else %}<p class="text-xs text-slate-600" aria-live="polite"><b id="ind-count">0</b> selected · about <b id="ind-searches">0</b> searches across your ZIP codes
     (the nightly search works through these over time).</p>{% endif %}
   <div class="grid md:grid-cols-2 gap-3 max-h-96 overflow-y-auto border rounded p-3 bg-slate-50">
     {% for group, names in categories.items() %}
     <fieldset class="ind-group">
       <legend class="flex items-center gap-2 text-sm font-semibold">{{ group }}
-        {% if not max_pick %}<button type="button" class="ind-group-all text-xs font-normal text-blue-700 hover:underline">select all</button>{% endif %}</legend>
+        {% if not max_pick %}<button type="button" aria-label="Select all {{ group }}" class="ind-group-all text-xs font-normal text-blue-700 hover:underline">select all</button>{% endif %}</legend>
       <div class="flex flex-wrap gap-x-3 gap-y-1 text-sm mt-1">{% for n in names %}
         <label class="ind-item flex items-center gap-1" data-name="{{ n|lower }}">
           <input type="checkbox" name="industries" value="{{ n }}" {% if n in selected %}checked{% endif %}> {{ n }}

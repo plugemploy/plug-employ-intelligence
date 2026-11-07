@@ -1,0 +1,31 @@
+{% extends "public.html" %}
+{% block width %}max-w-3xl{% endblock %}
+{% block content %}
+<div class="text-sm text-slate-700 grid gap-4 leading-relaxed">
+<h1 class="text-2xl font-bold text-slate-800">Accessibility</h1>
+<p class="text-xs text-slate-500">Last updated November 6, 2026</p>
+<p>We want everyone to be able to use Plug Employ Intelligence, including people who use a keyboard instead of a
+  mouse, a screen reader, zoom, or other assistive technology. We aim to meet the
+  <a href="https://www.w3.org/TR/WCAG21/" target="_blank" rel="noopener">Web Content Accessibility Guidelines (WCAG) 2.1, level AA</a>.</p>
+
+<h2 class="font-semibold text-slate-800">What we've done</h2>
+<ul class="list-disc ml-5 grid gap-1">
+  <li>Every page works with a keyboard, with a visible outline showing where you are, and a "Skip to main content" link.</li>
+  <li>Form fields and buttons have names a screen reader can read out.</li>
+  <li>Pop-ups take keyboard focus and close with the Escape key.</li>
+  <li>Progress updates (like a search finding leads) are announced to screen readers.</li>
+  <li>Text colors meet contrast guidelines, and links inside sentences are underlined.</li>
+  <li>Animations stop if your device is set to reduce motion. A night mode is in the top bar.</li>
+  <li>We check our pages with automated accessibility tests.</li>
+</ul>
+
+<h2 class="font-semibold text-slate-800">Known limits</h2>
+<p>The Google sign-in, Stripe payment and Close CRM pages are run by those companies. Lead information comes from
+  public business data and businesses' own websites, which we don't control.</p>
+
+<h2 class="font-semibold text-slate-800">Tell us if something doesn't work</h2>
+<p>If any part of the app is hard to use, email us{% if contact %} at <a href="mailto:{{ contact }}">{{ contact }}</a>{% endif %}
+  or use "Send feedback" in the app. Tell us the page and what happened. We'll reply within 2 business days and help you
+  get what you need another way while we fix it.</p>
+</div>
+{% endblock %}

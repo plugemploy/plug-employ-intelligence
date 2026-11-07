@@ -229,6 +229,11 @@ def terms_page(request: Request):
     return page(request, "terms.html", contact=CONTACT_EMAIL, pro=plans.PLANS["pro"])
 
 
+@app.get("/accessibility")
+def accessibility_page(request: Request):
+    return page(request, "accessibility.html", contact=CONTACT_EMAIL)
+
+
 OFFER_COOKIE = "offer"  # "free" (/try) or "beta" (/signup) while someone is away at Google signing in
 AGREE_COOKIE = "agreed"  # set when the sign-up box was ticked, read back when Google returns
 

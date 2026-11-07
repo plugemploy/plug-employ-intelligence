@@ -29,13 +29,29 @@
     input:focus, select:focus, textarea:focus { outline: 2px solid #a78bfa; outline-offset: 0; }
     button, a { transition: background-color .15s, color .15s; }
 
+    /* Accessibility (WCAG 2.1 AA): a clear focus ring for keyboard users, readable light-grey text,
+       and no animation for people who turn motion off. */
+    a:focus-visible, button:focus-visible, summary:focus-visible, [tabindex]:focus-visible,
+    input[type=checkbox]:focus-visible, input[type=radio]:focus-visible { outline: 3px solid #7c3aed; outline-offset: 2px; }
+    header a:focus-visible, header button:focus-visible, .on-purple button:focus-visible { outline-color: #fff; }
+    .text-slate-400 { color: #64748b; }
+    /* Links inside sentences are underlined so they don't rely on color alone */
+    main p a, main label a, main li > span a, .inline-link { text-decoration: underline; text-underline-offset: 2px; }
+    .skip-link { position: absolute; left: 1rem; top: -4rem; z-index: 60; background: #fff; color: #3b1578;
+      padding: .5rem 1rem; border-radius: .5rem; font-weight: 600; box-shadow: 0 2px 8px rgb(0 0 0 / .2); }
+    .skip-link:focus { top: 1rem; }
+    @media (prefers-reduced-motion: reduce) {
+      *, ::before, ::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    }
+
     /* Night mode: switched with the moon button in the top bar, remembered per browser */
     html.dark { color-scheme: dark; }
     html.dark body, html.dark .bg-slate-50 { background-color: #0b0b12; color: #e2e8f0; }
     html.dark .bg-white { background-color: #16161f; }
     html.dark .bg-slate-100 { background-color: #1f1f2b; }
     html.dark .text-slate-800, html.dark .text-slate-900, html.dark .text-slate-700 { color: #e2e8f0; }
-    html.dark .text-slate-600, html.dark .text-slate-500 { color: #a1a1b5; }
+    html.dark .text-slate-600, html.dark .text-slate-500, html.dark .text-slate-400 { color: #a1a1b5; }
     html.dark .text-blue-600, html.dark .text-blue-700 { color: #93c5fd; }
     html.dark *, html.dark ::before, html.dark ::after { border-color: #2a2a3a; }
     html.dark input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=hidden]),
@@ -57,10 +73,11 @@
   <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
+  <a href="#main" class="skip-link">Skip to main content</a>
   <header class="px-3 pt-3">
     <div class="max-w-6xl mx-auto px-5 py-3 rounded-2xl shadow bg-[#3b1578] text-white flex flex-wrap items-center gap-4">
-      <a href="/leads?clear=1" title="Home: clears filters"><img src="/static/logo.png" alt="Plug Employ" class="h-8 w-auto"></a>
-      <nav class="flex gap-4 text-sm">
+      <a href="/leads?clear=1" title="Home: clears filters"><img src="/static/logo.png" alt="Plug Employ home" class="h-8 w-auto"></a>
+      <nav aria-label="Main" class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         <a href="/dashboard" class="hover:underline">Dashboard</a>
         <a href="/leads" class="hover:underline">Leads</a>
         <a href="/due" class="hover:underline">Due today</a>
@@ -72,7 +89,7 @@
         <a href="/business" class="hover:underline">My business</a>
       </nav>
       <div class="ml-auto flex items-center gap-3 text-sm">
-        <button type="button" onclick="toggleTheme()" title="Night mode on/off" aria-label="Night mode on/off" class="rounded-full px-2 py-1 hover:bg-white/10">🌙</button>
+        <button type="button" onclick="toggleTheme()" title="Night mode on/off" aria-label="Night mode" aria-pressed="false" id="theme-btn" class="rounded-full px-2 py-1 hover:bg-white/10"><span aria-hidden="true">🌙</span></button>
         {% if org and org.plan_tier == "owner" %}<a href="/beta" class="hover:underline">Beta results</a>
         <a href="/feedback" class="hover:underline">Feedback</a>{% endif %}
         {% if user and user.is_admin %}
@@ -93,10 +110,10 @@
     </div>
   </header>
   {% if search_job %}{% include "_search_bar.html" %}{% endif %}
-  <main class="max-w-6xl mx-auto px-4 py-6">
+  <main id="main" tabindex="-1" class="max-w-6xl mx-auto px-4 py-6 focus:outline-none">
     {% if subscribe_banner %}
     <div hidden hx-post="/offer/seen" hx-trigger="load" hx-swap="none"></div>
-    <form method="post" action="/billing/checkout" id="subscribe-banner" class="mb-5 rounded-xl bg-[#3b1578] text-white px-4 py-3 flex flex-wrap items-center gap-3">
+    <form method="post" action="/billing/checkout" id="subscribe-banner" class="on-purple mb-5 rounded-xl bg-[#3b1578] text-white px-4 py-3 flex flex-wrap items-center gap-3">
       <input type="hidden" name="tier" value="pro">
       <p class="text-sm flex-1 min-w-[14rem]"><span hx-get="/offer/teaser" hx-trigger="load" hx-swap="outerHTML"><b>Like these leads?</b>
         Get {{ pro.searches }} searches a month, new leads every night, scored for you.</span></p>
@@ -111,11 +128,11 @@
       {% block content %}{% endblock %}
     {% endif %}
   </main>
-  <footer class="max-w-6xl mx-auto px-4 pb-16 text-xs text-slate-400"><a href="/privacy" class="hover:underline">Privacy policy</a> · <a href="/terms" class="hover:underline">Terms of service</a></footer>
+  <footer class="max-w-6xl mx-auto px-4 pb-16 text-xs text-slate-500"><a href="/privacy" class="hover:underline">Privacy policy</a> · <a href="/terms" class="hover:underline">Terms of service</a> · <a href="/accessibility" class="hover:underline">Accessibility</a></footer>
   {% if survey_due %}
   <div id="survey-modal" class="fixed inset-0 z-40 grid place-items-center bg-slate-900/40 p-4">
-    <div class="w-full max-w-xl bg-white rounded-xl shadow-xl p-6 max-h-[90vh] overflow-y-auto">
-      <h2 class="text-xl font-bold mb-1">Your beta is almost over 🙌</h2>
+    <div role="dialog" aria-modal="true" aria-labelledby="survey-title" class="w-full max-w-xl bg-white rounded-xl shadow-xl p-6 max-h-[90vh] overflow-y-auto">
+      <h2 id="survey-title" class="text-xl font-bold mb-1">Your beta is almost over 🙌</h2>
       <p class="text-sm text-slate-600 mb-4">Four quick questions, about a minute. Your answers help shape Plug Employ.</p>
       {% with in_popup=true %}{% include "_survey_form.html" %}{% endwith %}
     </div>
@@ -123,8 +140,8 @@
   {% endif %}
   {% if subscribe_at %}
   <div id="subscribe-modal" class="hidden fixed inset-0 z-50 grid place-items-center bg-slate-900/40 p-4">
-    <div class="w-full max-w-md bg-white rounded-xl shadow-xl p-6 grid gap-3">
-      <h2 class="text-xl font-bold">Like these leads? 🎯</h2>
+    <div role="dialog" aria-modal="true" aria-labelledby="subscribe-title" class="w-full max-w-md bg-white rounded-xl shadow-xl p-6 grid gap-3">
+      <h2 id="subscribe-title" class="text-xl font-bold">Like these leads? <span aria-hidden="true">🎯</span></h2>
       <p class="text-sm text-slate-600"><span hx-get="/offer/teaser?style=popup" hx-trigger="load" hx-swap="outerHTML">That was one search.</span>
         With {{ pro.label }} you get your whole territory, every kind of business you sell to, found and scored for you.</p>
       <ul class="text-sm text-slate-700 list-disc ml-5 grid gap-1">
@@ -140,7 +157,7 @@
       <p class="text-sm text-purple-900 bg-purple-50 rounded-lg px-3 py-2 text-center">💡 One $300/month customer on a 12-month contract
         pays for about {{ (300 * 12 / (pro.price * 12))|round|int }} years of {{ pro.label }}.</p>
       <p class="text-xs text-slate-500 text-center">Cancel anytime. Payments are handled securely by Stripe.</p>
-      <button type="button" onclick="laterSubscribe()" class="text-sm text-slate-500 hover:underline">Maybe later</button>
+      <button type="button" onclick="laterSubscribe()" data-dismiss class="text-sm text-slate-600 hover:underline">Maybe later</button>
     </div>
   </div>
   <script>
@@ -150,21 +167,56 @@
     }
     setTimeout(() => {
       document.getElementById("subscribe-modal").classList.remove("hidden");
+      openDialog(document.getElementById("subscribe-modal"));
       htmx.ajax("POST", "/offer/seen", {swap: "none"});
     }, Math.max(0, {{ subscribe_at }} - Date.now()));
   </script>
   {% endif %}
   {% if user %}
   <details class="fixed bottom-4 right-4 w-72 rounded-xl bg-white shadow-lg border text-sm">
-    <summary class="cursor-pointer px-4 py-2 font-medium">💬 Send feedback</summary>
+    <summary class="cursor-pointer px-4 py-2 font-medium"><span aria-hidden="true">💬</span> Send feedback</summary>
     <form hx-post="/feedback" hx-target="#feedback-result" hx-on::after-request="if (event.detail.successful) this.reset()" class="grid gap-2 px-4 pb-4">
-      <textarea name="text" rows="4" required placeholder="What's confusing, broken, or missing?" class="border rounded px-2 py-1"></textarea>
+      <textarea name="text" rows="4" required aria-label="Your feedback" placeholder="What's confusing, broken, or missing?" class="border rounded px-2 py-1"></textarea>
       <input type="hidden" name="page" value="{{ request.url.path }}">
       <button class="justify-self-start rounded bg-slate-800 text-white px-3 py-1">Send</button>
-      <div id="feedback-result"></div>
+      <div id="feedback-result" role="status" aria-live="polite"></div>
     </form>
   </details>
   {% endif %}
+<script>
+  // Accessibility: pop-ups (role="dialog") take keyboard focus, keep Tab inside them, and close with Escape
+  // (by clicking their "later"/"skip" button, marked data-dismiss). The night mode button says whether it's on.
+  const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  function openDialog(root) {
+    const d = root && (root.matches('[role=dialog]') ? root : root.querySelector('[role=dialog]'));
+    if (!d || d.dataset.opened) return;
+    d.dataset.opened = "1"; d._back = document.activeElement;
+    const first = d.querySelector('[autofocus]') || d.querySelector(FOCUSABLE);
+    (first || d).focus();
+  }
+  document.addEventListener("keydown", e => {
+    const open = [...document.querySelectorAll('[role=dialog]')].filter(d => d.offsetParent !== null).pop();
+    if (!open) return;
+    if (e.key === "Escape") { const x = open.querySelector('[data-dismiss]'); if (x) { e.preventDefault(); x.click(); } }
+    if (e.key === "Tab") {
+      const els = [...open.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
+      if (!els.length) return;
+      const first = els[0], last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      else if (!open.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+    }
+  });
+  const markOpenDialogs = () => document.querySelectorAll('[role=dialog]').forEach(d => { if (d.offsetParent !== null) openDialog(d); });
+  document.addEventListener("DOMContentLoaded", () => {
+    markOpenDialogs();
+    // Mark the current page in the top menu for screen readers.
+    document.querySelectorAll('header nav a').forEach(a => { if (a.getAttribute("href") === location.pathname) a.setAttribute("aria-current", "page"); });
+    const tb = document.getElementById("theme-btn");
+    if (tb) { const sync = () => tb.setAttribute("aria-pressed", document.documentElement.classList.contains("dark")); sync(); tb.addEventListener("click", sync); }
+  });
+  document.addEventListener("htmx:afterSettle", markOpenDialogs);
+</script>
 {% if user %}
 <script>
   // Time in app (Beta results): ping now and every 30 seconds while this tab is visible and was used in the last 2 minutes.

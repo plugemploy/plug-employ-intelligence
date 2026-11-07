@@ -17,12 +17,12 @@
   </section>
   {% endif %}
   <section class="bg-white rounded-xl shadow p-6 grid gap-2">
-    <h2 class="font-semibold">1. What do you sell, and who is your ideal customer?</h2>
+    <h2 class="font-semibold"><label for="desc">1. What do you sell, and who is your ideal customer?</label></h2>
     <p class="text-xs text-slate-500">A few plain sentences. Claude uses this to score every lead for you.</p>
     <textarea id="desc" name="description" rows="4" class="border rounded px-3 py-2 text-sm">{{ account.business_description }}</textarea>
   </section>
   <section class="bg-white rounded-xl shadow p-6 grid gap-2">
-    <h2 class="font-semibold">2. Your territory</h2>
+    <h2 class="font-semibold"><label for="zips">2. Your territory</label></h2>
     <p class="text-xs text-slate-500">{% if free %}Up to 3 ZIP codes, separated by commas.{% else %}ZIP codes, separated by commas. Put the most important first: they're searched first and count most.{% endif %}</p>
     <input id="zips" name="zips" value="{{ account.zip_list|join(', ') }}" class="border rounded px-3 py-2 text-sm">
   </section>

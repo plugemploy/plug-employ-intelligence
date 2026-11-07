@@ -17,7 +17,7 @@
   <label class="flex items-center gap-2 text-sm"><input type="checkbox" name="quote_ok" value="1"> You may quote me (first name and company)</label>
   <div class="flex items-center gap-3">
     <button class="rounded bg-slate-800 text-white px-4 py-2 font-medium">Send</button>
-    {% if in_popup %}<button type="button" hx-post="/survey/later" hx-target="#survey-modal" hx-swap="outerHTML"
-        class="text-sm text-slate-500 hover:underline">Ask me later</button>{% endif %}
+    {% if in_popup %}<button type="button" data-dismiss hx-post="/survey/later" hx-target="#survey-modal" hx-swap="outerHTML"
+        class="text-sm text-slate-600 hover:underline">Ask me later</button>{% endif %}
   </div>
 </form>

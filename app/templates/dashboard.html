@@ -20,17 +20,17 @@
   <a href="/dashboard?status=Sold" class="underline">Show sold leads</a></p>{% endif %}
 {% if total %}
 <div class="bg-white rounded-xl shadow p-6 flex flex-wrap items-center gap-8">
-  <svg viewBox="0 0 {{ size }} {{ size }}" class="w-60 h-60 shrink-0" role="img" aria-label="Leads by status">
+  <svg viewBox="0 0 {{ size }} {{ size }}" class="w-60 h-60 shrink-0" role="group" aria-label="Leads by status chart. The same numbers are in the table beside it.">
     {% for r in rows if r.count %}
     <a href="/dashboard?status={{ r.status|urlencode }}" hx-get="/dashboard/breakdown?status={{ r.status|urlencode }}"
-       hx-target="#breakdown" hx-push-url="/dashboard?status={{ r.status|urlencode }}" class="slice">
+       hx-target="#breakdown" hx-push-url="/dashboard?status={{ r.status|urlencode }}" class="slice" aria-label="{{ r.label }}: {{ r.count }} lead{{ 's' if r.count != 1 }} ({{ r.pct }}%)">
       <path d="{{ r.path }}" fill="{{ r.color }}" stroke="#fff" stroke-width="2"
             class="cursor-pointer transition-opacity hover:opacity-80 {{ 'opacity-40' if chosen and chosen != r.status }}">
         <title>{{ r.label }}: {{ r.count }} lead{{ "s" if r.count != 1 }} ({{ r.pct }}%)</title></path>
     </a>
     {% endfor %}
-    <text x="50%" y="47%" text-anchor="middle" class="fill-slate-800" style="font: 700 32px system-ui">{{ total }}</text>
-    <text x="50%" y="60%" text-anchor="middle" class="fill-slate-500" style="font: 13px system-ui">leads</text>
+    <text aria-hidden="true" x="50%" y="47%" text-anchor="middle" class="fill-slate-800" style="font: 700 32px system-ui">{{ total }}</text>
+    <text aria-hidden="true" x="50%" y="60%" text-anchor="middle" class="fill-slate-500" style="font: 13px system-ui">leads</text>
   </svg>
   <table class="text-sm min-w-[18rem]">
     <thead class="text-left text-slate-500"><tr><th class="pb-2 font-normal">Status</th>
@@ -45,7 +45,7 @@
     {% endfor %}</tbody>
   </table>
 </div>
-<div id="breakdown" class="mt-6">{% if chosen %}{% include "_breakdown.html" %}{% endif %}</div>
+<div id="breakdown" class="mt-6" aria-live="polite">{% if chosen %}{% include "_breakdown.html" %}{% endif %}</div>
 {% if like_customers %}
 <section class="bg-white rounded-xl shadow p-6 mt-6">
   <h2 class="font-semibold mb-1">🎯 Like your customers</h2>
@@ -55,7 +55,7 @@
     <div class="rounded-lg border p-3">
       <p class="text-sm"><b>{{ g.industry }}</b>: you've sold {{ g.sold }}; <b>{{ g.waiting }}</b> more not contacted yet</p>
       <ul class="mt-2 text-sm grid gap-1">{% for l in g.top %}
-        <li><a href="/leads/{{ l.id }}" class="text-blue-700 hover:underline">{{ l.business_name }}</a>
+        <li><a href="/leads/{{ l.id }}" class="inline-link text-blue-700">{{ l.business_name }}</a>
           {% if l.score %}<span class="text-xs text-slate-500">· score {{ l.score }}</span>{% endif %}</li>{% endfor %}</ul>
       <a href="/leads?industry={{ g.industry|urlencode }}&status=New&sort=score" class="mt-2 inline-block text-xs text-blue-700 hover:underline">See all {{ g.waiting }} →</a>
     </div>{% endfor %}</div>

@@ -150,4 +150,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Nearby off by default (2026-11-06): thin-ZIP top-up only when accounts.include_nearby (My business checkbox "Also
   include businesses just outside my ZIP codes") or plan free (overture.includes_nearby). /setup/estimates hides +nearby
   counts when off. Leads already tagged Nearby stay.
+- Accessibility (2026-11-06): aiming for WCAG 2.1 AA. Skip link, focus rings, named fields, pop-ups are dialogs
+  (focus, Tab kept inside, Escape clicks the [data-dismiss] button), live regions for progress, slate-400 text darkened,
+  links in sentences underlined, reduced motion. /accessibility statement page (footer link). axe-core showed 0 problems
+  on every page (light + night mode). tests/test_accessibility.py checks every form field has a name.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

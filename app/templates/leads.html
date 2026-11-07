@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {# While a search runs, the list refreshes itself so leads appear as they're found and scored. #}
-<div id="leads-live" {% if live or reasons_checking or close_sending %}hx-get="{{ request.url }}" hx-trigger="every 4s" hx-select="#leads-live" hx-swap="outerHTML"{% endif %}>
+<div id="leads-live" aria-live="polite" aria-busy="{{ 'true' if live or reasons_checking or close_sending else 'false' }}" {% if live or reasons_checking or close_sending %}hx-get="{{ request.url }}" hx-trigger="every 4s" hx-select="#leads-live" hx-swap="outerHTML"{% endif %}>
 {% if subscribe_banner %}<div id="offer-ready" hidden></div>{% endif %}
 {% if close_sending %}
 <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 flex items-start gap-3">
@@ -31,20 +31,20 @@
   <div><h1 class="text-2xl font-bold">Leads <span class="text-slate-400 text-lg">({{ leads|length }})</span></h1>
     {% if n_deleted %}<a href="/leads/deleted" class="text-xs text-slate-500 hover:underline">🗑 Deleted leads ({{ n_deleted }})</a>{% endif %}</div>
   <form method="get" class="flex flex-wrap gap-2 text-sm">
-    <input type="search" name="q" value="{{ f_q }}" placeholder="Search name, owner, address, notes…" class="border rounded px-2 py-1 w-56">
-    <select name="status" class="border rounded px-2 py-1">
+    <input type="search" name="q" aria-label="Search leads" value="{{ f_q }}" placeholder="Search name, owner, address, notes…" class="border rounded px-2 py-1 w-56">
+    <select name="status" aria-label="Status" class="border rounded px-2 py-1">
       <option value="">All statuses</option>
       {% for s in statuses %}<option {% if s == f_status %}selected{% endif %}>{{ s }}</option>{% endfor %}
     </select>
-    <select name="zip_code" class="border rounded px-2 py-1">
+    <select name="zip_code" aria-label="ZIP code" class="border rounded px-2 py-1">
       <option value="">All ZIPs</option>
       {% for z in zips %}<option {% if z == f_zip %}selected{% endif %}>{{ z }}</option>{% endfor %}
     </select>
-    <select name="industry" class="border rounded px-2 py-1">
+    <select name="industry" aria-label="Industry" class="border rounded px-2 py-1">
       <option value="">All industries</option>
       {% for i in industries %}<option {% if i == f_industry %}selected{% endif %}>{{ i }}</option>{% endfor %}
     </select>
-    <select name="sort" class="border rounded px-2 py-1">
+    <select name="sort" aria-label="Sort by" class="border rounded px-2 py-1">
       <option value="follow_up" {% if sort == "follow_up" %}selected{% endif %}>Sort: next follow-up</option>
       <option value="score" {% if sort == "score" %}selected{% endif %}>Sort: best score</option>
       <option value="industry" {% if sort == "industry" %}selected{% endif %}>Sort: industry</option>
@@ -134,11 +134,11 @@
     {% for l in leads %}
       {% set fu = l.next_follow_up %}
       <tr class="border-t {{ 'bg-red-50/60 hover:bg-red-50' if l.id in reason_counts else 'hover:bg-slate-50' }}">
-        {% if has_close %}<td class="p-3">{% if l.close_lead_id %}<span class="text-xs text-emerald-700" title="Already in Close">✓</span>
+        {% if has_close %}<td class="p-3">{% if l.close_lead_id %}<span class="text-xs text-emerald-700" title="Already in Close"><span aria-hidden="true">✓</span><span class="sr-only">Already in Close</span></span>
           {% elif close_sendable(l) %}<input type="checkbox" name="lead_ids" value="{{ l.id }}" form="close-pick" data-score="{{ l.score or 0 }}"
             class="close-box" aria-label="Send {{ l.business_name }} to Close">
-          {% else %}<input type="checkbox" disabled title="{{ 'No phone number' if not l.phone else 'Already closed out' }}">{% endif %}</td>{% endif %}
-        <td class="p-3" title="{{ l.score_reason }}">{% if l.score %}<span class="inline-block w-8 text-center rounded font-bold
+          {% else %}<input type="checkbox" disabled title="{{ 'No phone number' if not l.phone else 'Already closed out' }}" aria-label="{{ l.business_name }}: can't send to Close ({{ 'no phone number' if not l.phone else 'already closed out' }})">{% endif %}</td>{% endif %}
+        <td class="p-3" title="{{ l.score_reason }}">{% if l.score %}<span aria-label="Score {{ l.score }} of 10" class="inline-block w-8 text-center rounded font-bold
           {{ 'bg-green-100 text-green-800' if l.score >= 8 else 'bg-amber-100 text-amber-800' if l.score >= 5 else 'bg-slate-100 text-slate-600' }}">{{ l.score }}</span>{% endif %}</td>
         <td class="p-3"><a href="/leads/{{ l.id }}" class="font-medium text-blue-700 hover:underline">{{ l.business_name }}</a>
           {% if l.contact_name %}<span class="block text-xs text-slate-500">👤 {{ l.contact_name }}{% if l.contact_title %}, {{ l.contact_title }}{% endif %}</span>{% endif %}
@@ -151,7 +151,7 @@
         <td class="p-3">{% with s = l.status %}{% include "_badge.html" %}{% endwith %}
           {% if l.close_status %}<span class="block text-xs text-emerald-700 mt-0.5">Close: {{ l.close_status }}</span>{% endif %}</td>
         <td class="p-3 {% if fu and fu.due_date <= today %}text-red-700 font-medium{% endif %}">
-          {{ fu.due_date.strftime("%b %-d") if fu else "—" }}</td>
+          {{ fu.due_date.strftime("%b %-d") if fu else "—" }}{% if fu and fu.due_date <= today %}<span class="sr-only"> (due)</span>{% endif %}</td>
         <td class="p-3 text-slate-600 max-w-xs truncate">{{ l.last_note.text if l.last_note else "" }}</td>
         <td class="p-3 text-slate-500 whitespace-nowrap">{{ l.created_at.astimezone().strftime("%b %-d") }}</td>
       </tr>
