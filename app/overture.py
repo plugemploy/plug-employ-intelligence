@@ -188,6 +188,9 @@ def search_and_save(db: Session, account_id: int, zip_code: str, industry: str) 
     stats = {"zip": zip_code, "industry": industry, "requests": 1, "found": 0, "added": 0, "added_nearby": 0,
              "skipped_closed": 0, "skipped_unreliable": 0, "skipped_duplicate": 0, "skipped_over_limit": 0}
     check_search(db, account_id)
+    from app import plans
+    room = plans.leads_room(db, db.get(Account, account_id))
+    stats["max_added"] = MAX_ADDED if room is None else min(MAX_ADDED, room)  # a lead cap (Beta) can stop it sooner
     cats, words = overture_types.matcher(industry)
     pattern = overture_types.name_pattern(words)
     found = [p for p in fetch_places(zip_code) if matches(p, cats, pattern)]
@@ -211,6 +214,7 @@ def search_and_save(db: Session, account_id: int, zip_code: str, industry: str) 
                       f"{town}, {max(1, round(p['miles']))} mi from {zip_code}"[:120])
             good += stats["added"] - before  # nearby ones already saved don't count: the next closest come next time
     db.commit()
+    stats.pop("max_added")
     return stats
 
 
@@ -238,7 +242,7 @@ def _consider(db: Session, account_id: int, p: dict, zip_code: str, industry: st
         if not dupe.overture_id:  # an older lead (e.g. from Google) now backed by open data
             dupe.overture_id = p["id"]
         stats["skipped_duplicate"] += 1
-    elif stats["added"] >= MAX_ADDED:
+    elif stats["added"] >= stats.get("max_added", MAX_ADDED):
         stats["skipped_over_limit"] += 1
     else:
         db.add(Lead(account_id=account_id, overture_id=p["id"], business_name=p["name"][:300],

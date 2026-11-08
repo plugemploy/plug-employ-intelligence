@@ -154,4 +154,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   (focus, Tab kept inside, Escape clicks the [data-dismiss] button), live regions for progress, slate-400 text darkened,
   links in sentences underlined, reduced motion. /accessibility statement page (footer link). axe-core showed 0 problems
   on every page (light + night mode). tests/test_accessibility.py checks every form field has a name.
+- Beta lead cap (2026-11-07): plans "beta" max_leads 1000. plans.leads_found counts the account's leads ever (deleted
+  count, imported clients don't); at the cap usage() sets searches_left 0 (Find leads + nightly stop, check_search
+  message) and the meter shows a $49 Subscribe box. A search that reaches the cap adds only what fits.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

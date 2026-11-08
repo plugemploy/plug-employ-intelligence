@@ -163,3 +163,41 @@ def test_one_search_is_capped_at_5_zips_and_6_types(acct, monkeypatch):
     assert "up to 5 ZIP codes and 6 business types" in r.text and not started
     r = c.post("/search", data={"zips": six_zips[:5], "industries": seven_types[:6]}, follow_redirects=False)
     assert r.status_code == 303 and len(started) == 1
+
+
+def test_beta_stops_finding_leads_at_its_lead_cap(acct, monkeypatch):
+    """The free Beta month finds up to max_leads leads; the search that reaches it adds only what fits, then searches stop."""
+    from app import overture
+    from app.models import Lead
+    from tests.test_overture import place
+    monkeypatch.setitem(plans.PLANS["beta"], "max_leads", 5)
+    with Session(engine) as db:
+        org = db.get(Organization, acct["org"])
+        org.plan_tier, org.plan = "beta", "trial"
+        from datetime import datetime, timezone
+        org.trial_started_at = datetime.now(timezone.utc)
+        db.add(Lead(account_id=acct["acct"], business_name="Imported client", source="import"))  # doesn't count
+        db.add(Lead(account_id=acct["acct"], business_name="Already found"))
+        db.commit()
+    monkeypatch.setattr(overture, "fetch_places", lambda z: [place(f"p{i}", f"Smile Dental {i}", phones=(f"+1865555010{i}",), websites=(f"https://smile{i}.test",)) for i in range(10)])
+    with Session(engine) as db:
+        stats = overture.search_and_save(db, acct["acct"], "37934", "Dentist")
+        assert stats["added"] == 4 and stats["skipped_over_limit"] > 0
+        account = db.get(Account, acct["acct"])
+        u = plans.usage(db, account)
+        assert u["leads_cap_hit"] and u["searches_left"] == 0
+        with pytest.raises(places.BudgetExceeded, match="5 free leads"):
+            overture.search_and_save(db, acct["acct"], "37934", "Salon")
+    c = TestClient(app)
+    c.cookies.set(auth.SESSION_COOKIE, auth.make_session(acct["user"]))
+    page = c.get("/search").text
+    assert "found your 5 free leads" in page and "Subscribe for $49/month" in page
+
+
+def test_paid_plan_has_no_lead_cap(acct):
+    with Session(engine) as db:
+        account = db.get(Account, acct["acct"])
+        db.get(Organization, acct["org"]).plan_tier = "pro"
+        db.commit()
+        u = plans.usage(db, account)
+        assert u["leads_cap"] is None and u["leads_left"] is None and not u["leads_cap_hit"]

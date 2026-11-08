@@ -21,7 +21,9 @@ from app.models import Account, Organization
 # at full use (640 searches x ~$0.006 = ~$3.84, the rest covers drafts, reasons to reach out and re-scores).
 MAX_TYPES = 6  # business types in a territory (setup, My business), like one Find leads search; the owner has no cap
 PLANS = {
-    "beta": {"label": "Beta", "price": 0, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True, "max_industries": MAX_TYPES},
+    # Free 30-day Beta (/signup): searches stop once it has found TRIAL_LEADS leads, so testers subscribe to keep going.
+    "beta": {"label": "Beta", "price": 0, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True, "max_industries": MAX_TYPES,
+             "max_leads": 1000},
     "pro": {"label": "Plug Employ", "price": 49, "searches": 640, "allowance_usd": 6.5, "nightly_max": 30, "email": True, "close": True, "max_industries": MAX_TYPES},
     # Sign-ups from the /try link (email campaign): one run of up to 3 ZIPs x 2 business types, ever. The top
     # FREE_SHOWN leads show in full; the rest are locked until they subscribe ($49 pop-up).
@@ -138,6 +140,20 @@ def first_leads_at(db: Session, account_id: int) -> datetime | None:
     return min(times) if times else None
 
 
+def leads_found(db: Session, account_id: int) -> int:
+    """Leads this account's searches have added, ever (deleted ones count; imported clients don't)."""
+    from sqlalchemy import func, select
+    from app.models import Lead
+    return db.scalar(select(func.count()).select_from(Lead).where(
+        Lead.account_id == account_id, Lead.source != "import")) or 0
+
+
+def leads_room(db: Session, account: Account) -> int | None:
+    """How many more leads the plan's lead cap allows (None = no cap)."""
+    cap = plan_for(db, account).get("max_leads")
+    return None if cap is None else max(0, cap - leads_found(db, account.id))
+
+
 def usage(db: Session, account: Account) -> dict:
     """What the account has used and has left this month: searches, and the Claude cost (owner only sees $)."""
     from app.places import spent_this_month
@@ -147,8 +163,12 @@ def usage(db: Session, account: Account) -> dict:
     total = None if plan["searches"] is None else (0 if paused else plan["searches"])
     used = searches_this_month(db, account.id, ever=plan.get("lifetime", False))
     left = None if total is None else max(0, total - used)
-    return {"limit": limit, "spent": spent, "left": max(0.0, limit - spent),
-            "pct": (used / total if total else 1.0) if total is not None else 0.0,
+    room = leads_room(db, account)
+    if room == 0:
+        left = 0  # the plan's lead cap is reached: no more searches until they subscribe
+    return {"leads_cap": plan.get("max_leads"), "leads_left": room, "leads_cap_hit": room == 0,
+            "limit": limit, "spent": spent, "left": max(0.0, limit - spent),
+            "pct": 1.0 if room == 0 else (used / total if total else 1.0) if total is not None else 0.0,
             "searches_total": total, "searches_used": used, "searches_left": left,
             "plan": plan, "trial_over": trial_over(org), "trial_ends": trial_ends(org) if org else None}
 
