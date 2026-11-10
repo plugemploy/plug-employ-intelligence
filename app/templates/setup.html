@@ -23,7 +23,7 @@
   </section>
   <section class="bg-white rounded-xl shadow p-6 grid gap-2">
     <h2 class="font-semibold"><label for="zips">2. Your territory</label></h2>
-    <p class="text-xs text-slate-500">{% if free %}Up to 3 ZIP codes, separated by commas.{% else %}ZIP codes, separated by commas. Put the most important first: they're searched first and count most.{% endif %}</p>
+    <p class="text-xs text-slate-500">{% if free %}Up to 3 ZIP codes, separated by commas.{% else %}ZIP codes, separated by commas. Put the most important first: they're searched first.{% endif %}</p>
     <input id="zips" name="zips" value="{{ account.zip_list|join(', ') }}" class="border rounded px-3 py-2 text-sm">
   </section>
   <section class="bg-white rounded-xl shadow p-6 grid gap-3">

@@ -83,3 +83,13 @@ def test_scoring_leans_on_customers_when_there_are_some():
     assert "existing customers are the best guide" in with_customers and "8 or higher" in with_customers
     only_noes = scoring.build_system(acct, "Said no:\n- Big Box | Retail | ZIP 37934 | rating unknown")
     assert "existing customers are the best guide" not in only_noes and "said no" in only_noes
+
+
+def test_scoring_gets_target_types_and_trusts_them():
+    from types import SimpleNamespace
+    from app import scoring
+    acct = SimpleNamespace(zip_list=["37934"], business_description="We sell local ads.", industries="HVAC,Real estate")
+    system = scoring.build_system(acct)
+    assert "Target business types: HVAC, Real estate" in system
+    assert "never lower the score because of its business type" in system
+    assert "starts at 7" in system

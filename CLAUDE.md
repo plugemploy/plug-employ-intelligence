@@ -157,4 +157,8 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Beta lead cap (2026-11-07): plans "beta" max_leads 1000. plans.leads_found counts the account's leads ever (deleted
   count, imported clients don't); at the cap usage() sets searches_left 0 (Find leads + nightly stop, check_search
   message) and the meter shows a $49 Subscribe box. A search that reaches the cap adds only what fits.
+- Fairer scoring (2026-11-09): Claude now sees the account's chosen business types (Target business types) and never
+  marks a lead down for its type; any target ZIP counts fully; locally owned franchise offices (realtors, home
+  services) count like independents; few reviews / no site text aren't reasons for low scores. A real local
+  target-type lead starts at 7; 8+ needs a growth sign. Existing leads keep old scores until re-scored.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.
