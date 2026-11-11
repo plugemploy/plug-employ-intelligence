@@ -93,6 +93,15 @@
         {% if not r.setup_done %}<span class="text-xs text-amber-700">setup not finished</span>{% endif %}
         {% for a in r.accounts %}<a href="/clients/import?account_id={{ a.id }}" class="block text-xs text-blue-700 hover:underline">
           ⬆ Import clients{% if r.accounts|length > 1 %} ({{ a.name }}){% endif %}</a>{% endfor %}
+        {% if r.org.plan_tier == "comp" %}<span class="block text-xs text-emerald-700 mt-1">⭐ Free access, no limits</span>
+        <form method="post" action="/beta/end-comp" class="mt-1"
+          onsubmit='return confirm({{ ("End free access for " ~ r.org.name ~ "? Their searches pause until they subscribe ($49/month). Their leads stay.")|tojson }})'>
+          <input type="hidden" name="org_id" value="{{ r.org.id }}">
+          <button class="text-xs text-slate-700 hover:underline">End free access</button></form>
+        {% elif r.org.plan != "active" %}<form method="post" action="/beta/give-comp" class="mt-1"
+          onsubmit='return confirm({{ ("Give " ~ r.org.name ~ " free access: everything included, no lead limit, no end date, no charge?")|tojson }})'>
+          <input type="hidden" name="org_id" value="{{ r.org.id }}">
+          <button class="text-xs text-emerald-700 font-medium hover:underline">⭐ Give free access, no limits</button></form>{% endif %}
         <form method="post" action="/beta/delete" class="mt-1"
           onsubmit='return confirm({{ ("Delete " ~ r.org.name ~ " and everything in it (people, leads, searches)? This can’t be undone.")|tojson }})'>
           <input type="hidden" name="org_id" value="{{ r.org.id }}">

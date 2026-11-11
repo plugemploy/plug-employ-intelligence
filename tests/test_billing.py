@@ -512,6 +512,36 @@ def test_owner_gives_a_free_searcher_the_30_day_beta(org):
     assert "Only%20a%20free%20search%20company" in again.headers["location"]
 
 
+def test_owner_gives_free_access_with_no_lead_cap_or_end(org):
+    from tests.conftest import login_as
+    with Session(engine) as db:
+        o = db.get(Organization, org["org"])
+        o.plan_tier, o.plan = "beta", "trial"
+        o.created_at = datetime.now(timezone.utc) - timedelta(days=40)  # Beta time already over
+        db.add_all([Lead(account_id=org["acct"], business_name=f"Test Comp Lead {i:02}") for i in range(3)])
+        owner_org = Organization(name="Test: Owner Comp", plan="active", plan_tier="owner")
+        db.add(owner_org)
+        db.flush()
+        owner_acct_id = auth.new_account(db, owner_org.id, "Test: Owner Comp Pub").id
+        db.commit()
+        assert plans.usage(db, db.get(Account, org["acct"]))["searches_left"] == 0  # paused
+    owner = TestClient(app)
+    login_as(owner, owner_acct_id)
+    assert "Give free access, no limits" in owner.get("/beta").text
+    r = owner.post("/beta/give-comp", data={"org_id": org["org"]}, follow_redirects=False)
+    assert "now%20has%20free%20access" in r.headers["location"]
+    with Session(engine) as db:
+        o, acct = db.get(Organization, org["org"]), db.get(Account, org["acct"])
+        assert o.plan_tier == "comp" and plans.trial_ends(o) is None and not plans.trial_over(o)
+        u = plans.usage(db, acct)
+        assert u["leads_cap"] is None and u["searches_left"] > 0 and plans.has_close(db, acct) and plans.has_email(db, acct)
+    assert "Free access, no limits" in owner.get("/beta").text
+    owner.post("/beta/end-comp", data={"org_id": org["org"]})
+    with Session(engine) as db:
+        o, acct = db.get(Organization, org["org"]), db.get(Account, org["acct"])
+        assert o.plan_tier == "pro" and plans.trial_over(o) and plans.usage(db, acct)["searches_left"] == 0
+
+
 def test_only_the_signup_link_gives_the_beta(monkeypatch):
     from app import main
     monkeypatch.setattr(gmail, "configured", lambda: True)

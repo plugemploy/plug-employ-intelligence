@@ -83,7 +83,7 @@ SURVEY_LATER_COOKIE = "survey_later"
 
 def survey_is_due(db: Session, org: Organization, account: Account, request: Request) -> bool:
     """Beta companies get the survey once per account, from day 25, unless they said "later" recently."""
-    if org.plan_tier != "beta" or plans.trial_start(org) is None or request.cookies.get(SURVEY_LATER_COOKIE):
+    if org.plan_tier not in ("beta", "comp") or plans.trial_start(org) is None or request.cookies.get(SURVEY_LATER_COOKIE):
         return False
     if datetime.now(timezone.utc) < plans.trial_start(org) + timedelta(days=SURVEY_AFTER_DAYS):
         return False
@@ -1512,6 +1512,36 @@ def beta_give_trial(org_id: int = Form(...), db: Session = Depends(get_session),
     db.commit()
     ends = plans.trial_ends(org).astimezone().strftime("%b %-d")
     return RedirectResponse(f"/beta?msg={quote(f'{org.name} is on the 30-day Beta until {ends}. Their leads are all unlocked.')}",
+                            status_code=303)
+
+
+@app.post("/beta/give-comp")
+def beta_give_comp(org_id: int = Form(...), db: Session = Depends(get_session), user: User = Depends(current_user)):
+    """The owner gives a company Complimentary access: everything included, no lead cap, no end date, no charge."""
+    require_owner(db, user)
+    org = db.get(Organization, org_id)
+    if org is None or org.plan_tier in ("owner", "comp"):
+        return RedirectResponse(f"/beta?msg={quote('That company can’t be given free access.')}", status_code=303)
+    if org.plan == "active" and org.stripe_subscription_id:
+        return RedirectResponse(f"/beta?msg={quote(f'{org.name} is paying by card. Cancel their subscription in Stripe first.')}",
+                                status_code=303)
+    org.plan_tier, org.plan = "comp", "comp"
+    db.commit()
+    return RedirectResponse(f"/beta?msg={quote(f'{org.name} now has free access: everything included, no lead limit, no end date.')}",
+                            status_code=303)
+
+
+@app.post("/beta/end-comp")
+def beta_end_comp(org_id: int = Form(...), db: Session = Depends(get_session), user: User = Depends(current_user)):
+    """End Complimentary access: searches pause and they're asked to subscribe ($49). Their leads stay."""
+    require_owner(db, user)
+    org = db.get(Organization, org_id)
+    if org is None or org.plan_tier != "comp":
+        return RedirectResponse(f"/beta?msg={quote('That company doesn’t have free access.')}", status_code=303)
+    org.plan_tier, org.plan = "pro", "trial"
+    org.trial_started_at = datetime.now(timezone.utc) - timedelta(days=plans.TRIAL_DAYS + 1)  # free time over: Subscribe
+    db.commit()
+    return RedirectResponse(f"/beta?msg={quote(f'Free access ended for {org.name}. Their searches are paused until they subscribe.')}",
                             status_code=303)
 
 
