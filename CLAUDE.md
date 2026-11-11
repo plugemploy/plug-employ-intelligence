@@ -178,8 +178,9 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   (phone_source "website"). Both go to Close, CSV, search, dedupe; lead page shows both. Migration filled existing leads
   from saved website_text.
 - Hijacked websites (2026-11-11, Teri: an OB doctor and Timbercreek Animal Hospital went to Close with gambling sites):
-  website.looks_hijacked (2+ SPAM_WORDS, e.g. Indonesian slot spam) -> status "dead_hijacked", and scoring
-  site_not_theirs (Claude: the site isn't the business's own) -> closed.saw_wrong_site. Both flag only (FLAG_ONLY: the
-  business may have a new site), so never sent to Close; contact/founded year not taken from such pages. Migration
-  flagged existing leads by website_text or a score_reason mentioning gambling. Leads already in Close aren't changed there.
+  website.looks_hijacked (2+ SPAM_WORDS, e.g. Indonesian slot spam) -> status "dead_hijacked", or scoring
+  site_not_theirs (Claude: the site isn't the business's own) -> closed.drop_website: the lead stays, its website link
+  moves to bad_website (+ bad_website_why, shown as text on the lead page), so it never reaches Close; not removed by
+  the no-website rule; no contact/founded year from such pages. Migration did the same for existing leads (by
+  website_text or a score_reason mentioning gambling). Leads already in Close keep the link there.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

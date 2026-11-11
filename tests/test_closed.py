@@ -214,25 +214,30 @@ def test_may_be_closed_leads_are_not_sent_to_close(ids):
         assert ids["open"] in unsent and ids["gone"] not in unsent
 
 
-def test_a_website_taken_over_by_gambling_spam_is_flagged_not_removed(ids):
+def test_a_website_taken_over_by_gambling_spam_loses_its_link_but_stays(ids):
     spam = "Slot Gacor Hari Ini - Situs Slot Online Terpercaya Maxwin. Daftar sekarang, deposit pulsa."
     assert website.dead_status(page_url="https://oldobgyn.test", text=spam) == "dead_hijacked"
     assert website.dead_status(page_url="https://vet.test", text="Our vets host a casino night fundraiser!") == ""
     with Session(engine) as db:
         lead = db.get(Lead, ids["gone"])
+        lead.source_confidence = 0.3  # would be removed if it had simply never had a website
         closed.saw_site(lead, "dead_hijacked")
-        assert lead.closed_reason.startswith("Its website now shows gambling ads") and not lead.deleted_at
-        closed.saw_site(lead, "ok")  # the site is theirs again
-        assert lead.closed_reason == ""
+        assert (lead.website, lead.bad_website, lead.website_status) == ("", "https://gone.test", "no_site")
+        assert lead.closed_reason == "" and not lead.deleted_at
+        db.commit()
+        assert closed.remove_unsure_without_site(db, ids["a"]) == 0
+    c = TestClient(app)
+    login_as(c, ids["a"])
+    assert "Old website removed (it showed gambling ads): https://gone.test" in c.get(f"/leads/{ids['gone']}").text
 
 
-def test_claude_spotting_a_website_that_isnt_theirs_flags_it(ids):
+def test_claude_spotting_a_website_that_isnt_theirs_removes_the_link(ids):
     with Session(engine) as db:
         lead = db.get(Lead, ids["open"])
         lead.website_text = "Best online casino bonuses. Owner: Mr. Spam since 1999."
         result = scoring.LeadScore(score=3, reason="Website is a gambling site.", contact_name="Mr. Spam",
                                    contact_title="Owner", founded_year=1999, site_not_theirs="gambling ads")
         scoring.save(db, lead, result, 0.001)
-        assert lead.closed_reason == "Its website now shows something else: gambling ads"
+        assert (lead.website, lead.bad_website, lead.bad_website_why) == ("", "https://open.test", "it showed gambling ads")
         assert lead.contact_name == "" and lead.founded_year is None  # nothing taken from a spam page
-        assert not lead.deleted_at
+        assert not lead.deleted_at and lead.closed_reason == ""

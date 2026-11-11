@@ -32,6 +32,7 @@
     {% if lead.phone %} · {{ lead.phone }}{% if lead.phone_source == "website" %} <span class="text-xs text-slate-500">(from their website)</span>{% elif lead.other_phone %} <span class="text-xs text-slate-500">(map listing)</span>{% endif %}{% endif %}
     {% if lead.other_phone %} · Other phone: {{ lead.other_phone }} <span class="text-xs text-slate-500">(from their website)</span>{% endif %}
     {% if lead.website %} · <a href="{{ lead.website }}" target="_blank" rel="noopener" class="text-blue-700 hover:underline">website</a>{% endif %}
+    {% if lead.bad_website %} · <span class="text-xs text-slate-500">Old website removed ({{ lead.bad_website_why }}): {{ lead.bad_website }}</span>{% endif %}
     {% if lead.email %} · <a href="mailto:{{ lead.email }}" class="text-blue-700 hover:underline">{{ lead.email }}</a>{% endif %}
     {% if lead.source == "import" %} · <span class="text-xs rounded bg-slate-100 px-1.5 py-0.5">imported client</span>{% endif %}
     {% if lead.nearby %} · <span class="text-xs rounded bg-purple-50 text-purple-800 px-1.5 py-0.5">Nearby · {{ lead.nearby }}</span>{% endif %}</p>

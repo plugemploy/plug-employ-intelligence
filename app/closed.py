@@ -8,7 +8,8 @@
   searches skip such places, overture._consider).
 - Website says the business closed (Claude, when scoring): flagged only; a person decides.
 - Website taken over by spam (gambling words, website.looks_hijacked; or Claude says the site isn't the business's,
-  scoring site_not_theirs): flagged only, since the business may have moved to a new website.
+  scoring site_not_theirs): the lead stays, but its website link is removed (kept in bad_website and shown on the
+  lead page as text), so it never reaches Close or a draft. Not "May be closed".
 
 Removed = moved to Deleted leads with closed_reason shown, and only leads nobody has worked on (removable: status
 New, not in Close, not an imported client, never marked Still open). Others are flagged instead. A flagged lead gets
@@ -33,14 +34,12 @@ REASONS = {
     "dead_dns": "Its website address no longer exists",
     "dead_404": "Its website is gone (page not found)",
     "dead_parked": 'Its website is now a "domain for sale" page',
-    "dead_hijacked": "Its website now shows gambling ads (the web address was likely taken over)",
 }
-WRONG_SITE = "Its website now shows something else: "  # start of the reason when Claude spotted it
 DOWN_ONCE = "Its website didn't load. We'll check again tomorrow"
 DOWN_TWICE = "Its website didn't load on two checks a day apart"
 NO_SITE = "No website, and the map data isn't sure it's still open"
 SITE_REASONS = (*REASONS.values(), DOWN_ONCE, DOWN_TWICE)  # cleared when the website works again
-FLAG_ONLY = ("dead_hijacked",)  # the business may still be open with a new website: a person decides
+HIJACKED = "it showed gambling ads"
 NO_SITE_MIN_CONFIDENCE = 0.5  # a place with no website needs Overture at least this sure it's real
 DOWN_RECHECK = timedelta(hours=20)  # a website that didn't load is looked at again the next day
 SAYS = "Website says: "  # start of the reason when Claude read it on the site
@@ -78,8 +77,8 @@ def saw_site(lead: Lead, status: str) -> None:
     """After any look at the lead's website: start the double-check, remove (or flag) on the second sighting, or
     clear a website flag when the site is back. "error" and "blocked" say nothing either way."""
     lead.closed_checked_at = now()
-    if status in FLAG_ONLY:
-        flag(lead, REASONS[status])
+    if status == "dead_hijacked":
+        drop_website(lead, HIJACKED)
     elif status.startswith("dead"):
         if lead.dead_since is None:
             lead.dead_since = lead.closed_checked_at
@@ -109,14 +108,23 @@ def saw_closing_words(lead: Lead, words: str) -> None:
         lead.closed_reason = ""  # re-scored and the site no longer says so
 
 
+def drop_website(lead: Lead, why: str) -> None:
+    """The website isn't the business's any more (taken over by spam): keep the lead, remove the link."""
+    if not lead.website:
+        return
+    lead.bad_website, lead.bad_website_why = lead.website[:300], why[:150]
+    lead.website, lead.website_text, lead.website_about_url, lead.website_status = "", "", "", "no_site"
+    lead.dead_since = lead.down_since = None
+    if lead.closed_reason in SITE_REASONS:
+        lead.closed_reason = ""
+
+
 def saw_wrong_site(lead: Lead, words: str) -> None:
     """From scoring: Claude's few words when the website isn't the business's own (gambling, adult, another
-    business). Flagged only. "" clears an earlier one."""
+    business)."""
     words = " ".join((words or "").split())
     if words:
-        flag(lead, WRONG_SITE + words[:150])
-    elif lead.closed_reason.startswith(WRONG_SITE):
-        lead.closed_reason = ""
+        drop_website(lead, f"it showed {words}" if not words.lower().startswith(("it ", "a ", "an ")) else words)
 
 
 def due(db: Session, account_id: int, limit: int = CHECKS_PER_RUN, only_double_checks: bool = False) -> list[Lead]:
@@ -168,7 +176,7 @@ def check_account(db: Session, account_id: int, limit: int = CHECKS_PER_RUN, onl
             lead, status = looking[future], future.result()
             was = lead.closed_reason
             saw_site(lead, status)
-            if status in ("ok", "down") or status.startswith("dead"):
+            if lead.website and (status in ("ok", "down") or status.startswith("dead")):
                 lead.website_status = status
             db.commit()
             stats["checked"] += 1
@@ -183,7 +191,8 @@ def remove_unsure_without_site(db: Session, account_id: int) -> int:
     n = 0
     for lead in db.scalars(select(Lead).where(
             Lead.account_id == account_id, Lead.deleted_at.is_(None), or_(Lead.website == "", Lead.website.is_(None)),
-            Lead.source_confidence < NO_SITE_MIN_CONFIDENCE, Lead.closed_reason == "")):
+            Lead.source_confidence < NO_SITE_MIN_CONFIDENCE, Lead.closed_reason == "",
+            Lead.bad_website == "")):  # its website was taken over: it had one, so it's kept
         if removable(lead):
             flag_or_remove(lead, NO_SITE)
             n += 1

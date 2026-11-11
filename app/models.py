@@ -87,6 +87,9 @@ class Lead(Base):
     zip_code: Mapped[str] = mapped_column(String(10), default="", index=True)
     phone: Mapped[str] = mapped_column(String(40), default="")
     # A second number from the business's website (app/phones.py); phone stays the map listing's.
+    # Its old website link, removed because the address now shows spam (app/closed.drop_website), and why.
+    bad_website: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    bad_website_why: Mapped[str] = mapped_column(String(150), default="", server_default="")
     other_phone: Mapped[str] = mapped_column(String(40), default="", server_default="")
     phone_source: Mapped[str] = mapped_column(String(20), default="", server_default="")  # "website" when phone came from the site
     website: Mapped[str] = mapped_column(String(300), default="")
