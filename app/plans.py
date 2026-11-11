@@ -24,8 +24,9 @@ PLANS = {
     # Free 30-day Beta (/signup): searches stop once it has found TRIAL_LEADS leads, so testers subscribe to keep going.
     "beta": {"label": "Beta", "price": 0, "searches": 380, "allowance_usd": 15.0, "nightly_max": 20, "email": True, "close": True, "max_industries": MAX_TYPES,
              "max_leads": 1000},
-    # Given by the owner on /beta (no charge, no end date, no lead cap), e.g. a tester promised as many leads as they can find.
-    "comp": {"label": "Complimentary", "price": 0, "searches": 640, "allowance_usd": 15.0, "nightly_max": 30, "email": True,
+    # The Beta without its lead cap, given by the owner on /beta (e.g. a tester promised as many leads as they can
+    # find). Same 30 days from when their Beta started, then searches pause like any Beta.
+    "comp": {"label": "Beta (no lead limit)", "price": 0, "searches": 640, "allowance_usd": 15.0, "nightly_max": 30, "email": True,
              "close": True, "max_industries": MAX_TYPES},
     "pro": {"label": "Plug Employ", "price": 49, "searches": 640, "allowance_usd": 6.5, "nightly_max": 30, "email": True, "close": True, "max_industries": MAX_TYPES},
     # Sign-ups from the /try link (email campaign): one run of up to 3 ZIPs x 2 business types, ever. The top

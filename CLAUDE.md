@@ -183,8 +183,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   moves to bad_website (+ bad_website_why, shown as text on the lead page), so it never reaches Close; not removed by
   the no-website rule; no contact/founded year from such pages. Migration did the same for existing leads (by
   website_text or a score_reason mentioning gambling). Leads already in Close keep the link there.
-- Complimentary plan (2026-11-11, for Teri Preas, promised unlimited leads): plans "comp" (everything, no max_leads,
-  640 searches/month, no end date, $0). Owner button on /beta testers rows "Give free access, no limits" (POST
-  /beta/give-comp; refused for card-paying orgs) and "End free access" (POST /beta/end-comp -> plan_tier pro, trial over,
-  searches pause until they subscribe). Comp orgs still get the beta survey.
+- No lead limit (2026-11-11, for Teri Preas, promised as many leads as she can find): plans "comp" = the Beta without
+  max_leads (label "Beta (no lead limit)"); same 30 days from her Beta start, then searches pause. Owner button on
+  /beta Beta rows "Lift lead limit" (POST /beta/give-comp) / "Put lead limit back" (POST /beta/end-comp). Gets the survey.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

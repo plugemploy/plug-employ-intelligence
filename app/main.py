@@ -1517,32 +1517,28 @@ def beta_give_trial(org_id: int = Form(...), db: Session = Depends(get_session),
 
 @app.post("/beta/give-comp")
 def beta_give_comp(org_id: int = Form(...), db: Session = Depends(get_session), user: User = Depends(current_user)):
-    """The owner gives a company Complimentary access: everything included, no lead cap, no end date, no charge."""
+    """The owner lifts a Beta company's lead limit. Their 30 days still run from when their Beta started."""
     require_owner(db, user)
     org = db.get(Organization, org_id)
-    if org is None or org.plan_tier in ("owner", "comp"):
-        return RedirectResponse(f"/beta?msg={quote('That company can’t be given free access.')}", status_code=303)
-    if org.plan == "active" and org.stripe_subscription_id:
-        return RedirectResponse(f"/beta?msg={quote(f'{org.name} is paying by card. Cancel their subscription in Stripe first.')}",
-                                status_code=303)
-    org.plan_tier, org.plan = "comp", "comp"
+    if org is None or org.plan_tier != "beta":
+        return RedirectResponse(f"/beta?msg={quote('Only a Beta company can have its lead limit lifted.')}", status_code=303)
+    org.plan_tier = "comp"
     db.commit()
-    return RedirectResponse(f"/beta?msg={quote(f'{org.name} now has free access: everything included, no lead limit, no end date.')}",
-                            status_code=303)
+    ends = plans.trial_ends(org)
+    until = f" Their Beta runs until {ends.astimezone().strftime('%b %-d')}." if ends else ""
+    return RedirectResponse(f"/beta?msg={quote(f'{org.name} has no lead limit now.{until}')}", status_code=303)
 
 
 @app.post("/beta/end-comp")
 def beta_end_comp(org_id: int = Form(...), db: Session = Depends(get_session), user: User = Depends(current_user)):
-    """End Complimentary access: searches pause and they're asked to subscribe ($49). Their leads stay."""
+    """Put the Beta's 1,000-lead limit back."""
     require_owner(db, user)
     org = db.get(Organization, org_id)
     if org is None or org.plan_tier != "comp":
-        return RedirectResponse(f"/beta?msg={quote('That company doesn’t have free access.')}", status_code=303)
-    org.plan_tier, org.plan = "pro", "trial"
-    org.trial_started_at = datetime.now(timezone.utc) - timedelta(days=plans.TRIAL_DAYS + 1)  # free time over: Subscribe
+        return RedirectResponse(f"/beta?msg={quote('That company has the usual lead limit.')}", status_code=303)
+    org.plan_tier = "beta"
     db.commit()
-    return RedirectResponse(f"/beta?msg={quote(f'Free access ended for {org.name}. Their searches are paused until they subscribe.')}",
-                            status_code=303)
+    return RedirectResponse(f"/beta?msg={quote(f'{org.name} is back to the usual Beta lead limit.')}", status_code=303)
 
 
 @app.post("/beta/delete")
