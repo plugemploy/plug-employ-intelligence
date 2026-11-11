@@ -229,6 +229,7 @@ def test_a_website_taken_over_by_gambling_spam_loses_its_link_but_stays(ids):
     c = TestClient(app)
     login_as(c, ids["a"])
     assert "Old website removed (it showed gambling ads): https://gone.test" in c.get(f"/leads/{ids['gone']}").text
+    assert "Old website removed" in c.get("/leads").text
 
 
 def test_claude_spotting_a_website_that_isnt_theirs_removes_the_link(ids):

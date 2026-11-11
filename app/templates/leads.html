@@ -145,6 +145,7 @@
           {% if reason_counts.get(l.id) %}<span class="mt-1 inline-block rounded-full bg-red-600 text-white px-2 py-0.5 text-xs font-semibold" title="Open the lead to see why">🔔 Reason to reach out{% if reason_counts[l.id] > 1 %} ({{ reason_counts[l.id] }}){% endif %}</span>
           <span class="block text-xs text-red-800 mt-0.5">{{ first_reason[l.id] }}</span>{% endif %}
           {% if l.closed_reason %}{% include "_maybe_closed.html" %}{% endif %}
+          {% if l.bad_website %}<span class="mt-1 inline-block rounded-full bg-slate-100 text-slate-700 px-2 py-0.5 text-xs" title="Its old web address now shows {{ l.bad_website_why|replace('it showed ', '') }}. The business may have a new website; worth a quick check.">Old website removed</span>{% endif %}
           {% if l.last_emailed_at %}<span class="ml-1 inline-block rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs" title="Latest email to/from {{ l.emailed_domain }}">Emailed · {{ l.last_emailed_at.astimezone().strftime("%b %-d") }}</span>{% endif %}</td>
         <td class="p-3">{{ l.industry }}</td>
         <td class="p-3">{{ l.zip_code }}{% if l.nearby %}<br><span class="text-xs rounded bg-purple-50 text-purple-800 px-1.5 py-0.5 whitespace-nowrap" title="{{ l.nearby }}">Nearby</span>{% endif %}</td>
