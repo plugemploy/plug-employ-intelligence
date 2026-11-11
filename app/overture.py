@@ -15,6 +15,7 @@ import math
 import re
 import threading
 import time
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
@@ -22,7 +23,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import closed, overture_types
+from app import closed, foursquare, overture_types
 from app.config import OVERTURE_PARALLEL
 from app.dedupe import find_duplicate
 from app.gmail import site_domain
@@ -198,10 +199,11 @@ def search_and_save(db: Session, account_id: int, zip_code: str, industry: str) 
     db.add(ApiUsage(account_id=account_id, service=SERVICE, detail=f"{industry} in {zip_code}", est_cost_usd=0))
     db.commit()
     known = set(db.scalars(select(Lead.overture_id).where(Lead.account_id == account_id, Lead.overture_id.is_not(None))))
+    fsq = foursquare.index_for(zip_code) if found else None  # second opinion: None when Foursquare can't be read
     # Independents before chains (a listed brand), then the most confident: local owners buy local ads.
     good = 0
     for p in sorted(found, key=lambda p: (bool(p["brand"]), -p["confidence"])):
-        if _consider(db, account_id, p, zip_code, industry, known, stats, ""):
+        if _consider(db, account_id, p, zip_code, industry, known, stats, "", fsq):
             good += 1
     if good < FILL_TO and includes_nearby(db, account_id):
         nearby = [p for p in fetch_nearby(zip_code) if matches(p, cats, pattern)]
@@ -227,10 +229,12 @@ def includes_nearby(db: Session, account_id: int) -> bool:
 
 
 def _consider(db: Session, account_id: int, p: dict, zip_code: str, industry: str, known: set, stats: dict,
-              nearby: str) -> bool:
-    """Save one matching place as a lead if it's reliable and new. True when it's a good match (new or known)."""
+              nearby: str, fsq: "foursquare.Index | None" = None) -> bool:
+    """Save one matching place as a lead if it's reliable and new. True when it's a good match (new or known).
+    fsq: Foursquare's places in the ZIP, a second opinion on whether it's closed and on its phone number."""
     phone, website = (p["phones"][0] if p["phones"] else ""), _website(p["websites"])
-    if p["operating_status"] in CLOSED:
+    match = fsq.find(p["name"], phone) if fsq else None
+    if p["operating_status"] in CLOSED or (match and match["closed"]):
         stats["skipped_closed"] += 1
         return False
     if p["confidence"] < MIN_CONFIDENCE or not (phone or website) or (
@@ -246,10 +250,14 @@ def _consider(db: Session, account_id: int, p: dict, zip_code: str, industry: st
     elif stats["added"] >= stats.get("max_added", MAX_ADDED):
         stats["skipped_over_limit"] += 1
     else:
-        db.add(Lead(account_id=account_id, overture_id=p["id"], business_name=p["name"][:300],
+        lead = Lead(account_id=account_id, overture_id=p["id"], business_name=p["name"][:300],
                     address=p["address"][:300], zip_code=zip_code, phone=phone[:40], website=website[:300],
                     email=(p["emails"][0] if p["emails"] else "")[:300], brand=p["brand"][:200],
-                    source_confidence=p["confidence"], industry=industry, status="New", nearby=nearby))
+                    source_confidence=p["confidence"], industry=industry, status="New", nearby=nearby)
+        if fsq:
+            foursquare.other_phone(lead, match)
+            lead.fsq_checked_at = datetime.now(timezone.utc)
+        db.add(lead)
         db.flush()  # so find_duplicate sees it for the next place
         known.add(p["id"])
         stats["added"] += 1

@@ -17,7 +17,7 @@ from app.db import check_database, get_session
 import anthropic
 import httpx
 
-from app import auth, billing, catalog, client_import, close_crm, dashboard, plans, digest, gmail, local_pages, nightly, outreach, overture, places, results, scoring, search_jobs, signals
+from app import auth, billing, catalog, client_import, close_crm, foursquare, dashboard, plans, digest, gmail, local_pages, nightly, outreach, overture, places, results, scoring, search_jobs, signals
 from app.auth import ACCOUNT_COOKIE, current_account, current_user, require_admin
 from app import setup as setup_mod
 from app import website as site_check
@@ -1103,6 +1103,7 @@ def setup_estimates(request: Request, zips: str = Query(""), db: Session = Depen
     """How many businesses each type has in these ZIPs (and nearby), for the counts beside the types."""
     zip_list = [z for z in clean_list(zips) if z.isdigit() and len(z) == 5]
     counts = overture.estimates(zip_list, catalog.ALL) if zip_list else {}
+    foursquare.warm(zip_list[:10])  # the second opinion, ready for their first search
     nearby = bool(account) and overture.includes_nearby(db, account.id)
     if counts and not nearby:  # searches won't reach outside the ZIPs: don't count those businesses
         counts = {t: (here, 0) for t, (here, _) in counts.items()}
@@ -1582,7 +1583,8 @@ def beta_results(request: Request, db: Session = Depends(get_session), user: Use
     flagged, still_open, reported = db.execute(select(*closed_counts()).where(Lead.account_id.not_in(owner_accounts))).one()
     return render(request, "beta.html", db, None, rows=rows, totals=results.total(rows) if rows else None, survey=survey,
                   message=message, free=free, funnel=funnel,
-                  maybe_closed=dict(flagged=flagged, still_open=still_open, reported=reported))
+                  maybe_closed=dict(flagged=flagged, still_open=still_open, reported=reported),
+                  fsq_notice=foursquare.token_status())
 
 
 @app.get("/beta.csv")

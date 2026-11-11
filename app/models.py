@@ -91,7 +91,9 @@ class Lead(Base):
     bad_website: Mapped[str] = mapped_column(String(300), default="", server_default="")
     bad_website_why: Mapped[str] = mapped_column(String(150), default="", server_default="")
     other_phone: Mapped[str] = mapped_column(String(40), default="", server_default="")
-    phone_source: Mapped[str] = mapped_column(String(20), default="", server_default="")  # "website" when phone came from the site
+    phone_source: Mapped[str] = mapped_column(String(20), default="", server_default="")  # "website"/"foursquare" when not the map's
+    other_phone_source: Mapped[str] = mapped_column(String(20), default="", server_default="")  # "website" or "foursquare"
+    fsq_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # last compared with Foursquare
     website: Mapped[str] = mapped_column(String(300), default="")
     industry: Mapped[str] = mapped_column(String(100), default="")
     status: Mapped[str] = mapped_column(String(30), default="New")

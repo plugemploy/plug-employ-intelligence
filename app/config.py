@@ -14,6 +14,7 @@ for _prefix in ("postgres://", "postgresql://"):
 GOOGLE_PLACES_API_KEY = os.getenv("GOOGLE_PLACES_API_KEY", "")
 MONTHLY_API_BUDGET_USD = float(os.getenv("MONTHLY_API_BUDGET_USD", "50"))
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+FOURSQUARE_TOKEN = os.getenv("FOURSQUARE_TOKEN", "")
 APP_SECRET_KEY = os.getenv("APP_SECRET_KEY", "")
 GOOGLE_OAUTH_CLIENT_ID = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
 GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")

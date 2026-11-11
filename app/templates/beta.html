@@ -6,6 +6,7 @@
     <p class="text-sm text-slate-500">Every customer company people have signed up for (not your own). Only you see this page.</p></div>
   <a href="/beta.csv" class="rounded border px-3 py-1 text-sm hover:bg-slate-50">⬇ Download spreadsheet (CSV)</a>
 </div>
+{% if fsq_notice %}<p class="mb-4 rounded bg-amber-50 border border-amber-300 p-3 text-sm text-amber-900" role="status">⚠️ {{ fsq_notice }}</p>{% endif %}
 {% if message %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">{{ message }}</p>{% endif %}
 <section class="mb-8">
   <h2 class="text-lg font-semibold mb-1">Free search sign-ups</h2>

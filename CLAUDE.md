@@ -186,4 +186,12 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - No lead limit (2026-11-11, for Teri Preas, promised as many leads as she can find): plans "comp" = the Beta without
   max_leads (label "Beta (no lead limit)"); same 30 days from her Beta start, then searches pause. Owner button on
   /beta Beta rows "Lift lead limit" (POST /beta/give-comp) / "Put lead limit back" (POST /beta/end-comp). Gets the survey.
+- Foursquare check (2026-11-11): app/foursquare.py reads FSQ OS Places live (Places Portal Iceberg catalog, DuckDB iceberg
+  ext, FOURSQUARE_TOKEN in .env/Render; JWT expires monthly, renew on places.foursquare.com > OS Places > Access Data).
+  One ZIP = 1-7 s, ~400 MB, one read at a time (_lock), cached 12h; warmed at /setup/estimates with Overture. Searches
+  skip Overture places Foursquare marks closed and add its different phone as Other phone (other_phone_source).
+  closed.check_account runs foursquare.check_account monthly per lead (fsq_checked_at): closed -> removed/flagged.
+  Unreadable/expired token -> Overture only; /beta shows token_status 5 days before expiry. Test on Teri's ZIPs:
+  ~4% of matched places closed, ~8% different phone, Foursquare has ~55% of Overture's. scripts/fsq_test.py re-runs it.
+  Credit line in /privacy (Apache 2.0).
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

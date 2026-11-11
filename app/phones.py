@@ -62,5 +62,5 @@ def from_site(lead: Lead) -> bool:
     if not ours:
         lead.phone, lead.phone_source = site, "website"
     else:
-        lead.other_phone = site
+        lead.other_phone, lead.other_phone_source = site, "website"
     return True

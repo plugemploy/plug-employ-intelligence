@@ -7,6 +7,7 @@
 - No website, and Overture is unsure the place exists (confidence < NO_SITE_MIN_CONFIDENCE): removed (and new
   searches skip such places, overture._consider).
 - Website says the business closed (Claude, when scoring): flagged only; a person decides.
+- Foursquare's open data lists it as closed (app/foursquare.py, monthly): removed if untouched, else flagged.
 - Website taken over by spam (gambling words, website.looks_hijacked; or Claude says the site isn't the business's,
   scoring site_not_theirs): the lead stays, but its website link is removed (kept in bad_website and shown on the
   lead page as text), so it never reaches Close or a draft. Not "May be closed".
@@ -167,6 +168,12 @@ def check_account(db: Session, account_id: int, limit: int = CHECKS_PER_RUN, onl
     stats = {"checked": 0, "flagged": 0, "cleared": 0, "removed": 0}
     if not only_double_checks:
         stats["removed"] += remove_unsure_without_site(db, account_id)
+        from app import foursquare
+        try:
+            foursquare.check_account(db, account_id)  # monthly: Foursquare's closed list and phone numbers
+        except Exception:
+            log.exception("Foursquare check failed")
+            db.rollback()
     leads = due(db, account_id, limit, only_double_checks)
     if not leads:
         return stats

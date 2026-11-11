@@ -81,3 +81,11 @@ def _no_background_closed_checks(monkeypatch):
     """The "May be closed" second look (a few minutes after a search) never waits in a background thread in tests."""
     from app import closed
     monkeypatch.setattr(closed, "spawn", lambda fn, *a: None)
+
+
+@pytest.fixture(autouse=True)
+def _no_foursquare_reads(monkeypatch):
+    """Foursquare is never read online in tests unless a test supplies fake places."""
+    from app import foursquare
+    monkeypatch.setattr(foursquare, "fetch_zip", lambda zip_code: None)
+    monkeypatch.setattr(foursquare, "warm", lambda zips: None)
