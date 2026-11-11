@@ -15,7 +15,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import closed, limits
+from app import closed, limits, phones
 from app.models import Lead
 
 USER_AGENT = "PlugEmployIntelligence/0.1 (local business lead research)"
@@ -38,6 +38,10 @@ class _TextOnly(HTMLParser):
             href = dict(attrs).get("href") or ""
             if href:
                 self.links.append(href)
+            if href.lower().startswith("tel:"):  # the site's own "call us" link: noted so it's found first
+                digits = phones.key(href[4:])
+                if digits:
+                    self.parts.append(f" {phones.TEL_MARK}{digits[:3]}-{digits[3:6]}-{digits[6:]}] ")
         if tag in ("script", "style", "noscript", "svg"):
             self._skip += 1
 
@@ -299,6 +303,7 @@ def check_unchecked(db: Session, account_id: int, limit: int = 100) -> dict:
             lead.website_checked_at = datetime.now(timezone.utc)
             if status == "ok":
                 lead.score = None  # re-score with the website facts
+                phones.from_site(lead)
             closed.saw_site(lead, status)
             db.commit()
             stats["dead" if status.startswith("dead") else status] += 1

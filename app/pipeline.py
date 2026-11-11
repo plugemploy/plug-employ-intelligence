@@ -12,7 +12,7 @@ import anthropic
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app import closed, scoring, signals, website
+from app import closed, phones, scoring, signals, website
 from app.config import ANTHROPIC_API_KEY
 from app.models import Account, Lead
 from app.places import BudgetExceeded, check_budget
@@ -83,6 +83,7 @@ def run(db: Session, account_id: int, reasons: bool = False, limit: int = 1000) 
                     lead.website_checked_at = datetime.now(timezone.utc)
                     if out["site"][0] == "ok":
                         lead.score = None
+                        phones.from_site(lead)
                     closed.saw_site(lead, out["site"][0])
                     db.commit()
                     stats["read"] += 1

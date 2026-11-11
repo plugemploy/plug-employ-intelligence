@@ -171,4 +171,10 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   in free top 20, never sent to Close (close_crm.sendable/unsent_query/top_unsent). Deleted leads shows the reason;
   Restore or Still open = never flagged again. Checks: after each search (double_check_soon), nightly run, and
   closed.check_daily for accounts without a nightly run (in-memory, ~daily). Counts on /beta + CSV.
+- Other phone (2026-11-11, Teri found a wrong number): app/phones.py. When a site is first read (website.check_unchecked,
+  pipeline), a local number on it that isn't the lead's is saved as Lead.other_phone (tel: links first, via
+  html_to_text's "[phone: ...]" mark; fax and 800-type skipped). Main phone stays the map's (sites are often a
+  salon-suite building, franchise HQ or out-of-state loan officer); a lead with no phone gets the site's
+  (phone_source "website"). Both go to Close, CSV, search, dedupe; lead page shows both. Migration filled existing leads
+  from saved website_text.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

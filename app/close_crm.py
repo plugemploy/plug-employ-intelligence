@@ -153,6 +153,8 @@ def lead_body(lead: Lead, status_id: str) -> dict:
             contact["title"] = lead.contact_title
         if lead.phone:
             contact["phones"] = [{"phone": lead.phone, "type": "office"}]
+            if lead.other_phone:  # a second number to try (website vs map listing)
+                contact["phones"].append({"phone": lead.other_phone, "type": "other"})
         if lead.email:
             contact["emails"] = [{"email": lead.email, "type": "office"}]
         body["contacts"] = [contact]

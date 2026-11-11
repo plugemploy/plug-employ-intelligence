@@ -32,7 +32,7 @@ def find_duplicate(db: Session, account_id: int, business_name: str, zip_code: s
     if domain in SHARED_DOMAINS:
         domain = ""
     for lead in db.scalars(select(Lead).where(Lead.account_id == account_id).order_by(Lead.deleted_at.nulls_first(), Lead.id)):
-        if phone and _phone_key(lead.phone) == phone:
+        if phone and phone in (_phone_key(lead.phone), _phone_key(lead.other_phone or "")):
             return lead
         if domain and lead.website and site_domain(lead.website.lower()) == domain:
             return lead

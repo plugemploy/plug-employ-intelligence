@@ -341,7 +341,7 @@ def leads_list(request: Request, text: str = Query("", alias="q"), status: str =
             like = f"%{text.strip()}%"
             noted = select(LeadNote.lead_id).where(LeadNote.account_id == account.id, LeadNote.text.ilike(like))
             q = q.where(or_(Lead.business_name.ilike(like), Lead.contact_name.ilike(like), Lead.address.ilike(like),
-                            Lead.industry.ilike(like), Lead.phone.ilike(like), Lead.website.ilike(like),
+                            Lead.industry.ilike(like), Lead.phone.ilike(like), Lead.other_phone.ilike(like), Lead.website.ilike(like),
                             Lead.id.in_(noted)))
         if hide_contacted:
             q = q.where(Lead.last_emailed_at.is_(None))
@@ -419,13 +419,13 @@ def leads_csv(leads: list[Lead]):
     import io
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["Business", "Contact", "Contact title", "Email", "Phone", "Website", "Address", "ZIP", "Industry",
+    w.writerow(["Business", "Contact", "Contact title", "Email", "Phone", "Other phone", "Website", "Address", "ZIP", "Industry",
                 "Score", "Why this score", "Status", "Next follow-up", "Last emailed", "Monthly revenue $",
                 "Contract months", "Notes", "Date added"])
     for l in leads:
         notes = " | ".join(n.text for n in sorted(l.notes, key=lambda n: n.created_at))
         w.writerow([csv_cell(v) for v in (
-            l.business_name, l.contact_name, l.contact_title, l.email, l.phone, l.website, l.address, l.zip_code,
+            l.business_name, l.contact_name, l.contact_title, l.email, l.phone, l.other_phone, l.website, l.address, l.zip_code,
             l.industry, l.score, l.score_reason, l.status,
             l.next_follow_up.due_date if l.next_follow_up else "",
             l.last_emailed_at.date() if l.last_emailed_at else "", l.mrr, l.contract_months, notes,

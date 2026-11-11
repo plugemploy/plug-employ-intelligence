@@ -86,6 +86,9 @@ class Lead(Base):
     address: Mapped[str] = mapped_column(String(300), default="")
     zip_code: Mapped[str] = mapped_column(String(10), default="", index=True)
     phone: Mapped[str] = mapped_column(String(40), default="")
+    # A second number from the business's website (app/phones.py); phone stays the map listing's.
+    other_phone: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    phone_source: Mapped[str] = mapped_column(String(20), default="", server_default="")  # "website" when phone came from the site
     website: Mapped[str] = mapped_column(String(300), default="")
     industry: Mapped[str] = mapped_column(String(100), default="")
     status: Mapped[str] = mapped_column(String(30), default="New")

@@ -29,7 +29,8 @@
   {% if lead.last_emailed_at %}<p class="mt-1 inline-block rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs">Emailed · last on {{ lead.last_emailed_at.astimezone().strftime("%b %-d, %Y") }} ({{ lead.emailed_domain }})</p>{% endif %}
   <p class="text-slate-600 text-sm">{{ lead.industry }} · {{ lead.address }} {{ lead.zip_code }}
     {% if lead.rating %} · ★ {{ lead.rating }} ({{ lead.review_count }} reviews){% endif %}
-    {% if lead.phone %} · {{ lead.phone }}{% endif %}
+    {% if lead.phone %} · {{ lead.phone }}{% if lead.phone_source == "website" %} <span class="text-xs text-slate-500">(from their website)</span>{% elif lead.other_phone %} <span class="text-xs text-slate-500">(map listing)</span>{% endif %}{% endif %}
+    {% if lead.other_phone %} · Other phone: {{ lead.other_phone }} <span class="text-xs text-slate-500">(from their website)</span>{% endif %}
     {% if lead.website %} · <a href="{{ lead.website }}" target="_blank" rel="noopener" class="text-blue-700 hover:underline">website</a>{% endif %}
     {% if lead.email %} · <a href="mailto:{{ lead.email }}" class="text-blue-700 hover:underline">{{ lead.email }}</a>{% endif %}
     {% if lead.source == "import" %} · <span class="text-xs rounded bg-slate-100 px-1.5 py-0.5">imported client</span>{% endif %}
