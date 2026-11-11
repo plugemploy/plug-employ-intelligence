@@ -1,6 +1,6 @@
 {# "May be closed" tag with its reason and the two answers. Needs: l (the lead); optional back ("lead" to come back here). #}
 <div class="mt-1 text-xs">
-  <span class="inline-block rounded-full bg-slate-200 text-slate-700 px-2 py-0.5 font-semibold" title="We'll check again; nothing is removed unless you say so">⚠️ May be closed</span>
+  <span class="inline-block rounded-full bg-slate-200 text-slate-700 px-2 py-0.5 font-semibold" title="Not sent to Close. We'll check again; if it's still gone, it moves to Deleted leads (you can restore it)">⚠️ May be closed</span>
   <span class="text-slate-600">{{ l.closed_reason }}</span>
   <span class="inline-flex gap-2 ml-1 align-middle">
     <form method="post" action="/leads/{{ l.id }}/still-open" class="inline"><input type="hidden" name="back" value="{{ back or '' }}">

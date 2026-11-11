@@ -228,7 +228,7 @@ def spawn(fn, *args):
 def unsent_query(account_id: int):
     """Every lead this account could send to Close (see sendable), best scores first."""
     return select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.close_lead_id == "",
-                              Lead.status.not_in(OUTCOMES), Lead.phone != "").order_by(
+                              Lead.status.not_in(OUTCOMES), Lead.phone != "", Lead.closed_reason == "").order_by(
         Lead.score.desc().nulls_last(), Lead.review_count.desc().nulls_last(), Lead.id)
 
 
@@ -255,14 +255,15 @@ def send_in_background(account_id: int, lead_ids: list[int]) -> None:
 
 
 def sendable(lead: Lead) -> bool:
-    """Can this lead go to Close: not there yet, still open, and has a phone for the VA to call."""
-    return not lead.deleted_at and not lead.close_lead_id and lead.status not in OUTCOMES and bool(lead.phone)
+    """Can this lead go to Close: not there yet, still open, has a phone for the VA to call, not "May be closed"."""
+    return (not lead.deleted_at and not lead.close_lead_id and lead.status not in OUTCOMES and bool(lead.phone)
+            and not lead.closed_reason)
 
 
 def top_unsent(db: Session, account_id: int, min_score: int = 0, limit: int = TOP_N) -> list[Lead]:
     return db.scalars(select(Lead).where(
         Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.close_lead_id == "", Lead.status.not_in(OUTCOMES),
-        Lead.phone != "", Lead.score >= max(min_score, 1))
+        Lead.phone != "", Lead.score >= max(min_score, 1), Lead.closed_reason == "")
         .order_by(Lead.score.desc(), Lead.review_count.desc().nulls_last()).limit(limit)).all()
 
 

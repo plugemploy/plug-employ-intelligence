@@ -1,10 +1,17 @@
-""""May be closed": leads whose listed website is gone, or whose website says the business closed.
+""""May be closed": leads that are probably out of business (Overture's open data lags behind).
 
-Nothing is removed automatically. A flagged lead gets a grey "May be closed" tag with the reason, sorts below the
-open businesses and never takes a spot in a Free search's top 20. "Still open" clears the flag for good; "Closed"
-removes the lead. Only strong signs count: a website address that no longer exists, a homepage that's gone (404) or a
-"domain for sale" page, each seen twice a few minutes or more apart, or the website itself saying it closed.
-No website, a slow or blocked site, or an old copyright year never count.
+- Listed website is gone (address no longer exists, homepage 404, "domain for sale" page), seen twice a few
+  minutes or more apart: removed.
+- Website didn't load (timed out, refused, server error): flagged "May be closed" and looked at again a day later;
+  removed if it still doesn't load, cleared if it does. SSL, robots.txt and 401/403 never count (the site exists).
+- No website, and Overture is unsure the place exists (confidence < NO_SITE_MIN_CONFIDENCE): removed (and new
+  searches skip such places, overture._consider).
+- Website says the business closed (Claude, when scoring): flagged only; a person decides.
+
+Removed = moved to Deleted leads with closed_reason shown, and only leads nobody has worked on (removable: status
+New, not in Close, not an imported client, never marked Still open). Others are flagged instead. A flagged lead gets
+a grey tag, sorts last, never takes a spot in a Free search's top 20 and isn't sent to Close. "Still open" (or
+Restore) clears the flag for good; "Closed" removes the lead.
 """
 
 import logging
@@ -25,6 +32,12 @@ REASONS = {
     "dead_404": "Its website is gone (page not found)",
     "dead_parked": 'Its website is now a "domain for sale" page',
 }
+DOWN_ONCE = "Its website didn't load. We'll check again tomorrow"
+DOWN_TWICE = "Its website didn't load on two checks a day apart"
+NO_SITE = "No website, and the map data isn't sure it's still open"
+SITE_REASONS = (*REASONS.values(), DOWN_ONCE, DOWN_TWICE)  # cleared when the website works again
+NO_SITE_MIN_CONFIDENCE = 0.5  # a place with no website needs Overture at least this sure it's real
+DOWN_RECHECK = timedelta(hours=20)  # a website that didn't load is looked at again the next day
 SAYS = "Website says: "  # start of the reason when Claude read it on the site
 RECHECK_AFTER = timedelta(minutes=5)  # a gone website must still be gone this much later before the flag goes on
 FLAGGED_RECHECK = timedelta(days=7)  # flagged for a gone website: look again weekly; the flag comes off if it's back
@@ -44,18 +57,39 @@ def flag(lead: Lead, reason: str) -> None:
     lead.closed_flagged_at = lead.closed_flagged_at or now()
 
 
+def removable(lead: Lead) -> bool:
+    """Only leads nobody has worked on, so a business someone is talking to never disappears."""
+    return (lead.deleted_at is None and lead.status == "New" and not lead.close_lead_id and lead.source != "import"
+            and lead.open_confirmed_at is None)
+
+
+def flag_or_remove(lead: Lead, reason: str) -> None:
+    flag(lead, reason)
+    if lead.closed_reason and removable(lead):
+        lead.deleted_at = now()
+
+
 def saw_site(lead: Lead, status: str) -> None:
-    """After any look at the lead's website: start the double-check, flag on the second sighting, or clear a
-    gone-website flag when the site is back. "error" and "blocked" say nothing either way."""
+    """After any look at the lead's website: start the double-check, remove (or flag) on the second sighting, or
+    clear a website flag when the site is back. "error" and "blocked" say nothing either way."""
     lead.closed_checked_at = now()
     if status.startswith("dead"):
         if lead.dead_since is None:
             lead.dead_since = lead.closed_checked_at
         elif lead.closed_checked_at - lead.dead_since >= RECHECK_AFTER:
-            flag(lead, REASONS.get(status, REASONS["dead_404"]))
+            flag_or_remove(lead, REASONS.get(status, REASONS["dead_404"]))
+    elif status == "down":
+        if lead.down_since is None:
+            lead.down_since = lead.closed_checked_at
+            if not lead.closed_reason:
+                flag(lead, DOWN_ONCE)
+        elif lead.closed_checked_at - lead.down_since >= DOWN_RECHECK:
+            if lead.closed_reason in ("", DOWN_ONCE):
+                lead.closed_reason = ""
+                flag_or_remove(lead, DOWN_TWICE)
     elif status == "ok":
-        lead.dead_since = None
-        if lead.closed_reason in REASONS.values():
+        lead.dead_since = lead.down_since = None
+        if lead.closed_reason in SITE_REASONS:
             lead.closed_reason = ""
 
 
@@ -74,10 +108,14 @@ def due(db: Session, account_id: int, limit: int = CHECKS_PER_RUN, only_double_c
     t = now()
     base = (Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.website != "", Lead.website.is_not(None),
             Lead.open_confirmed_at.is_(None), Lead.status != "Sold")
-    groups = [(Lead.dead_since.is_not(None), Lead.closed_reason == "", Lead.dead_since <= t - RECHECK_AFTER)]
+    groups = [(Lead.dead_since.is_not(None), Lead.closed_reason.in_(("", DOWN_ONCE)), Lead.dead_since <= t - RECHECK_AFTER)]
     if not only_double_checks:
-        groups += [(Lead.closed_reason.in_(REASONS.values()), Lead.closed_checked_at <= t - FLAGGED_RECHECK),
+        groups += [(Lead.down_since.is_not(None), Lead.closed_reason.in_(("", DOWN_ONCE)), Lead.down_since <= t - DOWN_RECHECK),
+                   (Lead.closed_reason.in_(SITE_REASONS), Lead.closed_checked_at <= t - FLAGGED_RECHECK),
+                   (Lead.website_status == "error", Lead.closed_checked_at.is_(None), Lead.closed_reason == "",
+                    Lead.dead_since.is_(None), Lead.down_since.is_(None)),  # failed before these checks existed
                    (Lead.website_checked_at.is_not(None), Lead.closed_reason == "", Lead.dead_since.is_(None),
+                    Lead.down_since.is_(None),
                     or_(Lead.closed_checked_at.is_(None), Lead.closed_checked_at <= t - EVERY_LEAD_RECHECK))]
     leads, seen = [], set()
     for where in groups:
@@ -101,7 +139,9 @@ def _look(url: str) -> str:
 
 def check_account(db: Session, account_id: int, limit: int = CHECKS_PER_RUN, only_double_checks: bool = False) -> dict:
     """Look at the websites that are due (see due), several at once; each is saved as soon as it's read."""
-    stats = {"checked": 0, "flagged": 0, "cleared": 0}
+    stats = {"checked": 0, "flagged": 0, "cleared": 0, "removed": 0}
+    if not only_double_checks:
+        stats["removed"] += remove_unsure_without_site(db, account_id)
     leads = due(db, account_id, limit, only_double_checks)
     if not leads:
         return stats
@@ -111,13 +151,44 @@ def check_account(db: Session, account_id: int, limit: int = CHECKS_PER_RUN, onl
             lead, status = looking[future], future.result()
             was = lead.closed_reason
             saw_site(lead, status)
-            if status == "ok" or status.startswith("dead"):
+            if status in ("ok", "down") or status.startswith("dead"):
                 lead.website_status = status
             db.commit()
             stats["checked"] += 1
             stats["flagged"] += bool(lead.closed_reason and not was)
             stats["cleared"] += bool(was and not lead.closed_reason)
+            stats["removed"] += lead.deleted_at is not None
     return stats
+
+
+def remove_unsure_without_site(db: Session, account_id: int) -> int:
+    """Leads with no website that Overture isn't sure still exist."""
+    n = 0
+    for lead in db.scalars(select(Lead).where(
+            Lead.account_id == account_id, Lead.deleted_at.is_(None), or_(Lead.website == "", Lead.website.is_(None)),
+            Lead.source_confidence < NO_SITE_MIN_CONFIDENCE, Lead.closed_reason == "")):
+        if removable(lead):
+            flag_or_remove(lead, NO_SITE)
+            n += 1
+    db.commit()
+    return n
+
+
+_last_daily: dict[int, float] = {}  # account -> when check_daily last ran it (resets when the app restarts)
+
+
+def check_daily(account_ids: list[int]) -> None:
+    """Every account with leads, about once a day, whether or not its nightly search is on."""
+    from app.db import engine
+    for account_id in account_ids:
+        if time.time() - _last_daily.get(account_id, 0) < DOWN_RECHECK.total_seconds():
+            continue
+        _last_daily[account_id] = time.time()
+        try:
+            with Session(engine) as db:
+                check_account(db, account_id)
+        except Exception:
+            log.exception("May-be-closed check failed")
 
 
 def spawn(fn, *args):

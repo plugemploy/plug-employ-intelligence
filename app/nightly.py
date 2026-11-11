@@ -133,6 +133,9 @@ def check_and_run():
                 ids = due_accounts(db, datetime.now().astimezone())
             for account_id in ids:
                 run_for_account(account_id)
+            with Session(engine) as db:  # "May be closed" for every account, about once a day
+                with_leads = list(db.scalars(select(Lead.account_id).where(Lead.deleted_at.is_(None)).distinct()))
+            closed.check_daily([a for a in with_leads if a not in ids])
             if billing.configured():
                 with Session(engine) as db:
                     try:

@@ -42,6 +42,7 @@ def test_search_filters_dedupes_and_counts(acct, monkeypatch):
         place("o3", "Closed Dental", status="permanently_closed", phones=("+18655550103",)),
         place("o4", "Ghost Dental", confidence=0.1, phones=("+18655550104",)),           # unreliable
         place("o5", "No Contact Dental", phones=(), websites=()),                         # can't be reached
+        place("o8", "Unsure Dental", confidence=0.4, phones=("+18655550108",), websites=()),  # no site, unsure
         place("o6", "Corner Pizza", category="pizza_restaurant", basic="restaurant", phones=("+18655550106",)),
         place("o7", "Chain Dental", brand="Aspen Dental", phones=("+18655550107",),
               websites=("https://facebook.com/chain", "https://chaindental.com")),
@@ -49,7 +50,7 @@ def test_search_filters_dedupes_and_counts(acct, monkeypatch):
     monkeypatch.setattr(overture, "fetch_places", lambda z: fake)
     with Session(engine) as db:
         s = overture.search_and_save(db, acct, "37934", "Dentist")
-        assert (s["found"], s["added"], s["skipped_closed"], s["skipped_unreliable"], s["skipped_duplicate"]) == (6, 2, 1, 2, 1)
+        assert (s["found"], s["added"], s["skipped_closed"], s["skipped_unreliable"], s["skipped_duplicate"]) == (7, 2, 1, 3, 1)
         leads = {l.business_name: l for l in db.scalars(select(Lead).where(Lead.account_id == acct))}
         bright = leads["Bright Smiles Dental"]
         assert (bright.overture_id, bright.email, bright.status, bright.zip_code) == ("o1", "hi@brightsmiles.com", "New", "37934")

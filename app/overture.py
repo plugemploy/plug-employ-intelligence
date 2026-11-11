@@ -22,7 +22,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import overture_types
+from app import closed, overture_types
 from app.config import OVERTURE_PARALLEL
 from app.dedupe import find_duplicate
 from app.gmail import site_domain
@@ -233,7 +233,8 @@ def _consider(db: Session, account_id: int, p: dict, zip_code: str, industry: st
     if p["operating_status"] in CLOSED:
         stats["skipped_closed"] += 1
         return False
-    if p["confidence"] < MIN_CONFIDENCE or not (phone or website):
+    if p["confidence"] < MIN_CONFIDENCE or not (phone or website) or (
+            not website and p["confidence"] < closed.NO_SITE_MIN_CONFIDENCE):  # no website: needs to be surer
         stats["skipped_unreliable"] += 1
         return False
     if p["id"] in known:
@@ -263,8 +264,9 @@ _counts: dict[tuple[str, str], dict[str, tuple[set, set]]] = {}  # (release, zip
 
 
 def _reliable(p: dict) -> bool:
-    return (p["operating_status"] not in CLOSED and p["confidence"] >= MIN_CONFIDENCE
-            and bool(p["phones"] or _website(p["websites"])))
+    website = _website(p["websites"])
+    return (p["operating_status"] not in CLOSED and p["confidence"] >= MIN_CONFIDENCE and bool(p["phones"] or website)
+            and (bool(website) or p["confidence"] >= closed.NO_SITE_MIN_CONFIDENCE))
 
 
 def _zip_counts(zip_code: str, types: list[str]) -> dict[str, tuple[set, set]]:

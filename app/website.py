@@ -112,6 +112,19 @@ def dead_status(error: Exception | None = None, page_url: str = "", text: str = 
     return ""
 
 
+def down_status(error: Exception | None) -> str:
+    """ "down" when the website didn't load at all (timed out, refused, or a server error), else "". Certificate
+    problems and "not allowed" answers don't count: the site is there."""
+    if isinstance(error, httpx.TimeoutException):
+        return "down"
+    if isinstance(error, httpx.ConnectError):
+        msg = str(error).lower()
+        return "" if "ssl" in msg or "certificate" in msg else "down"
+    if isinstance(error, httpx.HTTPStatusError) and error.response.status_code >= 500:
+        return "down"
+    return ""
+
+
 def robots_allows(url: str, client: httpx.Client) -> bool:
     parts = urlsplit(url)
     robots_url = f"{parts.scheme}://{parts.netloc}/robots.txt"
@@ -150,7 +163,7 @@ def fetch_site(url: str) -> tuple[str, str, str]:
             r = client.get(url)
             r.raise_for_status()
         except httpx.HTTPError as exc:
-            return dead_status(exc) or "error", "", ""
+            return dead_status(exc) or down_status(exc) or "error", "", ""
         if "html" not in r.headers.get("content-type", ""):
             return "error", "", ""
         html = r.text[:MAX_BYTES]
@@ -215,7 +228,7 @@ def read_site(url: str) -> tuple[str, str, str, str, str]:
             r = client.get(url)
             r.raise_for_status()
         except httpx.HTTPError as exc:
-            return dead_status(exc) or "error", "", "", "", ""
+            return dead_status(exc) or down_status(exc) or "error", "", "", "", ""
         if "html" not in r.headers.get("content-type", ""):
             return "error", "", "", "", ""
         html = r.text[:MAX_BYTES]
@@ -254,7 +267,7 @@ def site_status(url: str) -> str:
             r = client.get(url)
             r.raise_for_status()
         except httpx.HTTPError as exc:
-            return dead_status(exc) or "error"
+            return dead_status(exc) or down_status(exc) or "error"
         if "html" not in r.headers.get("content-type", ""):
             return "error"
         return dead_status(page_url=str(r.url), text=html_to_text(r.text[:MAX_BYTES])) or "ok"
@@ -273,7 +286,7 @@ def _read(url: str) -> tuple[str, str, str]:
 def check_unchecked(db: Session, account_id: int, limit: int = 100) -> dict:
     """Read the homepage of leads not checked yet, several sites at once; each is saved as soon as it's read.
     Clears their score so Claude re-scores with it."""
-    stats = {"ok": 0, "no_site": 0, "blocked": 0, "error": 0, "dead": 0}
+    stats = {"ok": 0, "no_site": 0, "blocked": 0, "error": 0, "down": 0, "dead": 0}
     leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.website_checked_at.is_(None))
                        .order_by(Lead.score.desc().nulls_first(), Lead.id).limit(limit)).all()
     if not leads:

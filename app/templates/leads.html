@@ -137,7 +137,7 @@
         {% if has_close %}<td class="p-3">{% if l.close_lead_id %}<span class="text-xs text-emerald-700" title="Already in Close"><span aria-hidden="true">✓</span><span class="sr-only">Already in Close</span></span>
           {% elif close_sendable(l) %}<input type="checkbox" name="lead_ids" value="{{ l.id }}" form="close-pick" data-score="{{ l.score or 0 }}"
             class="close-box" aria-label="Send {{ l.business_name }} to Close">
-          {% else %}<input type="checkbox" disabled title="{{ 'No phone number' if not l.phone else 'Already closed out' }}" aria-label="{{ l.business_name }}: can't send to Close ({{ 'no phone number' if not l.phone else 'already closed out' }})">{% endif %}</td>{% endif %}
+          {% else %}{% set why = 'no phone number' if not l.phone else 'may be closed' if l.closed_reason else 'already closed out' %}<input type="checkbox" disabled title="{{ why|capitalize }}" aria-label="{{ l.business_name }}: can't send to Close ({{ why }})">{% endif %}</td>{% endif %}
         <td class="p-3" title="{{ l.score_reason }}">{% if l.score %}<span aria-label="Score {{ l.score }} of 10" class="inline-block w-8 text-center rounded font-bold
           {{ 'bg-green-100 text-green-800' if l.score >= 8 else 'bg-amber-100 text-amber-800' if l.score >= 5 else 'bg-slate-100 text-slate-600' }}">{{ l.score }}</span>{% endif %}</td>
         <td class="p-3"><a href="/leads/{{ l.id }}" class="font-medium text-blue-700 hover:underline">{{ l.business_name }}</a>

@@ -79,12 +79,13 @@ def test_a_gone_website_is_flagged_only_on_a_later_second_look(ids):
 def test_check_account_double_checks_and_sweeps(ids, monkeypatch):
     monkeypatch.setattr(website, "site_status", lambda url: "dead_parked" if "gone" in url else "ok")
     with Session(engine) as db:
-        assert closed.check_account(db, ids["a"]) == {"checked": 2, "flagged": 0, "cleared": 0}  # not the sold one
+        assert closed.check_account(db, ids["a"]) == {"checked": 2, "flagged": 0, "cleared": 0, "removed": 0}  # not the sold one
         db.get(Lead, ids["gone"]).dead_since -= closed.RECHECK_AFTER
         db.commit()
-        assert closed.check_account(db, ids["a"], only_double_checks=True)["flagged"] == 1
+        assert closed.check_account(db, ids["a"], only_double_checks=True)["removed"] == 1
         lead = db.get(Lead, ids["gone"])
         assert lead.closed_reason.startswith("Its website is now") and lead.website_status == "dead_parked"
+        assert lead.deleted_at  # nobody had worked on it: moved to Deleted leads
         assert closed.check_account(db, ids["a"])["checked"] == 0  # nothing due again until next week/month
         assert db.get(Lead, ids["phone"]).closed_reason == ""  # no website is never a sign
 
@@ -136,3 +137,78 @@ def test_flagged_leads_never_take_a_free_top_spot(ids, monkeypatch):
         db.commit()
         locked = plans.locked_ids(db, db.get(Account, ids["a"]))
     assert ids["gone"] in locked and ids["open"] not in locked and ids["sold"] not in locked
+
+
+def test_didnt_load_is_down_but_ssl_and_refusals_are_not():
+    request = httpx.Request("GET", "https://x.test")
+    assert website.down_status(httpx.ReadTimeout("slow", request=request)) == "down"
+    assert website.down_status(httpx.ConnectError("[Errno 61] Connection refused", request=request)) == "down"
+    server = httpx.HTTPStatusError("503", request=request, response=httpx.Response(503, request=request))
+    assert website.down_status(server) == "down"
+    ssl = httpx.ConnectError("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed", request=request)
+    blocked = httpx.HTTPStatusError("403", request=request, response=httpx.Response(403, request=request))
+    assert website.down_status(ssl) == website.down_status(blocked) == ""
+
+
+def test_down_twice_a_day_apart_removes_untouched_leads_only(ids):
+    with Session(engine) as db:
+        lead, worked = db.get(Lead, ids["gone"]), db.get(Lead, ids["open"])
+        worked.status = "Contacted"
+        for l in (lead, worked):
+            closed.saw_site(l, "down")
+            assert l.closed_reason == closed.DOWN_ONCE and not l.deleted_at  # labelled, checked again tomorrow
+            closed.saw_site(l, "down")
+            assert not l.deleted_at  # minutes later doesn't count
+            l.down_since -= closed.DOWN_RECHECK
+            closed.saw_site(l, "down")
+            assert l.closed_reason == closed.DOWN_TWICE
+        assert lead.deleted_at and not worked.deleted_at  # someone is talking to that one: flagged only
+        closed.saw_site(worked, "ok")
+        assert worked.closed_reason == "" and worked.down_since is None
+
+
+def test_unsure_places_without_a_website_are_removed(ids):
+    with Session(engine) as db:
+        unsure = Lead(account_id=ids["a"], business_name="Maybe Lawn Care", phone="865-555-0111", source_confidence=0.3)
+        sure = Lead(account_id=ids["a"], business_name="Sure Lawn Care", phone="865-555-0112", source_confidence=0.8)
+        called = Lead(account_id=ids["a"], business_name="Called Lawn Care", phone="865-555-0113", source_confidence=0.3,
+                      status="Contacted")
+        db.add_all([unsure, sure, called])
+        db.commit()
+        assert closed.remove_unsure_without_site(db, ids["a"]) == 1
+        assert unsure.deleted_at and unsure.closed_reason == closed.NO_SITE
+        assert not sure.deleted_at and not called.deleted_at and not db.get(Lead, ids["phone"]).deleted_at
+
+
+def test_removed_leads_show_why_and_restoring_keeps_them(ids):
+    with Session(engine) as db:
+        lead = db.get(Lead, ids["gone"])
+        lead.dead_since = datetime.now(timezone.utc) - closed.RECHECK_AFTER
+        closed.saw_site(lead, "dead_dns")
+        db.commit()
+        assert lead.deleted_at
+    c = TestClient(app)
+    login_as(c, ids["a"])
+    assert "Gone Gym" not in c.get("/leads").text
+    assert "Removed as probably closed: Its website address no longer exists" in c.get("/leads/deleted").text
+    c.post(f"/leads/{ids['gone']}/restore")
+    with Session(engine) as db:
+        lead = db.get(Lead, ids["gone"])
+        assert not lead.deleted_at and lead.open_confirmed_at and lead.closed_reason == ""
+        closed.saw_site(lead, "dead_dns")
+        lead.dead_since -= closed.RECHECK_AFTER
+        closed.saw_site(lead, "dead_dns")
+        assert not lead.deleted_at and lead.closed_reason == ""  # restored means open, for good
+
+
+def test_may_be_closed_leads_are_not_sent_to_close(ids):
+    from app import close_crm
+    with Session(engine) as db:
+        lead, other = db.get(Lead, ids["gone"]), db.get(Lead, ids["open"])
+        lead.phone, other.phone = "865-555-0120", "865-555-0121"
+        lead.status = "Contacted"  # kept, but flagged
+        closed.flag(lead, closed.DOWN_TWICE)
+        db.commit()
+        assert not close_crm.sendable(lead) and close_crm.sendable(other)
+        unsent = {l.id for l in db.scalars(close_crm.unsent_query(ids["a"]))}
+        assert ids["open"] in unsent and ids["gone"] not in unsent

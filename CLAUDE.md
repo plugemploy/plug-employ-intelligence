@@ -161,10 +161,14 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   marks a lead down for its type; any target ZIP counts fully; locally owned franchise offices (realtors, home
   services) count like independents; few reviews / no site text aren't reasons for low scores. A real local
   target-type lead starts at 7; 8+ needs a growth sign. Existing leads keep old scores until re-scored.
-- May be closed (2026-11-02): app/closed.py flags (never removes) leads whose listed website is gone (website.dead_status:
-  DNS name gone, homepage 404/410, "domain for sale" page; seen twice >= 5 min apart) or whose site says it closed
-  (scoring LeadScore.closed_sign). Grey "⚠️ May be closed" tag + reason (_maybe_closed.html), sorted last, never in a free
-  top 20 (plans.locked_ids). Still open (final) / Closed (deletes, closed_reported_at) buttons; "🚪 Business closed" on any
-  lead. Checks: after each search (closed.double_check_soon), nightly closed.check_account (second looks, weekly re-look
-  of flagged, monthly light look via website.site_status). No website / slow / blocked / SSL never count. Counts on /beta + CSV.
+- May be closed (2026-11-02 branch, merged with removal 2026-11-11 after Teri Preas found ~300 of 900 leads closed in
+  75032/75087/75189): app/closed.py. Listed website gone (website.dead_status: DNS gone, 404/410, "domain for sale";
+  seen twice >= 5 min apart) -> removed. Didn't load (website.down_status: timeout, refused, 5xx; not SSL/401/403)
+  -> flagged, looked at again >= 20h later (down_since), removed if still down, cleared if back. No website + Overture
+  confidence < 0.5 -> removed, and searches skip such places (overture._consider/_reliable). Site says it closed
+  (scoring closed_sign) -> flagged only. "Removed" = deleted_at + closed_reason, only if closed.removable (status New,
+  not in Close, not import, never Still open); else flagged. Flagged: grey tag (_maybe_closed.html), sorted last, not
+  in free top 20, never sent to Close (close_crm.sendable/unsent_query/top_unsent). Deleted leads shows the reason;
+  Restore or Still open = never flagged again. Checks: after each search (double_check_soon), nightly run, and
+  closed.check_daily for accounts without a nightly run (in-memory, ~daily). Counts on /beta + CSV.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

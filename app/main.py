@@ -531,6 +531,8 @@ def lead_closed(lead_id: int, db: Session = Depends(get_session), account=Depend
 def restore_lead(lead_id: int, db: Session = Depends(get_session), account=Depends(current_account)):
     lead = get_lead(db, account, lead_id)
     lead.deleted_at = None
+    if lead.closed_reason:  # removed as probably closed, and someone says it isn't: never flagged again
+        lead.open_confirmed_at, lead.closed_reason, lead.dead_since, lead.down_since = datetime.now(timezone.utc), "", None, None
     db.commit()
     return RedirectResponse(f"/leads/{lead.id}", status_code=303)
 

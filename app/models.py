@@ -123,8 +123,8 @@ class Lead(Base):
     score: Mapped[int | None] = mapped_column(Integer, index=True)
     score_reason: Mapped[str] = mapped_column(Text, default="")
     scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # Website check: "ok", "no_site", "blocked" (robots.txt says no), "error" (slow, odd or refused: says nothing about
-    # the business) or "dead_dns" / "dead_404" / "dead_parked" (the listed website is gone: see app/closed.py).
+    # Website check: "ok", "no_site", "blocked" (robots.txt says no), "error" (odd page, SSL or 401/403: says nothing
+    # about the business), "down" (timed out, refused or a server error: looked at again the next day) or "dead_dns" / "dead_404" / "dead_parked" (the listed website is gone: see app/closed.py).
     website_status: Mapped[str | None] = mapped_column(String(20))
     website_text: Mapped[str] = mapped_column(Text, default="", server_default="")
     website_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -139,6 +139,7 @@ class Lead(Base):
     closed_reason: Mapped[str] = mapped_column(String(300), default="", server_default="")
     closed_flagged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     dead_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    down_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # first time the website didn't load
     closed_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # last look at a gone website
     open_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     closed_reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
