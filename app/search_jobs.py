@@ -13,7 +13,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import gmail, overture, pipeline, places, plans, scoring, signals
+from app import closed, gmail, overture, pipeline, places, plans, scoring, signals
 from app.config import ANTHROPIC_API_KEY
 from app.db import engine
 from app.models import Account, SearchJob
@@ -106,6 +106,7 @@ def run(job_id: int) -> None:
                     db.rollback()
             job.status = "done"
             reasons_after_free_search(db, job.account_id)
+            closed.double_check_soon(job.account_id)  # gone websites get their second look in a few minutes
         except places.BudgetExceeded as exc:
             db.rollback()
             job.status, job.error = "error", str(exc) + " Search stopped."

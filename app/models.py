@@ -123,7 +123,8 @@ class Lead(Base):
     score: Mapped[int | None] = mapped_column(Integer, index=True)
     score_reason: Mapped[str] = mapped_column(Text, default="")
     scored_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # Website check: "ok", "no_site", "blocked" (robots.txt says no) or "error".
+    # Website check: "ok", "no_site", "blocked" (robots.txt says no), "error" (slow, odd or refused: says nothing about
+    # the business) or "dead_dns" / "dead_404" / "dead_parked" (the listed website is gone: see app/closed.py).
     website_status: Mapped[str | None] = mapped_column(String(20))
     website_text: Mapped[str] = mapped_column(Text, default="", server_default="")
     website_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -132,6 +133,15 @@ class Lead(Base):
     contact_name: Mapped[str] = mapped_column(String(200), default="", server_default="")
     contact_title: Mapped[str] = mapped_column(String(100), default="", server_default="")
     founded_year: Mapped[int | None] = mapped_column(Integer)  # only when the business's own website states it
+    # "May be closed" (app/closed.py): closed_reason is set while the flag is on. dead_since is the first time the
+    # listed website looked gone (flagged only if it still is on a later check). "Still open" sets open_confirmed_at
+    # (never flagged again); "Closed" sets closed_reported_at and removes the lead.
+    closed_reason: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    closed_flagged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dead_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # last look at a gone website
+    open_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     signals_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # last look for news
     # From the Gmail check: latest email to/from the business's website domain.
     last_emailed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

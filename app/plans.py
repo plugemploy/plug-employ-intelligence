@@ -49,15 +49,16 @@ FREE_SHOWN = 20  # a Free search shows its best-scored leads in full
 
 
 def locked_ids(db: Session, account: Account | None) -> set[int]:
-    """Leads a Free search company can't open until it subscribes: everything past its top FREE_SHOWN by score.
+    """Leads a Free search company can't open until it subscribes: everything past its top FREE_SHOWN by score
+    (leads flagged "May be closed" count after all the others).
     Deleted leads keep their place, so deleting a lead never unlocks another."""
     from sqlalchemy import select
     from app.models import Lead
     org = _org(db, account) if account else None
     if org is None or org.plan_tier != "free":
         return set()
-    ids = db.scalars(select(Lead.id).where(Lead.account_id == account.id)
-                     .order_by(Lead.score.desc().nulls_last(), Lead.id)).all()
+    ids = db.scalars(select(Lead.id).where(Lead.account_id == account.id)  # "May be closed" never takes a top spot
+                     .order_by(Lead.closed_reason != "", Lead.score.desc().nulls_last(), Lead.id)).all()
     return set(ids[FREE_SHOWN:])
 
 

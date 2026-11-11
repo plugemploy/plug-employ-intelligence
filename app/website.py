@@ -15,7 +15,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app import limits
+from app import closed, limits
 from app.models import Lead
 
 USER_AGENT = "PlugEmployIntelligence/0.1 (local business lead research)"
@@ -83,6 +83,35 @@ def find_about_link(html: str, page_url: str, words: tuple[str, ...] = ABOUT_WOR
     return ""
 
 
+# A listed website that's gone for good (a strong sign the business may be closed). Slow, refused, blocked or
+# certificate-error sites don't count: plenty of open businesses have those.
+PARKED_WORDS = ("domain is for sale", "domain may be for sale", "buy this domain", "this domain is for sale",
+                "domain has expired", "this domain is parked", "parked free", "domain name is for sale",
+                "inquire about this domain", "make an offer on this domain", "this webpage is parked")
+PARKING_HOSTS = ("hugedomains.com", "sedo.com", "sedoparking.com", "dan.com", "afternic.com", "parkingcrew.net",
+                 "bodis.com", "domainmarket.com", "undeveloped.com", "parklogic.com", "above.com")
+NO_SUCH_NAME = ("name or service not known", "nodename nor servname", "getaddrinfo failed", "no address associated",
+                "temporary failure in name resolution", "name does not resolve", "[errno -2]", "[errno 8]", "[errno 11001]")
+
+
+def dead_status(error: Exception | None = None, page_url: str = "", text: str = "") -> str:
+    """ "dead_dns" (the address no longer exists), "dead_404" (the homepage is gone) or "dead_parked" (a "domain
+    for sale" page), else "". Pass the error from fetching the homepage, or the page it landed on and its text."""
+    if isinstance(error, httpx.ConnectError):
+        msg = str(error).lower()
+        if "ssl" not in msg and "certificate" not in msg and any(w in msg for w in NO_SUCH_NAME):
+            return "dead_dns"
+    if isinstance(error, httpx.HTTPStatusError) and error.response.status_code in (404, 410):
+        return "dead_404"
+    host = (urlsplit(page_url).hostname or "").removeprefix("www.")
+    if any(host == h or host.endswith("." + h) for h in PARKING_HOSTS):
+        return "dead_parked"
+    low = text[:3000].lower()
+    if len(low) < 3000 and any(w in low for w in PARKED_WORDS):  # parking pages are short
+        return "dead_parked"
+    return ""
+
+
 def robots_allows(url: str, client: httpx.Client) -> bool:
     parts = urlsplit(url)
     robots_url = f"{parts.scheme}://{parts.netloc}/robots.txt"
@@ -120,12 +149,14 @@ def fetch_site(url: str) -> tuple[str, str, str]:
         try:
             r = client.get(url)
             r.raise_for_status()
-        except httpx.HTTPError:
-            return "error", "", ""
+        except httpx.HTTPError as exc:
+            return dead_status(exc) or "error", "", ""
         if "html" not in r.headers.get("content-type", ""):
             return "error", "", ""
         html = r.text[:MAX_BYTES]
         text = html_to_text(html)
+        if dead := dead_status(page_url=str(r.url), text=text):
+            return dead, "", ""
         if not text:
             return "error", "", ""  # unreadable page
         about = find_about_link(html, str(r.url))
@@ -183,12 +214,14 @@ def read_site(url: str) -> tuple[str, str, str, str, str]:
         try:
             r = client.get(url)
             r.raise_for_status()
-        except httpx.HTTPError:
-            return "error", "", "", "", ""
+        except httpx.HTTPError as exc:
+            return dead_status(exc) or "error", "", "", "", ""
         if "html" not in r.headers.get("content-type", ""):
             return "error", "", "", "", ""
         html = r.text[:MAX_BYTES]
         text = html_to_text(html)
+        if dead := dead_status(page_url=str(r.url), text=text):
+            return dead, "", "", "", ""
         if not text:
             return "error", "", "", "", ""  # unreadable page
 
@@ -207,6 +240,26 @@ def read_site(url: str) -> tuple[str, str, str, str, str]:
         return "ok", about_text or text, about if about_text else "", news_text or text, news if news_text else ""
 
 
+@limits.website
+def site_status(url: str) -> str:
+    """A light look at the homepage only, for the "May be closed" checks: "ok", "no_site", "blocked", "error" or a
+    dead_* status. Same rules as fetch_site. Kept separate so tests can replace it."""
+    url = full_url(url)
+    if not url:
+        return "no_site"
+    with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=10, follow_redirects=True) as client:
+        if not robots_allows(url, client):
+            return "blocked"
+        try:
+            r = client.get(url)
+            r.raise_for_status()
+        except httpx.HTTPError as exc:
+            return dead_status(exc) or "error"
+        if "html" not in r.headers.get("content-type", ""):
+            return "error"
+        return dead_status(page_url=str(r.url), text=html_to_text(r.text[:MAX_BYTES])) or "ok"
+
+
 PARALLEL = 8  # websites read at once (each is a different site, so this is still one request at a time per site)
 
 
@@ -220,7 +273,7 @@ def _read(url: str) -> tuple[str, str, str]:
 def check_unchecked(db: Session, account_id: int, limit: int = 100) -> dict:
     """Read the homepage of leads not checked yet, several sites at once; each is saved as soon as it's read.
     Clears their score so Claude re-scores with it."""
-    stats = {"ok": 0, "no_site": 0, "blocked": 0, "error": 0}
+    stats = {"ok": 0, "no_site": 0, "blocked": 0, "error": 0, "dead": 0}
     leads = db.scalars(select(Lead).where(Lead.account_id == account_id, Lead.deleted_at.is_(None), Lead.website_checked_at.is_(None))
                        .order_by(Lead.score.desc().nulls_first(), Lead.id).limit(limit)).all()
     if not leads:
@@ -233,6 +286,7 @@ def check_unchecked(db: Session, account_id: int, limit: int = 100) -> dict:
             lead.website_checked_at = datetime.now(timezone.utc)
             if status == "ok":
                 lead.score = None  # re-score with the website facts
+            closed.saw_site(lead, status)
             db.commit()
-            stats[status] += 1
+            stats["dead" if status.startswith("dead") else status] += 1
     return stats

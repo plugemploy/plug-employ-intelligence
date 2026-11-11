@@ -161,4 +161,10 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   marks a lead down for its type; any target ZIP counts fully; locally owned franchise offices (realtors, home
   services) count like independents; few reviews / no site text aren't reasons for low scores. A real local
   target-type lead starts at 7; 8+ needs a growth sign. Existing leads keep old scores until re-scored.
+- May be closed (2026-11-02): app/closed.py flags (never removes) leads whose listed website is gone (website.dead_status:
+  DNS name gone, homepage 404/410, "domain for sale" page; seen twice >= 5 min apart) or whose site says it closed
+  (scoring LeadScore.closed_sign). Grey "⚠️ May be closed" tag + reason (_maybe_closed.html), sorted last, never in a free
+  top 20 (plans.locked_ids). Still open (final) / Closed (deletes, closed_reported_at) buttons; "🚪 Business closed" on any
+  lead. Checks: after each search (closed.double_check_soon), nightly closed.check_account (second looks, weekly re-look
+  of flagged, monthly light look via website.site_status). No website / slow / blocked / SSL never count. Counts on /beta + CSV.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

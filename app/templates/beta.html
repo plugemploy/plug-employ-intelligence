@@ -46,6 +46,14 @@
   </div>
   {% endif %}
 </section>
+{% if maybe_closed.flagged or maybe_closed.reported %}
+<section class="mb-6 rounded-xl bg-white shadow p-4 text-sm">
+  <h2 class="font-semibold mb-1">⚠️ "May be closed" check (everyone but you)</h2>
+  <p>{{ maybe_closed.flagged }} lead{{ "s" if maybe_closed.flagged != 1 }} flagged. Customers marked <b>{{ maybe_closed.still_open }}</b> of
+    them still open (the check was wrong) and <b>{{ maybe_closed.reported }}</b> lead{{ "s" if maybe_closed.reported != 1 }} closed, flagged or not.</p>
+  <p class="text-xs text-slate-500 mt-1">Many "still open" answers mean the check is too strict; many closed leads that weren't flagged mean it misses some.</p>
+</section>
+{% endif %}
 <h2 class="text-lg font-semibold mb-3">Beta testers</h2>
 {% if totals %}
 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
@@ -95,7 +103,9 @@
       <td class="p-3 whitespace-nowrap">{% if r.active %}{{ r.active }}<span class="block text-xs text-slate-500">{{ r.visits }} visit{{ "s" if r.visits != 1 }}
           {%- if r.last_seen %} · last {{ r.last_seen.astimezone().strftime("%b %-d") }}{% endif %}</span>{% else %}—{% endif %}</td>
       <td class="p-3 whitespace-nowrap"><b>{{ "{:,}".format(r.leads_found) }}</b>
-        <span class="block text-xs text-slate-500">{{ r.leads_high }} scored 8+{% if r.leads_week %} · {{ r.leads_week }} this week{% endif %}</span></td>
+        <span class="block text-xs text-slate-500">{{ r.leads_high }} scored 8+{% if r.leads_week %} · {{ r.leads_week }} this week{% endif %}</span>
+        {% if r.maybe_closed or r.reported_closed %}<span class="block text-xs text-slate-500">⚠️ {{ r.maybe_closed }} may be closed
+          · {{ r.still_open }} still open · {{ r.reported_closed }} closed</span>{% endif %}</td>
       <td class="p-3">{{ r.contacted }}</td><td class="p-3">{{ r.appts_set }}</td><td class="p-3">{{ r.appts_shown }}</td>
       <td class="p-3 font-semibold text-green-700">{{ r.sold }}</td>
       <td class="p-3">${{ "{:,.0f}".format(r.mrr) }}</td><td class="p-3">${{ "{:,.0f}".format(r.contract_value) }}</td>
