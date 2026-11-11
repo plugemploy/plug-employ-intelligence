@@ -94,13 +94,19 @@ PARKED_WORDS = ("domain is for sale", "domain may be for sale", "buy this domain
                 "inquire about this domain", "make an offer on this domain", "this webpage is parked")
 PARKING_HOSTS = ("hugedomains.com", "sedo.com", "sedoparking.com", "dan.com", "afternic.com", "parkingcrew.net",
                  "bodis.com", "domainmarket.com", "undeveloped.com", "parklogic.com", "above.com")
+# A lapsed domain bought by a spammer: the business's old address now shows gambling ads (often Indonesian slot
+# sites). Two different words are needed, so one passing mention never counts.
+SPAM_WORDS = ("slot gacor", "judi", "togel", "situs slot", "slot online", "maxwin", "rtp slot", "rtp live", "sbobet",
+              "pragmatic play", "casino online", "online casino", "sports betting", "deposit pulsa", "scatter hitam",
+              "free spins", "poker online", "sabung ayam", "link alternatif", "bandar togel", "slot88", "gacor",
+              "no deposit bonus", "betting odds")
 NO_SUCH_NAME = ("name or service not known", "nodename nor servname", "getaddrinfo failed", "no address associated",
                 "temporary failure in name resolution", "name does not resolve", "[errno -2]", "[errno 8]", "[errno 11001]")
 
 
 def dead_status(error: Exception | None = None, page_url: str = "", text: str = "") -> str:
-    """ "dead_dns" (the address no longer exists), "dead_404" (the homepage is gone) or "dead_parked" (a "domain
-    for sale" page), else "". Pass the error from fetching the homepage, or the page it landed on and its text."""
+    """ "dead_dns" (the address no longer exists), "dead_404" (the homepage is gone), "dead_parked" (a "domain
+    for sale" page) or "dead_hijacked" (gambling spam on the old address), else "". Pass the error from fetching the homepage, or the page it landed on and its text."""
     if isinstance(error, httpx.ConnectError):
         msg = str(error).lower()
         if "ssl" not in msg and "certificate" not in msg and any(w in msg for w in NO_SUCH_NAME):
@@ -113,7 +119,14 @@ def dead_status(error: Exception | None = None, page_url: str = "", text: str = 
     low = text[:3000].lower()
     if len(low) < 3000 and any(w in low for w in PARKED_WORDS):  # parking pages are short
         return "dead_parked"
+    if looks_hijacked(text):
+        return "dead_hijacked"
     return ""
+
+
+def looks_hijacked(text: str) -> bool:
+    low = (text or "").lower()
+    return sum(1 for w in SPAM_WORDS if w in low) >= 2
 
 
 def down_status(error: Exception | None) -> str:

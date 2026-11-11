@@ -64,6 +64,11 @@ operating or become part of another company, quote those words briefly (under 15
 empty string. Holiday or seasonal closures, changed hours, moving to a new address, one closed location of a
 business that's still open, or simply an old-looking website don't count.
 
+Not their website: if the website text is clearly not this business's own site (gambling, casino or slot ads,
+adult content, pills, or a different business altogether, often because the old web address was taken over), say
+what it shows in a few words (e.g. "gambling ads") and judge the lead as if it had no website; otherwise return an
+empty string. A shared building, franchise or directory page that still lists this business doesn't count.
+
 Contact: if the website text explicitly names the business's owner, founder, president, lead doctor or a
 manager (general, office or practice manager), give that person's name and title as written there, preferring
 the owner over a manager. Never guess or infer a name; if none is clearly stated, return empty strings."""
@@ -128,6 +133,7 @@ class LeadScore(BaseModel):
     founded_year: int | None = None  # only when the website clearly states it
     industry: str = ""  # only when the lead had none (e.g. an imported client)
     closed_sign: str = ""  # the website's own words saying the business closed, else ""
+    site_not_theirs: str = ""  # what the website shows when it isn't the business's own (e.g. "gambling ads"), else ""
 
 
 def describe(lead: Lead) -> str:
@@ -218,16 +224,19 @@ def score_unscored(db: Session, account_id: int, limit: int = 100) -> dict:
 def save(db: Session, lead: Lead, result: LeadScore, cost: float) -> None:
     """Save one score (and what Claude read off the website) and log its cost."""
     lead.score, lead.score_reason = result.score, result.reason
-    if lead.website_text and result.contact_name.strip():
+    own_site = bool(lead.website_text) and not result.site_not_theirs.strip()  # facts from a spam page don't count
+    if own_site and result.contact_name.strip():
         lead.contact_name = result.contact_name.strip()[:200]
         lead.contact_title = result.contact_title.strip()[:100]
     if not lead.industry and result.industry.strip():
         lead.industry = result.industry.strip()[:100]
     year = result.founded_year
-    if lead.website_text and year and 1800 <= year <= datetime.now().year:
+    if own_site and year and 1800 <= year <= datetime.now().year:
         lead.founded_year = year
     if lead.website_text:
         closed.saw_closing_words(lead, result.closed_sign)
+        if not result.closed_sign.strip():  # one reason at a time; "closed" wins
+            closed.saw_wrong_site(lead, result.site_not_theirs)
     lead.scored_at = datetime.now(timezone.utc)
     db.add(ApiUsage(account_id=lead.account_id, service="claude_scoring",
                     detail=lead.business_name[:300], est_cost_usd=cost))

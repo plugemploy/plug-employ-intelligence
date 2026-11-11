@@ -7,6 +7,8 @@
 - No website, and Overture is unsure the place exists (confidence < NO_SITE_MIN_CONFIDENCE): removed (and new
   searches skip such places, overture._consider).
 - Website says the business closed (Claude, when scoring): flagged only; a person decides.
+- Website taken over by spam (gambling words, website.looks_hijacked; or Claude says the site isn't the business's,
+  scoring site_not_theirs): flagged only, since the business may have moved to a new website.
 
 Removed = moved to Deleted leads with closed_reason shown, and only leads nobody has worked on (removable: status
 New, not in Close, not an imported client, never marked Still open). Others are flagged instead. A flagged lead gets
@@ -31,11 +33,14 @@ REASONS = {
     "dead_dns": "Its website address no longer exists",
     "dead_404": "Its website is gone (page not found)",
     "dead_parked": 'Its website is now a "domain for sale" page',
+    "dead_hijacked": "Its website now shows gambling ads (the web address was likely taken over)",
 }
+WRONG_SITE = "Its website now shows something else: "  # start of the reason when Claude spotted it
 DOWN_ONCE = "Its website didn't load. We'll check again tomorrow"
 DOWN_TWICE = "Its website didn't load on two checks a day apart"
 NO_SITE = "No website, and the map data isn't sure it's still open"
 SITE_REASONS = (*REASONS.values(), DOWN_ONCE, DOWN_TWICE)  # cleared when the website works again
+FLAG_ONLY = ("dead_hijacked",)  # the business may still be open with a new website: a person decides
 NO_SITE_MIN_CONFIDENCE = 0.5  # a place with no website needs Overture at least this sure it's real
 DOWN_RECHECK = timedelta(hours=20)  # a website that didn't load is looked at again the next day
 SAYS = "Website says: "  # start of the reason when Claude read it on the site
@@ -73,7 +78,9 @@ def saw_site(lead: Lead, status: str) -> None:
     """After any look at the lead's website: start the double-check, remove (or flag) on the second sighting, or
     clear a website flag when the site is back. "error" and "blocked" say nothing either way."""
     lead.closed_checked_at = now()
-    if status.startswith("dead"):
+    if status in FLAG_ONLY:
+        flag(lead, REASONS[status])
+    elif status.startswith("dead"):
         if lead.dead_since is None:
             lead.dead_since = lead.closed_checked_at
         elif lead.closed_checked_at - lead.dead_since >= RECHECK_AFTER:
@@ -100,6 +107,16 @@ def saw_closing_words(lead: Lead, words: str) -> None:
         flag(lead, f'{SAYS}"{words[:200]}"')
     elif lead.closed_reason.startswith(SAYS):
         lead.closed_reason = ""  # re-scored and the site no longer says so
+
+
+def saw_wrong_site(lead: Lead, words: str) -> None:
+    """From scoring: Claude's few words when the website isn't the business's own (gambling, adult, another
+    business). Flagged only. "" clears an earlier one."""
+    words = " ".join((words or "").split())
+    if words:
+        flag(lead, WRONG_SITE + words[:150])
+    elif lead.closed_reason.startswith(WRONG_SITE):
+        lead.closed_reason = ""
 
 
 def due(db: Session, account_id: int, limit: int = CHECKS_PER_RUN, only_double_checks: bool = False) -> list[Lead]:
