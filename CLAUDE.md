@@ -197,4 +197,9 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
 - Gmail reconnect (2026-11-11, Render log showed RefreshError invalid_grant): gmail.gmail_service catches RefreshError,
   disconnects, keeps the address in accounts.gmail_lost and raises GmailExpired; leads page + My business show an amber
   "Gmail stopped working ... Connect Gmail again" notice until reconnected. Nightly logs it as one warning line.
+- Find leads holds the territory (2026-11-12): ZIP codes, business types (picker + counts) and the nearby box moved from
+  My business to /search, saved on every click (nightly uses them). "Find leads →" (POST /search) saves, then searches
+  main.pick_search: up to 5 ZIPs x 6 types that still have pairs not searched in 31 days, in listed order, so repeat
+  clicks work through a longer list; all recent -> message. "Save without searching" (action=save). My business keeps
+  description, local pages, Gmail, Close, import, re-score.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

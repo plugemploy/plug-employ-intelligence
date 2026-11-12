@@ -221,7 +221,7 @@ def search_and_save(db: Session, account_id: int, zip_code: str, industry: str) 
 
 
 def includes_nearby(db: Session, account_id: int) -> bool:
-    """Whether thin ZIPs are topped up from just outside them: when the account turned it on (My business), and
+    """Whether thin ZIPs are topped up from just outside them: when the account turned it on (Find leads), and
     always for a Free search, which should show a full list."""
     from app import plans
     account = db.get(Account, account_id)

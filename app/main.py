@@ -809,9 +809,21 @@ SEARCH_MAX_TYPES = 6  # ...and business types (the nightly search still covers t
 
 
 def search_ctx(db, account):
-    return dict(allow=plans.usage(db, account) if account else None,zips=account.zip_list if account else [], industries=account.industry_list if account else [],
+    return dict(allow=plans.usage(db, account) if account else None, zips=account.zip_list if account else [],
                 min_confidence=overture.MIN_CONFIDENCE, max_added=overture.MAX_ADDED,
-                max_zips=SEARCH_MAX_ZIPS, max_types=SEARCH_MAX_TYPES)
+                max_zips=SEARCH_MAX_ZIPS, max_types=SEARCH_MAX_TYPES, categories=catalog.CATEGORIES,
+                all_catalog=catalog.ALL, plan=plans.plan_for(db, account) if account else {})
+
+
+def pick_search(db, account) -> tuple[list[str], list[str]]:
+    """What one Find leads click searches: up to SEARCH_MAX_TYPES business types and SEARCH_MAX_ZIPS ZIP codes that
+    still have something not searched in the last month, in the order listed. So clicking again works through a
+    longer list (the owner has no type cap). Empty = everything was searched recently."""
+    recent = places.recently_searched(db, account.id)
+    zips = account.zip_list
+    types = [t for t in account.industry_list if any(f"{t} in {z}" not in recent for z in zips)][:SEARCH_MAX_TYPES]
+    fresh = [z for z in zips if any(f"{t} in {z}" not in recent for t in types)]
+    return fresh[:SEARCH_MAX_ZIPS], types
 
 
 @app.get("/search")
@@ -820,27 +832,41 @@ def search_form(request: Request, db: Session = Depends(get_session), account=De
     done = job if job and job.status != "running" else None
     return render(request, "search.html", db, account, results=done.result_list if done else None, last_job=done,
                   error=done.error if done else None, running=job if job and job.status == "running" else None,
-                  **search_ctx(db, account))
+                  message=request.query_params.get("msg", ""), **search_ctx(db, account))
+
+
+def back_to_search(msg: str):
+    from urllib.parse import quote
+    return RedirectResponse(f"/search?msg={quote(msg)}", status_code=303)
 
 
 @app.post("/search")
-def run_search(request: Request, zips: list[str] = Form(default=[]), industries: list[str] = Form(default=[]),
+def run_search(zips: list[str] = Form(default=[]), industries: list[str] = Form(default=[]),
+               extra_industries: str = Form(""), include_nearby: str = Form(""), action: str = Form("search"),
                db: Session = Depends(get_session), account=Depends(current_account)):
+    """Save the ZIP codes and business types (they're also what the nightly search uses), then search."""
     if account is None:
         raise HTTPException(400, "Create an account first")
-    error = None
-    if not zips or not industries:
-        error = "Pick at least one ZIP and one industry."
-    elif len(zips) > SEARCH_MAX_ZIPS or len(industries) > SEARCH_MAX_TYPES:
-        error = (f"One search covers up to {SEARCH_MAX_ZIPS} ZIP codes and {SEARCH_MAX_TYPES} business types. "
-                 "Pick fewer, then search again for the rest.")
-    elif search_jobs.latest(db, account.id) and search_jobs.latest(db, account.id).status == "running":
-        error = "A search is already running. It'll show at the top of the page when it's done."
-    if error:
-        return render(request, "search.html", db, account, results=None, error=error, running=None,
-                      **search_ctx(db, account))
-    search_jobs.start(db, account.id, zips, industries)
-    return RedirectResponse("/leads?sort=score", status_code=303)
+    zip_list = [z for z in clean_list(",".join(zips)) if z.isdigit() and len(z) == 5]
+    inds = clean_list(",".join(industries) + "," + extra_industries)
+    if err := plans.territory_error(plans.plan_for(db, account), zip_list, inds):
+        return back_to_search(err + " Nothing was saved.")
+    account.target_zips, account.industries = ",".join(zip_list), ",".join(inds)
+    account.include_nearby = bool(include_nearby)
+    db.commit()
+    if action == "save":
+        return back_to_search("Saved ✓")
+    if not zip_list or not inds:
+        return back_to_search("Add at least one ZIP code and one business type, then click Find leads.")
+    job = search_jobs.latest(db, account.id)
+    if job and job.status == "running":
+        return RedirectResponse(f"/leads?search={job.id}&sort=score", status_code=303)
+    pick_zips, types = pick_search(db, account)
+    if not pick_zips:
+        return back_to_search("Saved ✓. Every ZIP code and business type here was searched in the last month, so "
+                              "there's nothing new to search yet. Add more ZIP codes or business types, or try again next month.")
+    job = search_jobs.start(db, account.id, pick_zips, types)
+    return RedirectResponse(f"/leads?search={job.id}&sort=score", status_code=303)
 
 
 @app.get("/search/status")
@@ -913,18 +939,12 @@ def business_page(request: Request, db: Session = Depends(get_session), account=
 
 
 @app.post("/business")
-def save_business(description: str = Form(""), zips: str = Form(""), industries: list[str] = Form(default=[]),
-                  extra_industries: str = Form(""), watch_pages: str = Form(""), include_nearby: str = Form(""),
+def save_business(description: str = Form(""), watch_pages: str = Form(""),
                   db: Session = Depends(get_session), account=Depends(current_account)):
+    """ZIP codes and business types are saved on Find leads (POST /search)."""
     if account is None:
         raise HTTPException(400, "Create an account first")
-    zip_list = [z for z in clean_list(zips) if z.isdigit() and len(z) == 5]
-    inds = clean_list(",".join(industries) + "," + extra_industries)
-    if err := plans.territory_error(plans.plan_for(db, account), zip_list, inds):
-        return back_to_business(err + " Nothing was saved.")
     account.business_description = description.strip()[:3000]
-    account.target_zips, account.industries = ",".join(zip_list), ",".join(inds)
-    account.include_nearby = bool(include_nearby)
     db.commit()
     local_pages.set_pages(db, account.id, watch_pages.splitlines())
     return RedirectResponse("/business?msg=Saved%20%E2%9C%93", status_code=303)

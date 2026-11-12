@@ -206,7 +206,8 @@ def test_only_the_owner_sees_dollar_amounts(two_accounts):
     on_plan(a, "pro")
     c = client_for(a)
     for page in ("/search", "/usage", "/nightly"):
-        html = c.get(page).text
+        import re
+        html = re.sub(r"(?s)<script.*?</script>", "", c.get(page).text)  # page code may use $ itself
         assert "$" not in html.split("<main", 1)[1], page
     assert "Searches by day" in c.get("/usage").text
     with Session(engine) as db:

@@ -74,9 +74,11 @@ def test_site_domain():
 def test_pages(ids, fake_gmail):
     c = TestClient(app)
     login_as(c, ids["a"])
-    r = c.post("/business", data={"description": "We sell billboards.", "zips": "37919, 37934\n12, 37919",
-                                  "industries": ["Dentist", "Golf", "Florist", "Dentist"]})
-    assert r.status_code == 200
+    r = c.post("/business", data={"description": "We sell billboards."})
+    assert r.status_code == 200 and "are on" in r.text  # ZIPs and types moved to Find leads
+    r = c.post("/search", data={"zips": "37919, 37934\n12, 37919", "industries": ["Dentist", "Golf", "Florist", "Dentist"],
+                                "action": "save"})
+    assert r.status_code == 200 and "Saved" in r.text
     with Session(engine) as db:
         a = db.get(Account, ids["a"])
         assert (a.business_description, a.zip_list, a.industry_list) == (

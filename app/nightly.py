@@ -40,7 +40,7 @@ def next_pairs(db: Session, s: NightlySettings) -> list[tuple[str, str]]:
     """The next ZIP + industry searches, skipping ones done in the last 30 days."""
     done = places.recently_searched(db, s.account_id)
     account = db.get(Account, s.account_id)
-    zips, inds = account.zip_list, account.industry_list  # from the "My business" page
+    zips, inds = account.zip_list, account.industry_list  # saved on Find leads
     pairs = [(z, i) for z in zips for i in inds if f"{i} in {z}" not in done]
     return pairs[: s.searches_per_night]
 

@@ -266,14 +266,14 @@ def test_nearby_box_on_my_business_and_free_search_always_tops_up(acct):
     from tests.conftest import login_as, on_plan
     c = TestClient(app)
     login_as(c, acct)
-    assert "Also include businesses just outside my ZIP codes" in c.get("/business").text
-    c.post("/business", data={"description": "x", "zips": "37934", "industries": ["Dentist"], "include_nearby": "1"})
+    assert "Also include businesses just outside my ZIP codes" in c.get("/search").text
+    c.post("/search", data={"zips": "37934", "industries": ["Dentist"], "include_nearby": "1", "action": "save"})
     with Session(engine) as db:
         assert db.get(Account, acct).include_nearby and overture.includes_nearby(db, acct)
-    c.post("/business", data={"description": "x", "zips": "37934", "industries": ["Dentist"]})
+    c.post("/search", data={"zips": "37934", "industries": ["Dentist"], "action": "save"})
     with Session(engine) as db:
         assert not db.get(Account, acct).include_nearby and not overture.includes_nearby(db, acct)
     on_plan(acct, "free")
     with Session(engine) as db:
         assert overture.includes_nearby(db, acct)  # a Free search shows a full list
-    assert "Also include businesses just outside" not in c.get("/business").text
+    assert "Also include businesses just outside" not in c.get("/search").text

@@ -86,8 +86,8 @@ def test_meter_shows_and_repeats_skipped(acct, monkeypatch):
     from app import search_jobs
     monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: fn(*a))  # run the search right away
     r = c.post("/search", data={"zips": ["37934"], "industries": ["Dentist", "Salon"]}, follow_redirects=False)
-    assert r.headers["location"] == "/leads?sort=score"
-    assert calls == ["Salon"] and "skipped (no charge)" in c.get("/search").text
+    assert r.headers["location"].startswith("/leads?search=")
+    assert calls == ["Salon"]  # Dentist in 37934 was searched this month: left out
 
 
 def test_search_runs_in_background_with_bar(acct, monkeypatch):
@@ -102,7 +102,7 @@ def test_search_runs_in_background_with_bar(acct, monkeypatch):
     page = c.get("/leads").text
     assert "Generating new leads" in page and "Searching 0 of 2" in page
     r = c.post("/search", data={"zips": ["37934"], "industries": ["Dentist"]})
-    assert "already running" in r.text and len(started) == 1  # no second search
+    assert "Generating new leads" in r.text and len(started) == 1  # no second search: back to the one running
     from app import overture
     monkeypatch.setattr(overture, "search_and_save", lambda db, aid, z, i: {
         "zip": z, "industry": i, "requests": 1, "found": 5, "added": 3, "skipped_closed": 0,
@@ -125,13 +125,13 @@ def test_premium_territory_limits_and_unlimited_meter(acct):
         db.commit()
     assert "Unlimited searches" in c.get("/leads").text
     zips = ", ".join(str(37000 + i) for i in range(21))
-    r = c.post("/business", data={"description": "x", "zips": zips, "industries": ["Dentist"]})
+    r = c.post("/search", data={"zips": zips, "industries": ["Dentist"], "action": "save"})
     assert "up to 20 ZIP codes" in r.text
-    r = c.post("/business", data={"description": "x", "zips": "37934", "extra_industries": ", ".join(f"Type {i}" for i in range(7))})
+    r = c.post("/search", data={"zips": "37934", "extra_industries": ", ".join(f"Type {i}" for i in range(7)), "action": "save"})
     assert "up to 6 business types" in r.text
     with Session(engine) as db:
         assert db.get(Account, acct["acct"]).target_zips == "37934"  # nothing saved
-    c.post("/business", data={"description": "x", "zips": ", ".join(str(37000 + i) for i in range(20)), "industries": ["Dentist"]})
+    c.post("/search", data={"zips": ", ".join(str(37000 + i) for i in range(20)), "industries": ["Dentist"], "action": "save"})
     with Session(engine) as db:
         assert len(db.get(Account, acct["acct"]).zip_list) == 20
 
@@ -148,21 +148,37 @@ def test_every_plan_keeps_77_percent():
     assert prem["searches"] * plans.SCORING_COST_PER_SEARCH <= prem["allowance_usd"]
 
 
-def test_one_search_is_capped_at_5_zips_and_6_types(acct, monkeypatch):
+def test_find_leads_saves_and_works_through_the_zips(acct, monkeypatch):
     from app import search_jobs
+    from app.models import ApiUsage, SearchJob
     started = []
     monkeypatch.setattr(search_jobs, "spawn", lambda fn, *a: started.append(a))
     c = TestClient(app)
     c.cookies.set(auth.SESSION_COOKIE, auth.make_session(acct["user"]))
-    assert "up to 5 per search" in c.get("/search").text
-    six_zips = ["37934", "37922", "37932", "37923", "37919", "37909"]
-    r = c.post("/search", data={"zips": six_zips, "industries": ["Dentist"]})
-    assert "up to 5 ZIP codes and 6 business types" in r.text and not started
+    assert "Find leads →" in c.get("/search").text
+    six_zips = "37934, 37922, 37932, 37923, 37919, 37909"
     seven_types = ["Dentist", "Salon", "Florist", "Bakery", "Roofing", "HVAC", "Plumber"]
-    r = c.post("/search", data={"zips": ["37934"], "industries": seven_types})
-    assert "up to 5 ZIP codes and 6 business types" in r.text and not started
-    r = c.post("/search", data={"zips": six_zips[:5], "industries": seven_types[:6]}, follow_redirects=False)
-    assert r.status_code == 303 and len(started) == 1
+    r = c.post("/search", data={"zips": "37934", "industries": seven_types})
+    assert "up to 6 business types" in r.text and not started  # over the plan: nothing saved or searched
+    r = c.post("/search", data={"zips": six_zips, "industries": ["Dentist"]}, follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"].startswith("/leads?search=") and len(started) == 1
+    with Session(engine) as db:
+        assert len(db.get(Account, acct["acct"]).zip_list) == 6  # all saved (the nightly search uses them)
+        job = search_jobs.latest(db, acct["acct"])
+        assert job.zip_list == ["37934", "37922", "37932", "37923", "37919"]  # one click covers 5
+        job.status = "done"
+        for z in job.zip_list:  # those 5 were searched
+            db.add(ApiUsage(account_id=acct["acct"], service="overture_search", detail=f"Dentist in {z}", est_cost_usd=0))
+        db.commit()
+    c.post("/search", data={"zips": six_zips, "industries": ["Dentist"]}, follow_redirects=False)
+    with Session(engine) as db:
+        job = search_jobs.latest(db, acct["acct"])
+        assert job.zip_list == ["37909"]  # the next click picks up the rest
+        job.status = "done"
+        db.add(ApiUsage(account_id=acct["acct"], service="overture_search", detail="Dentist in 37909", est_cost_usd=0))
+        db.commit()
+    r = c.post("/search", data={"zips": six_zips, "industries": ["Dentist"]})
+    assert "nothing new to search yet" in r.text and len(started) == 2
 
 
 def test_beta_stops_finding_leads_at_its_lead_cap(acct, monkeypatch):
