@@ -194,6 +194,9 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   Unreadable/expired token -> Overture only; /beta shows token_status 5 days before expiry. Test on Teri's ZIPs:
   ~4% of matched places closed, ~8% different phone, Foursquare has ~55% of Overture's. scripts/fsq_test.py re-runs it.
   Credit line in /privacy (Apache 2.0).
+  2026-11-12: Render's FOURSQUARE_TOKEN differed from .env (S3 403 "No credentials are provided": catalog accepted it but
+  vended no file credentials). Fixed by re-pasting the .env token in Render. /beta "Test Foursquare now" (foursquare.test_read)
+  shows the full error. On renewal, update BOTH .env and Render.
 - Gmail reconnect (2026-11-11, Render log showed RefreshError invalid_grant): gmail.gmail_service catches RefreshError,
   disconnects, keeps the address in accounts.gmail_lost and raises GmailExpired; leads page + My business show an amber
   "Gmail stopped working ... Connect Gmail again" notice until reconnected. Nightly logs it as one warning line.
