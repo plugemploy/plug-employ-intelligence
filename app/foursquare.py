@@ -72,7 +72,8 @@ def token_status() -> str:
 def _connect():
     import duckdb
     con = duckdb.connect()
-    con.execute("INSTALL httpfs; LOAD httpfs; INSTALL iceberg; LOAD iceberg; SET memory_limit='400MB'; SET threads=2;")
+    con.execute("INSTALL httpfs; LOAD httpfs; INSTALL iceberg; LOAD iceberg; SET memory_limit='400MB'; SET threads=2; "
+                "SET s3_region='us-east-1'; SET http_retries=5;")  # Foursquare's files live in us-east-1
     con.execute("CREATE SECRET fsq (TYPE iceberg, TOKEN ?)", [FOURSQUARE_TOKEN])
     con.execute(f"ATTACH 'places' AS fsq (TYPE iceberg, SECRET fsq, ENDPOINT '{CATALOG}')")
     return con
@@ -109,16 +110,38 @@ def fetch_zip(zip_code: str) -> list[dict] | None:
         if hit and time.time() - hit[0] < CACHE_SECONDS:
             return hit[1]
         try:
-            places = _read(zip_code)
+            try:
+                places = _read(zip_code)
+            except Exception:  # one retry with a fresh connection (and fresh file permissions from Foursquare)
+                time.sleep(2)
+                places = _read(zip_code)
         except Exception as exc:  # expired token, network: carry on with Overture alone
             log.warning("Foursquare read failed for %s: %s", zip_code, exc)
-            last_error.update(text=str(exc).splitlines()[0][:120], at=time.time())
+            last_error.update(text=" ".join(str(exc).split())[:600], at=time.time())
             return None
         last_error.update(text="", at=0.0)
         if len(_cache) >= CACHE_ZIPS:
             _cache.clear()
         _cache[zip_code] = (time.time(), places)
         return places
+
+
+def test_read(zip_code: str = "75032") -> str:
+    """For the owner's "Test Foursquare now" button on /beta: one fresh read, and what happened."""
+    if not configured():
+        return "FOURSQUARE_TOKEN isn't set on this server."
+    started = time.time()
+    try:
+        with _lock:
+            n = len(_read(zip_code))
+    except Exception as exc:
+        text = " ".join(str(exc).split())[:600]
+        last_error.update(text=text, at=time.time())
+        return f"Foursquare test failed for {zip_code}: {text}"
+    last_error.update(text="", at=0.0)
+    ends = token_expires()
+    return (f"Foursquare works: {n:,} places in {zip_code} in {time.time() - started:.0f}s."
+            + (f" Key good until {ends.astimezone():%b %-d}." if ends else ""))
 
 
 def warm(zips: list[str]) -> None:

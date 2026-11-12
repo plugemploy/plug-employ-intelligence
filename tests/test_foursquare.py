@@ -92,3 +92,14 @@ def test_owner_is_warned_before_the_key_expires(monkeypatch):
     assert "expires on" in foursquare.token_status()
     monkeypatch.setattr(foursquare, "FOURSQUARE_TOKEN", _token(now - timedelta(days=1)))
     assert "expired on" in foursquare.token_status()
+
+
+def test_owner_test_button_reports_the_error(monkeypatch):
+    monkeypatch.setattr(foursquare, "configured", lambda: True)
+    def boom(z):
+        raise RuntimeError("HTTP GET error reading 's3://bucket/x' (HTTP 403 Forbidden)")
+    monkeypatch.setattr(foursquare, "_read", boom)
+    assert "HTTP 403 Forbidden" in foursquare.test_read()
+    assert "HTTP 403 Forbidden" in foursquare.token_status()  # the full reason, not cut off
+    monkeypatch.setattr(foursquare, "_read", lambda z: [{}] * 12)
+    assert "Foursquare works: 12 places" in foursquare.test_read() and foursquare.token_status() == ""

@@ -1536,6 +1536,13 @@ def beta_give_trial(org_id: int = Form(...), db: Session = Depends(get_session),
                             status_code=303)
 
 
+@app.post("/beta/fsq-test")
+def beta_fsq_test(db: Session = Depends(get_session), user: User = Depends(current_user)):
+    """The owner checks that this server can read Foursquare (one ZIP, a few seconds)."""
+    require_owner(db, user)
+    return RedirectResponse(f"/beta?msg={quote(foursquare.test_read())}", status_code=303)
+
+
 @app.post("/beta/give-comp")
 def beta_give_comp(org_id: int = Form(...), db: Session = Depends(get_session), user: User = Depends(current_user)):
     """The owner lifts a Beta company's lead limit. Their 30 days still run from when their Beta started."""
