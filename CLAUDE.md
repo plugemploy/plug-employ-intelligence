@@ -194,4 +194,7 @@ Full plan and decisions: docs/PLAN.md. How to run: README.md.
   Unreadable/expired token -> Overture only; /beta shows token_status 5 days before expiry. Test on Teri's ZIPs:
   ~4% of matched places closed, ~8% different phone, Foursquare has ~55% of Overture's. scripts/fsq_test.py re-runs it.
   Credit line in /privacy (Apache 2.0).
+- Gmail reconnect (2026-11-11, Render log showed RefreshError invalid_grant): gmail.gmail_service catches RefreshError,
+  disconnects, keeps the address in accounts.gmail_lost and raises GmailExpired; leads page + My business show an amber
+  "Gmail stopped working ... Connect Gmail again" notice until reconnected. Nightly logs it as one warning line.
 - Next: attorney review of /privacy + /terms, Google verification (Gmail), territory lock, Google verification, per-account Close status mapping.

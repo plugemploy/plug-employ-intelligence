@@ -122,3 +122,29 @@ def test_export_csv(ids, fake_gmail):
     assert r.text.lstrip("﻿").startswith("Business,Contact")
     assert "Never Emailed" in r.text and "Farragut Dental" not in r.text  # follows the filters
     assert "Export CSV" in c.get("/leads").text
+
+
+def test_gmail_google_stopped_accepting_disconnects_and_asks_to_reconnect(ids, monkeypatch):
+    from google.auth.exceptions import RefreshError
+    from google.oauth2.credentials import Credentials
+
+    class Expired:
+        valid, refresh_token = False, "r"
+
+        def refresh(self, request):
+            raise RefreshError("invalid_grant: Bad Request")
+    monkeypatch.setattr(gmail, "configured", lambda: True)
+    monkeypatch.setattr(gmail, "_fernet", lambda: type("F", (), {"decrypt": staticmethod(lambda b: b"{}")})())
+    monkeypatch.setattr(Credentials, "from_authorized_user_info", staticmethod(lambda info: Expired()))
+    with Session(engine) as db:
+        a = db.get(Account, ids["a"])
+        a.gmail_address = "owner@example.com"
+        db.commit()
+        with pytest.raises(gmail.GmailExpired):
+            gmail.check_account(db, ids["a"])
+        a = db.get(Account, ids["a"])
+        assert (a.gmail_token_enc, a.gmail_address, a.gmail_lost) == ("", "", "owner@example.com")
+    c = TestClient(app)
+    login_as(c, ids["a"])
+    assert "Gmail stopped working for owner@example.com" in c.get("/leads").text
+    assert "Gmail stopped" in c.get("/business").text

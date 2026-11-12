@@ -66,6 +66,8 @@ def run_for_account(account_id: int, max_searches: int | None = None) -> Nightly
             db.commit()  # keep the counts even if a later step fails and rolls back
             try:
                 gmail.check_account(db, account_id)
+            except gmail.GmailExpired as exc:  # disconnected; they see "Reconnect Gmail"
+                log.warning("Account %s: %s", account_id, exc)
             except Exception:  # a Gmail hiccup shouldn't stop the lead search
                 log.exception("Gmail check failed")
             website.check_unchecked(db, account_id, limit=1000)

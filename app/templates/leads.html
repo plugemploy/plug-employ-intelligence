@@ -91,6 +91,7 @@
   </div>
 </details>
 {% endif %}
+{% if account and account.gmail_lost and not account.gmail_address %}<p class="mb-4 rounded bg-amber-50 border border-amber-300 p-3 text-sm text-amber-900" role="status">⚠️ Gmail stopped working for {{ account.gmail_lost }}: Google no longer accepts the connection, so emailed tags, follow-ups and the Monday digest are paused. <a href="/business#gmail" class="underline font-medium">Connect Gmail again</a>.</p>{% endif %}
 {% if message %}<p class="mb-4 rounded bg-blue-50 border border-blue-200 p-3 text-sm text-blue-900">{{ message }}</p>{% endif %}
 {% if unscored and has_claude_key %}
 <form method="post" action="/leads/score" class="mb-4"

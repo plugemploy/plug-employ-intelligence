@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from urllib.parse import urlsplit
 
 from cryptography.fernet import Fernet
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -69,7 +70,7 @@ def finish_connect(db: Session, state: str, code: str) -> Account:
     creds = flow.credentials
     profile = build("gmail", "v1", credentials=creds, cache_discovery=False).users().getProfile(userId="me").execute()
     account = db.get(Account, account_id)
-    account.gmail_address = profile.get("emailAddress", "")
+    account.gmail_address, account.gmail_lost = profile.get("emailAddress", ""), ""
     account.gmail_token_enc = _fernet().encrypt(creds.to_json().encode()).decode()
     db.commit()
     return account
@@ -91,12 +92,26 @@ def disconnect(db: Session, account: Account) -> None:
     db.commit()
 
 
+class GmailExpired(Exception):
+    """Google no longer accepts this account's Gmail connection (revoked, password changed, or expired)."""
+
+
 def gmail_service(db: Session, account: Account):
-    """Gmail API client for this account. Kept separate so tests can replace it."""
+    """Gmail API client for this account. Kept separate so tests can replace it. When Google rejects the saved
+    permission, the connection is removed (account.gmail_lost keeps the address for a "Reconnect" notice) and
+    GmailExpired is raised."""
     info = json.loads(_fernet().decrypt(account.gmail_token_enc.encode()))
     creds = Credentials.from_authorized_user_info(info)  # keep the permissions that were actually granted
     if not creds.valid and creds.refresh_token:
-        creds.refresh(GoogleRequest())
+        try:
+            creds.refresh(GoogleRequest())
+        except RefreshError:
+            lost = account.gmail_address or "your Gmail"
+            disconnect(db, account)
+            account.gmail_lost = lost[:300]
+            db.commit()
+            raise GmailExpired(f"Gmail stopped working for {lost}: Google no longer accepts the connection. "
+                               "Please connect Gmail again on My business.") from None
         account.gmail_token_enc = _fernet().encrypt(creds.to_json().encode()).decode()
         db.commit()
     return build("gmail", "v1", credentials=creds, cache_discovery=False)

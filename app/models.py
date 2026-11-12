@@ -54,6 +54,8 @@ class Account(Base):
     industries: Mapped[str] = mapped_column(Text, default="", server_default="")  # comma-separated
     # Connected Gmail (read-only). The access token is stored encrypted.
     gmail_address: Mapped[str] = mapped_column(String(300), default="", server_default="")
+    # The address whose connection Google stopped accepting (app/gmail.py), for a "Reconnect Gmail" notice.
+    gmail_lost: Mapped[str] = mapped_column(String(300), default="", server_default="")
     gmail_token_enc: Mapped[str] = mapped_column(Text, default="", server_default="")
     gmail_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     gmail_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # ticked "we don't sell your data"

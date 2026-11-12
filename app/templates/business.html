@@ -39,7 +39,7 @@
   <button class="rounded border px-3 py-1 hover:bg-slate-50">↻ Re-score all my leads</button>
   <span class="text-xs text-slate-500">After changing your description, so every lead is judged the new way.</span>
 </form>
-<section class="bg-white rounded-xl shadow p-6 max-w-3xl">
+<section id="gmail" class="bg-white rounded-xl shadow p-6 max-w-3xl">
   <h2 class="font-semibold mb-1">Gmail: already emailed?</h2>
   <p class="text-sm text-slate-600 mb-3">Connect Gmail (read-only) and the app checks whether you've emailed each lead's business,
     tags it <span class="rounded-full bg-purple-100 text-purple-800 px-2 py-0.5 text-xs">Emailed · date</span>, and adds a follow-up
@@ -70,6 +70,9 @@
       click <b>Disconnect</b>, then <b>Connect Gmail</b> again and allow the new permission.</p>
     {% endif %}
   {% elif gmail_ready %}
+    {% if account.gmail_lost %}<p class="text-sm mb-3 rounded bg-amber-50 border border-amber-300 p-3 text-amber-900">⚠️ Gmail stopped
+      working for <b>{{ account.gmail_lost }}</b>: Google no longer accepts the connection (it was removed in Google settings,
+      the password changed, or the permission expired). Connect it again below.</p>{% endif %}
     <form method="get" action="/gmail/connect" class="grid gap-3 text-sm">
       <label class="flex items-start gap-2 rounded border border-slate-200 bg-slate-50 p-3">
         <input type="checkbox" name="agree" value="1" required class="mt-1">
