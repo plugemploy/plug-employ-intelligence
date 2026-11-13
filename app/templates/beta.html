@@ -95,7 +95,17 @@
         <span class="block text-xs {{ 'text-slate-500' if r.agreed else 'text-amber-700' }}">{{ "agreed to terms " ~ r.agreed.astimezone().strftime("%b %-d") if r.agreed else "hasn't agreed to terms yet" }}</span>
         {% if not r.setup_done %}<span class="text-xs text-amber-700">setup not finished</span>{% endif %}
         {% for a in r.accounts %}<a href="/clients/import?account_id={{ a.id }}" class="block text-xs text-blue-700 hover:underline">
-          ⬆ Import clients{% if r.accounts|length > 1 %} ({{ a.name }}){% endif %}</a>{% endfor %}
+          ⬆ Import clients{% if r.accounts|length > 1 %} ({{ a.name }}){% endif %}</a>
+        {% if a.close_key_enc %}<form method="post" action="/beta/close-remove" class="text-xs mt-1"
+          onsubmit='return confirm({{ ("Remove the Close key for " ~ a.name ~ "?")|tojson }})'>
+          <input type="hidden" name="account_id" value="{{ a.id }}"><span class="text-emerald-700">📞 Close connected</span>
+          <button class="text-slate-600 hover:underline ml-1">Remove</button></form>
+        {% else %}<details class="text-xs mt-1"><summary class="cursor-pointer text-blue-700">📞 Add Close key{% if r.accounts|length > 1 %} ({{ a.name }}){% endif %}</summary>
+          <form method="post" action="/beta/close-key" class="mt-1 flex gap-1">
+            <input type="hidden" name="account_id" value="{{ a.id }}">
+            <input type="password" name="api_key" aria-label="Close API key for {{ a.name }}" placeholder="Close API key" autocomplete="off"
+              class="border rounded px-2 py-1 w-40">
+            <button class="rounded bg-emerald-700 text-white px-2 py-1">Connect</button></form></details>{% endif %}{% endfor %}
         {% if r.org.plan_tier == "comp" %}<span class="block text-xs text-emerald-700 mt-1">⭐ No lead limit</span>
         <form method="post" action="/beta/end-comp" class="mt-1"
           onsubmit='return confirm({{ ("Put the usual 1,000-lead Beta limit back for " ~ r.org.name ~ "?")|tojson }})'>

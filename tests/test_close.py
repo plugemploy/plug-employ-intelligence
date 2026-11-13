@@ -202,3 +202,36 @@ def test_send_all_runs_in_the_background_and_never_twice(ids, monkeypatch):
     assert "Sent 2 leads to Close" in page and "Send all" not in page
     assert "already%20in%20Close" in c.post("/close/send-all", follow_redirects=False).headers["location"]
     assert len(fake.created) == 2  # sending all again adds nothing
+
+
+def test_owner_pastes_a_testers_close_key_on_beta_results(ids, monkeypatch):
+    from app import auth
+    from app.models import Organization
+    monkeypatch.setattr(close_crm, "CloseClient", lambda key: FakeMe(org="Tester Media"))
+    with Session(engine) as db:
+        tester = db.get(Account, ids)
+        if tester.org_id is None:
+            org = Organization(name="Test: Close tester org", plan="trial", plan_tier="beta")
+            db.add(org)
+            db.flush()
+            tester.org_id = org.id
+        owner_org = Organization(name="Test: Owner Close", plan="active", plan_tier="owner")
+        db.add(owner_org)
+        db.flush()
+        owner_acct = auth.new_account(db, owner_org.id, "Test: Owner Close Pub").id
+        db.commit()
+    tester_client = TestClient(app)
+    login_as(tester_client, ids)
+    assert tester_client.post("/beta/close-key", data={"account_id": ids, "api_key": "k"}).status_code == 404  # owner only
+    owner = TestClient(app)
+    login_as(owner, owner_acct)
+    r = owner.post("/beta/close-key", data={"account_id": ids, "api_key": "api_for_tester"})
+    assert "connected to Close (Tester Media)" in r.text and "api_for_tester" not in r.text
+    with Session(engine) as db:
+        assert close_crm.key_for(db, db.get(Account, ids)) == "api_for_tester"
+    assert "Close connected" in owner.get("/beta").text
+    owner.post("/beta/close-remove", data={"account_id": ids})
+    with Session(engine) as db:
+        assert db.get(Account, ids).close_key_enc == ""
+        db.execute(delete(Organization).where(Organization.name.like("Test: Owner Close%")))
+        db.commit()

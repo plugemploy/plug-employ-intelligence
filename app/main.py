@@ -1543,6 +1543,37 @@ def beta_fsq_test(db: Session = Depends(get_session), user: User = Depends(curre
     return RedirectResponse(f"/beta?msg={quote(foursquare.test_read())}", status_code=303)
 
 
+@app.post("/beta/close-key")
+def beta_close_key(account_id: int = Form(...), api_key: str = Form(""), db: Session = Depends(get_session),
+                   user: User = Depends(current_user)):
+    """The owner pastes a tester's Close API key for them (checked with Close, stored encrypted on their account)."""
+    require_owner(db, user)
+    target = db.get(Account, account_id)
+    if target is None:
+        raise HTTPException(404)
+    try:
+        org_name = close_crm.connect(db, target, api_key)
+    except ValueError as exc:
+        msg = str(exc)
+    except httpx.HTTPError as exc:
+        msg = f"Couldn't reach Close: {str(exc).splitlines()[0]}"
+    else:
+        msg = f"{target.name} is connected to Close{f' ({org_name})' if org_name else ''}."
+        if not plans.has_close(db, target):
+            msg += " Their plan doesn't include Close, so it stays off until they're on the Beta or $49 plan."
+    return RedirectResponse(f"/beta?msg={quote(msg)}", status_code=303)
+
+
+@app.post("/beta/close-remove")
+def beta_close_remove(account_id: int = Form(...), db: Session = Depends(get_session), user: User = Depends(current_user)):
+    require_owner(db, user)
+    target = db.get(Account, account_id)
+    if target is None:
+        raise HTTPException(404)
+    close_crm.disconnect(db, target)
+    return RedirectResponse(f"/beta?msg={quote(f'Removed the Close key for {target.name}.')}", status_code=303)
+
+
 @app.post("/beta/give-comp")
 def beta_give_comp(org_id: int = Form(...), db: Session = Depends(get_session), user: User = Depends(current_user)):
     """The owner lifts a Beta company's lead limit. Their 30 days still run from when their Beta started."""
